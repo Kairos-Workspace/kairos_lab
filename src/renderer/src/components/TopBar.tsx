@@ -1,0 +1,106 @@
+import { SPEED_OPTIONS, SYMBOLS, TIMEFRAMES } from '@shared/types'
+import { sessionAt, formatReplayClock } from '@core/candles/session'
+import { canShowTimeframe, localSymbols } from '@core/candles/dataset'
+import { BrandMark } from './BrandMark'
+import { Icon } from './Icon'
+import { ThemeToggle } from './ThemeToggle'
+import { useCurrentCandle } from '../store/selectors'
+import { useAppStore } from '../store/useAppStore'
+
+export function TopBar(): React.JSX.Element {
+  const symbol = useAppStore((s) => s.symbol)
+  const timeframe = useAppStore((s) => s.displayTimeframe)
+  const setTimeframe = useAppStore((s) => s.setTimeframe)
+  const selectSymbol = useAppStore((s) => s.selectSymbol)
+  const speed = useAppStore((s) => s.speed)
+  const setSpeed = useAppStore((s) => s.setSpeed)
+  const mode = useAppStore((s) => s.mode)
+  const hideDate = useAppStore((s) => s.hideDate)
+  const candle = useCurrentCandle()
+  const datasets = useAppStore((s) => s.datasets)
+  const datasetId = useAppStore((s) => s.datasetId)
+  const busy = useAppStore((s) => s.busy)
+  const leaveWorkspace = useAppStore((s) => s.leaveWorkspace)
+  const activeStrategyId = useAppStore((s) => s.activeStrategyId)
+  const strategies = useAppStore((s) => s.strategies)
+  const activeName = strategies.find((s) => s.id === activeStrategyId)?.name
+  const clock = candle ? formatReplayClock(candle.timestamp) : null
+  const session = candle ? sessionAt(candle.timestamp) : '—'
+  const stored = localSymbols(datasets)
+  const pairs = stored.length > 0 ? stored : [...SYMBOLS]
+
+  return (
+    <header className="topbar">
+      <div className="brand">
+        <button
+          className="icon-btn brand-back"
+          onClick={leaveWorkspace}
+          title="Strategy library"
+          aria-label="Back to strategy library"
+        >
+          <Icon name="back" />
+        </button>
+        <BrandMark subtitle={activeName ? `${activeName} · tester` : 'Strategy tester'} />
+      </div>
+      <div className="top-controls">
+        <label>
+          Symbol
+          <select value={symbol} onChange={(e) => void selectSymbol(e.target.value)}>
+            {pairs.map((pair) => (
+              <option key={pair} value={pair}>
+                {pair}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Timeframe
+          <select
+            value={timeframe}
+            onChange={(e) => void setTimeframe(e.target.value as typeof timeframe)}
+          >
+            {TIMEFRAMES.map((tf) => (
+              <option key={tf} value={tf} disabled={!canShowTimeframe(datasets, symbol, tf)}>
+                {tf}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Date
+          <div className="chip">
+            {clock ? (hideDate && mode === 'replay' ? '••••-••-••' : clock.date) : '—'}
+          </div>
+        </label>
+        <label>
+          Time
+          <div className="chip">{clock ? clock.time : '—'}</div>
+        </label>
+        <label>
+          Session
+          <div className="chip">{session}</div>
+        </label>
+        <label>
+          Speed
+          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+            {SPEED_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}x
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="session-chip">
+        <ThemeToggle />
+        <div className={`chip ${datasetId ? 'live' : ''}`}>
+          {busy
+            ? 'Loading local tape…'
+            : datasetId
+              ? `${datasets.find((d) => d.id === datasetId)?.candleCount.toLocaleString() ?? ''} bars`
+              : 'No local tape'}
+        </div>
+      </div>
+    </header>
+  )
+}

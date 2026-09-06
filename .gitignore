@@ -1,0 +1,17 @@
+node_modules/
+out/
+dist/
+release/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/csv/*.csv
+data/csv/*.meta.json
+.DS_Store
+*.log
+coverage/
+.dukascopy-cache/
+.vite/
+*.tsbuildinfo
+.idea/
+.vscode/

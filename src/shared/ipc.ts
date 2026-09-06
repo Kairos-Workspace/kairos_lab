@@ -1,0 +1,22 @@
+export const IPC = {
+  DATASETS_LIST: 'datasets:list',
+  DATASETS_CANDLES: 'datasets:candles',
+  DATASETS_DOWNLOAD: 'datasets:download',
+  DATASETS_REFRESH: 'datasets:refresh',
+  DATASETS_IMPORT: 'datasets:import',
+  DATASETS_DEMO: 'datasets:demo',
+  DATASETS_DELETE: 'datasets:delete',
+  DATASETS_GAPS: 'datasets:gaps',
+  SESSIONS_LIST: 'sessions:list',
+  SESSIONS_SAVE: 'sessions:save',
+  SESSIONS_LOAD: 'sessions:load',
+  SESSIONS_DELETE: 'sessions:delete',
+  STRATEGIES_LIST: 'strategies:list',
+  STRATEGIES_SAVE: 'strategies:save',
+  STRATEGIES_DELETE: 'strategies:delete',
+  PREFS_LOAD: 'prefs:load',
+  PREFS_SAVE: 'prefs:save',
+  TRADES_SAVE: 'trades:save',
+  TRADES_LIST: 'trades:list',
+  DB_PATH: 'db:path'
+} as const
