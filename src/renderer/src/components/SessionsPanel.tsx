@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { calculatePerformance } from '@core/performance/stats'
+import { ConfirmIconButton } from './ConfirmIconButton'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 
@@ -34,6 +35,9 @@ export function SessionsPanel(): React.JSX.Element {
         Live: {live.totalTrades} trades · {live.winRate.toFixed(1)}% · {live.netPnl >= 0 ? '+' : ''}
         ${live.netPnl.toFixed(0)}
       </p>
+      {sessions.length === 0 ? (
+        <div className="panel-empty">No saved sessions yet — save your current backtest to keep it.</div>
+      ) : null}
       {sessions.map((s) => (
         <div key={s.id} className="dataset">
           <div>
@@ -52,14 +56,12 @@ export function SessionsPanel(): React.JSX.Element {
             >
               <Icon name="open" />
             </button>
-            <button
-              className="icon-btn danger"
-              onClick={() => void deleteSession(s.id)}
-              title="Delete session"
-              aria-label="Delete session"
-            >
-              <Icon name="trash" />
-            </button>
+            <ConfirmIconButton
+              icon="trash"
+              label="Delete session"
+              confirmLabel={`Click again to delete ${s.name}`}
+              onConfirm={() => void deleteSession(s.id)}
+            />
           </div>
         </div>
       ))}

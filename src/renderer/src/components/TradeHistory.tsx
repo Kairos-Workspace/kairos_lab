@@ -46,6 +46,17 @@ export function TradeHistory(): React.JSX.Element {
           </tr>
         </thead>
         <tbody>
+          {rows.length === 0 ? (
+            <tr data-empty="true">
+              <td colSpan={7}>
+                <div className="panel-empty">
+                  {trades.length === 0
+                    ? 'No trades yet — take a setup during replay to start building your history.'
+                    : 'No trades match this filter.'}
+                </div>
+              </td>
+            </tr>
+          ) : null}
           {rows.map((t, i) => {
             const clock = formatReplayClock(t.openedAt)
             return (

@@ -3,6 +3,7 @@ import { STRATEGY_CATALOG } from '@core/strategy/registry'
 import { DEFAULT_STRATEGY_SETTINGS } from '@shared/constants'
 import type { StrategySettings } from '@shared/types'
 import { BrandMark } from './BrandMark'
+import { ConfirmIconButton } from './ConfirmIconButton'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
@@ -140,17 +141,13 @@ export function StrategyLibrary(): React.JSX.Element {
                     </div>
                   </dl>
                 </button>
-                <button
-                  className="icon-btn strategy-delete"
-                  title="Delete strategy"
-                  aria-label={`Delete ${s.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    void deleteSavedStrategy(s.id)
-                  }}
-                >
-                  <Icon name="trash" />
-                </button>
+                <ConfirmIconButton
+                  className="strategy-delete"
+                  icon="trash"
+                  label="Delete strategy"
+                  confirmLabel={`Click again to delete ${s.name}`}
+                  onConfirm={() => void deleteSavedStrategy(s.id)}
+                />
               </article>
             ))}
           </div>

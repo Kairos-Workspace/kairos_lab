@@ -193,6 +193,7 @@ select:disabled {
   flex-shrink: 0;
   background: #050507;
   border-radius: 10px;
+  border: 1px solid var(--rule);
 }
 
 .brand em {
@@ -535,6 +536,17 @@ select:disabled {
   color: var(--bear);
 }
 
+.danger:hover {
+  border-color: var(--bear);
+  color: var(--bear);
+}
+
+.danger[data-armed='true'] {
+  background: var(--bear);
+  border-color: var(--bear);
+  color: #fff;
+}
+
 .right-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -695,8 +707,22 @@ select:disabled {
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
 }
 
-.history-table tr {
+.history-table tbody tr:not([data-empty]) {
   cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.history-table tbody tr:not([data-empty]):hover {
+  background: var(--steel);
+}
+
+.panel-empty {
+  padding: 18px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-sm);
 }
 
 .filters {
