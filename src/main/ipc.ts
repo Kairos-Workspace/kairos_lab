@@ -25,7 +25,7 @@ import {
   saveStrategy
 } from './database/repositories'
 import { latestWindow } from '@core/market/catalog'
-import { csvCandles, deleteCsvTape, isCsvDataset, refreshCsvDatasets, writeCsvTape } from './data/csvTape'
+import { csvCandles, deleteCsvTape, isCsvDataset, refreshCsvDatasets } from './data/csvTape'
 import { fetchMarketCandles } from './data/fetchMarket'
 
 function handle(channel: string, listener: (...args: unknown[]) => unknown): void {
@@ -80,7 +80,6 @@ export function registerIpc(): void {
         candles,
         gaps: report.gaps
       })
-      writeCsvTape(payload.symbol, payload.timeframe, candles)
       return { dataset, report, datasets: mergedDatasets() }
     }
   )
@@ -126,7 +125,6 @@ export function registerIpc(): void {
         candles,
         gaps: report.gaps
       })
-      writeCsvTape(payload.symbol, payload.timeframe, candles)
       return { dataset, report, datasets: mergedDatasets() }
     }
   )
@@ -152,7 +150,6 @@ export function registerIpc(): void {
       candles,
       gaps: report.gaps
     })
-    writeCsvTape(tape.symbol, tape.timeframe, candles)
     const datasets = mergedDatasets()
     const dataset = datasets.find((row) => row.symbol === tape.symbol && row.timeframe === tape.timeframe) ?? tape
     return {

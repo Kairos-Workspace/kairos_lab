@@ -1,6 +1,5 @@
 import {
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
   statSync,
@@ -133,31 +132,6 @@ export function deleteCsvTape(id: number): boolean {
   return true
 }
 
-export function writeCsvTape(
-  symbol: string,
-  timeframe: Timeframe,
-  candles: Candle[]
-): string {
-  mkdirSync(csvDir(), { recursive: true })
-  const path = join(csvDir(), `${symbol}_${timeframe}.csv`)
-  const lines = ['timestamp,open,high,low,close,volume']
-  for (const candle of candles) {
-    const stamp = new Date(candle.timestamp).toISOString().replace('.000Z', 'Z')
-    lines.push(
-      `${stamp},${candle.open},${candle.high},${candle.low},${candle.close},${candle.volume ?? ''}`
-    )
-  }
-  writeFileSync(path, `${lines.join('\n')}\n`)
-  writeMeta(path, {
-    symbol,
-    timeframe,
-    startTs: candles[0]?.timestamp ?? 0,
-    endTs: candles.at(-1)?.timestamp ?? 0,
-    candleCount: candles.length
-  })
-  cache.delete(path)
-  return path
-}
 
 export function csvCandles(id: number, fromTs?: number, toTs?: number): Candle[] {
   if (cache.size === 0) refreshCsvDatasets()
