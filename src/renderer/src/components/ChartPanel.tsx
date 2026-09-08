@@ -96,6 +96,7 @@ export function ChartPanel(): React.JSX.Element {
   const prevCount = useRef(0)
   const prevOverlayKey = useRef('')
   const indicatorsRef = useRef(new Map<string, ISeriesApi<'Line'>>())
+  const paintTokenRef = useRef(0)
   const [chartApi, setChartApi] = useState<IChartApi | null>(null)
   const [seriesApi, setSeriesApi] = useState<ISeriesApi<'Candlestick'> | null>(null)
 
@@ -111,6 +112,8 @@ export function ChartPanel(): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const costs = useAppStore((s) => s.costs)
   const theme = useAppStore((s) => s.theme)
+  const chartFull = useAppStore((s) => s.chartFull)
+  const toggleChartFull = useAppStore((s) => s.toggleChartFull)
   const extras = (() => {
     const prices: number[] = []
     const live = resolvePositionLevels({
@@ -197,7 +200,7 @@ export function ChartPanel(): React.JSX.Element {
       setChartApi(null)
       setSeriesApi(null)
     }
-  }, [theme])
+  }, [theme, chartFull])
 
   useEffect(() => {
     if (mode !== 'replay') return
@@ -264,14 +267,30 @@ export function ChartPanel(): React.JSX.Element {
         }
         return
       }
-      series.setData(visible.map(toBar))
-      for (const line of strategyIndicatorLines(settings, visible)) {
-        indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
-      }
-      const from = Math.max(0, count - VIEW_BARS)
-      chart.timeScale().setVisibleLogicalRange({
-        from,
-        to: Math.max(count - 1 + 8, from + 24)
+
+      // Full redraws recompute indicators over the whole tape and can take a
+      // noticeable moment on large datasets, so show the loading overlay
+      // instead of freezing the UI with no feedback.
+      const token = ++paintTokenRef.current
+      useAppStore.setState({ busy: true, status: 'Rendering chart…' })
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (paintTokenRef.current !== token) return
+          if (chartRef.current !== chart || candleRef.current !== series) {
+            useAppStore.setState({ busy: false })
+            return
+          }
+          series.setData(visible.map(toBar))
+          for (const line of strategyIndicatorLines(settings, visible)) {
+            indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
+          }
+          const from = Math.max(0, count - VIEW_BARS)
+          chart.timeScale().setVisibleLogicalRange({
+            from,
+            to: Math.max(count - 1 + 8, from + 24)
+          })
+          useAppStore.setState({ busy: false })
+        })
       })
     }
 
@@ -370,9 +389,6 @@ export function ChartPanel(): React.JSX.Element {
         }))
     )
   }, [activeTrade, selectedId, trades, levels, draft, pendingSetup, tradeModalOpen, settings, costs])
-
-  const chartFull = useAppStore((s) => s.chartFull)
-  const toggleChartFull = useAppStore((s) => s.toggleChartFull)
 
   return (
     <section className="chart-shell" ref={shellRef}>

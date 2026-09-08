@@ -46,4 +46,16 @@ describe('strategyIndicatorLines', () => {
     const high = lines.find((line) => line.id === 'break-high')?.points.at(-1)
     expect(high?.value).toBe(Math.max(bars[2].high, bars[3].high, bars[4].high))
   })
+
+  it('stays fast on large tapes instead of scanning full history per bar', () => {
+    const bigBars = series(start, MIN, Array.from({ length: 40_000 }, (_, i) => 100 + (i % 50)))
+    const t0 = performance.now()
+    strategyIndicatorLines({ ...DEFAULT_STRATEGY_SETTINGS, strategyId: 'bbma', lookback: 20 }, bigBars)
+    strategyIndicatorLines(
+      { ...DEFAULT_STRATEGY_SETTINGS, strategyId: 'ma-crossover', lookback: 20 },
+      bigBars
+    )
+    const elapsed = performance.now() - t0
+    expect(elapsed).toBeLessThan(2000)
+  })
 })

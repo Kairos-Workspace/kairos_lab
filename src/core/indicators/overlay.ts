@@ -51,10 +51,11 @@ export function strategyIndicatorLines(
 
   if (settings.strategyId === 'bbma') {
     const period = Math.max(2, settings.lookback)
+    const maxWindow = Math.max(BBMA_DEFAULTS.ma50, BBMA_DEFAULTS.maFast, BBMA_DEFAULTS.maSlow)
     for (let i = 0; i < candles.length; i++) {
       const time = candles[i].timestamp
-      const window = candles.slice(0, i + 1)
-      const bands = bollinger(candles.slice(0, i), period, 2)
+      const window = candles.slice(Math.max(0, i + 1 - maxWindow), i + 1)
+      const bands = bollinger(candles.slice(Math.max(0, i - period), i), period, 2)
       if (bands) {
         buckets.get('bb-upper')?.push({ timestamp: time, value: bands.upper })
         buckets.get('bb-lower')?.push({ timestamp: time, value: bands.lower })
@@ -74,7 +75,7 @@ export function strategyIndicatorLines(
     const slow = Math.max(2, settings.lookback)
     const fast = Math.max(2, Math.round(slow / 2))
     for (let i = 0; i < candles.length; i++) {
-      const window = candles.slice(0, i + 1)
+      const window = candles.slice(Math.max(0, i + 1 - slow), i + 1)
       const time = candles[i].timestamp
       const fastMa = sma(window, fast)
       const slowMa = sma(window, slow)

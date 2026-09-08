@@ -18,8 +18,6 @@ export function TopBar(): React.JSX.Element {
   const hideDate = useAppStore((s) => s.hideDate)
   const candle = useCurrentCandle()
   const datasets = useAppStore((s) => s.datasets)
-  const datasetId = useAppStore((s) => s.datasetId)
-  const busy = useAppStore((s) => s.busy)
   const leaveWorkspace = useAppStore((s) => s.leaveWorkspace)
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
   const strategies = useAppStore((s) => s.strategies)
@@ -93,13 +91,6 @@ export function TopBar(): React.JSX.Element {
       </div>
       <div className="session-chip">
         <ThemeToggle />
-        <div className={`chip ${datasetId ? 'live' : ''}`}>
-          {busy
-            ? 'Loading local tape…'
-            : datasetId
-              ? `${datasets.find((d) => d.id === datasetId)?.candleCount.toLocaleString() ?? ''} bars`
-              : 'No local tape'}
-        </div>
       </div>
     </header>
   )
