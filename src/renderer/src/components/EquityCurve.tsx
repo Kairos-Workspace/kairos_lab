@@ -6,7 +6,7 @@ export function EquityCurve(): React.JSX.Element {
   const height = 150
   const pad = 18
   const values = curve.map((p) => p.equity)
-  const max = values.length ? Math.max(0, ...values) : 0
+  const max = values.reduce((m, v) => (v > m ? v : m), 0)
   const min = 0
   const span = Math.max(1, max - min)
   const points = curve.map((p, i) => {

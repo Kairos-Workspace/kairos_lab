@@ -4,6 +4,7 @@ import { generateDemoCandles } from '@core/candles/demo'
 import { validateCandles, dedupeCandles } from '@core/candles/validate'
 import { parseCandleCsv } from '@core/csv/parse'
 import { IPC } from '@shared/ipc'
+import { toCandleBuffer } from '@shared/candleBuffer'
 import type { BacktestSession, DeskPrefs, SavedStrategy, Timeframe, Trade } from '@shared/types'
 import { dbPath, getDb } from './database/db'
 import {
@@ -49,9 +50,11 @@ export function registerIpc(): void {
   handle(
     IPC.DATASETS_CANDLES,
     (_e, datasetId: number, fromTs?: number, toTs?: number) =>
-      isCsvDataset(datasetId)
-        ? csvCandles(datasetId, fromTs, toTs)
-        : getCandles(datasetId, fromTs, toTs)
+      toCandleBuffer(
+        isCsvDataset(datasetId)
+          ? csvCandles(datasetId, fromTs, toTs)
+          : getCandles(datasetId, fromTs, toTs)
+      )
   )
 
   handle(IPC.DATASETS_GAPS, (_e, datasetId: number) =>

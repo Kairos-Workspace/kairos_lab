@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
+import type { CandleBuffer } from '../shared/candleBuffer'
 import type { BacktestSession, DatasetInfo, DeskPrefs, SavedStrategy, Timeframe, Trade } from '../shared/types'
 
 const api = {
@@ -7,7 +8,7 @@ const api = {
   datasets: {
     list: () => ipcRenderer.invoke(IPC.DATASETS_LIST) as Promise<DatasetInfo[]>,
     candles: (datasetId: number, fromTs?: number, toTs?: number) =>
-      ipcRenderer.invoke(IPC.DATASETS_CANDLES, datasetId, fromTs, toTs),
+      ipcRenderer.invoke(IPC.DATASETS_CANDLES, datasetId, fromTs, toTs) as Promise<CandleBuffer>,
     gaps: (datasetId: number) => ipcRenderer.invoke(IPC.DATASETS_GAPS, datasetId),
     delete: (datasetId: number) => ipcRenderer.invoke(IPC.DATASETS_DELETE, datasetId),
     importCsv: (payload: { symbol: string; timeframe: Timeframe; csv: string; source?: string }) =>

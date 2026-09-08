@@ -7,7 +7,7 @@ import { createStrategy } from '@core/strategy/registry'
 import { createAccount, applyClosedTrade } from '@core/trade/account'
 import { calculatePositionSize, riskReward } from '@core/trade/sizing'
 import { evaluateTradeOnCandle, lowerTimeframeWindow } from '@core/trade/simulation'
-import { calculatePerformance } from '@core/performance/stats'
+import { fromCandleBuffer } from '@shared/candleBuffer'
 import {
   BASE_TICK_MS,
   DEFAULT_COSTS,
@@ -24,7 +24,6 @@ import type {
   DeskPrefs,
   DeskTheme,
   Direction,
-  PerformanceStats,
   SavedStrategy,
   StrategySettings,
   StrategySignal,
@@ -142,8 +141,6 @@ interface AppState {
   deleteSession: (id: string) => Promise<void>
   selectTrade: (id: string | null) => void
   addHorizontal: (price: number) => void
-  visibleCandles: () => Candle[]
-  performance: () => PerformanceStats
   currentCandle: () => Candle | undefined
 }
 
@@ -253,13 +250,11 @@ export const useAppStore = create<AppState>((set, get) => {
   activeStrategyId: null,
   theme: 'dark',
 
-  visibleCandles: () => visibleFrom(get()),
   currentCandle: () => {
     const s = get()
     const bars = visibleFrom(s)
     return bars.at(-1)
   },
-  performance: () => calculatePerformance(get().trades, get().account.initialBalance, get().skipped),
 
   bootstrap: async () => {
     set({ busy: true, status: 'Opening local market data…' })
@@ -609,10 +604,11 @@ export const useAppStore = create<AppState>((set, get) => {
     if (!dataset) return
     set({ busy: true, status: `Loading ${dataset.source} tape…` })
     try {
-    const [sourceCandles, gaps] = await Promise.all([
+    const [candleBuffer, gaps] = await Promise.all([
       requireDesktop().datasets.candles(id),
       requireDesktop().datasets.gaps(id)
     ])
+    const sourceCandles = fromCandleBuffer(candleBuffer)
     const displayTimeframe =
       intervalMs(dataset.timeframe) <= intervalMs(get().displayTimeframe)
         ? get().displayTimeframe
