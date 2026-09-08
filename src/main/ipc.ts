@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { intervalMs } from '@core/candles/resample'
 import { generateDemoCandles } from '@core/candles/demo'
 import { validateCandles, dedupeCandles } from '@core/candles/validate'
@@ -28,7 +28,10 @@ import { latestWindow } from '@core/market/catalog'
 import { csvCandles, deleteCsvTape, isCsvDataset, refreshCsvDatasets } from './data/csvTape'
 import { fetchMarketCandles } from './data/fetchMarket'
 
-function handle(channel: string, listener: (...args: unknown[]) => unknown): void {
+function handle(
+  channel: string,
+  listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown
+): void {
   ipcMain.removeHandler(channel)
   ipcMain.handle(channel, listener)
 }

@@ -8,6 +8,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
     "pack": "npm run build && electron-builder --dir",

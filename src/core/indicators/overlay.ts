@@ -6,7 +6,7 @@ export interface IndicatorSpec {
   id: string
   title: string
   color: string
-  lineWidth?: number
+  lineWidth?: 1 | 2 | 3 | 4
   dashed?: boolean
 }
 

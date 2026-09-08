@@ -5,6 +5,13 @@ import { PRODUCT_NAME } from '@shared/constants'
 import { closeDb } from './database/db'
 import { registerIpc } from './ipc'
 
+// `build/` only exists in the dev tree — packaged apps get their icon
+// from the OS-level bundle/exe resource that electron-builder embeds,
+// so this is purely for a branded dev-mode window/taskbar icon.
+const ICON_PATH = app.isPackaged
+  ? undefined
+  : join(__dirname, process.platform === 'win32' ? '../../build/icon.ico' : '../../build/icon.png')
+
 function createWindow(): void {
   const window = new BrowserWindow({
     width: 1600,
@@ -16,6 +23,7 @@ function createWindow(): void {
     title: `${PRODUCT_NAME} — Strategy Tester`,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 16, y: 16 },
+    icon: ICON_PATH,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false
@@ -44,6 +52,12 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.quantify.strategy-tester')
+  // BrowserWindow's `icon` option is ignored on macOS — the Dock icon
+  // needs to be set explicitly, but only matters in dev; a packaged app
+  // gets its Dock icon from the .icns baked into the bundle.
+  if (process.platform === 'darwin' && ICON_PATH) {
+    app.dock?.setIcon(ICON_PATH)
+  }
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
   registerIpc()
   createWindow()

@@ -114,6 +114,8 @@ export function ChartPanel(): React.JSX.Element {
   const theme = useAppStore((s) => s.theme)
   const chartFull = useAppStore((s) => s.chartFull)
   const toggleChartFull = useAppStore((s) => s.toggleChartFull)
+  const startManualTrade = useAppStore((s) => s.startManualTrade)
+  const canStartManualTrade = hasTape && !activeTrade && !pendingSetup && !tradeModalOpen
   const extras = (() => {
     const prices: number[] = []
     const live = resolvePositionLevels({
@@ -170,12 +172,12 @@ export function ChartPanel(): React.JSX.Element {
     })
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: '#3d9b8f',
-      downColor: '#c45c3e',
-      borderUpColor: '#3d9b8f',
-      borderDownColor: '#c45c3e',
-      wickUpColor: '#7ec8be',
-      wickDownColor: '#e09a88',
+      upColor: skin.bull,
+      downColor: skin.bear,
+      borderUpColor: skin.bull,
+      borderDownColor: skin.bear,
+      wickUpColor: skin.bull,
+      wickDownColor: skin.bear,
       priceScaleId: 'right',
       priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
       lastValueVisible: true,
@@ -321,6 +323,7 @@ export function ChartPanel(): React.JSX.Element {
   useEffect(() => {
     const series = candleRef.current
     if (!series) return
+    const skin = chartSkin()
     for (const line of linesRef.current) series.removePriceLine(line)
     linesRef.current = []
     const tradeLevels = resolvePositionLevels({
@@ -338,7 +341,7 @@ export function ChartPanel(): React.JSX.Element {
       linesRef.current.push(
         series.createPriceLine({
           price: entry,
-          color: '#4a45d4',
+          color: skin.brand,
           lineWidth: 2,
           lineStyle: LineStyle.Solid,
           axisLabelVisible: true,
@@ -350,7 +353,7 @@ export function ChartPanel(): React.JSX.Element {
       linesRef.current.push(
         series.createPriceLine({
           price: sl,
-          color: '#e07a5f',
+          color: skin.bear,
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -362,7 +365,7 @@ export function ChartPanel(): React.JSX.Element {
       linesRef.current.push(
         series.createPriceLine({
           price: tp,
-          color: '#5dcec0',
+          color: skin.bull,
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -373,7 +376,7 @@ export function ChartPanel(): React.JSX.Element {
     for (const price of levels) {
       if (price <= 0) continue
       linesRef.current.push(
-        series.createPriceLine({ price, color: '#8b8475', lineStyle: 2, title: 'H' })
+        series.createPriceLine({ price, color: skin.warn, lineStyle: 2, title: 'H' })
       )
     }
     createSeriesMarkers(
@@ -383,12 +386,23 @@ export function ChartPanel(): React.JSX.Element {
         .map((t) => ({
           time: (t.openedAt / 1000) as UTCTimestamp,
           position: t.direction === 'BUY' ? 'belowBar' : 'aboveBar',
-          color: t.result === 'LOSS' ? '#c45c3e' : '#4a45d4',
+          color: t.result === 'LOSS' ? skin.bear : skin.brand,
           shape: t.direction === 'BUY' ? 'arrowUp' : 'arrowDown',
           text: t.direction
         }))
     )
-  }, [activeTrade, selectedId, trades, levels, draft, pendingSetup, tradeModalOpen, settings, costs])
+  }, [
+    activeTrade,
+    selectedId,
+    trades,
+    levels,
+    draft,
+    pendingSetup,
+    tradeModalOpen,
+    settings,
+    costs,
+    theme
+  ])
 
   return (
     <section className="chart-shell" ref={shellRef}>
@@ -401,6 +415,16 @@ export function ChartPanel(): React.JSX.Element {
       >
         <Icon name={chartFull ? 'compress' : 'expand'} />
       </button>
+      {canStartManualTrade ? (
+        <div className="chart-trade-actions">
+          <button className="primary" onClick={() => startManualTrade('BUY')}>
+            Buy
+          </button>
+          <button className="danger" onClick={() => startManualTrade('SELL')}>
+            Sell
+          </button>
+        </div>
+      ) : null}
       <div className="chart" ref={hostRef}>
         {hasTape ? null : (
           <div className="chart-empty">

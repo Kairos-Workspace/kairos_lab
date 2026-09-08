@@ -14,8 +14,8 @@ export function TradePanel(): React.JSX.Element {
       <>
         <h3>Trade</h3>
         <p className="muted">
-          No open position. When a setup prints, take it and configure entry, stop, and target
-          here.
+          No open position. Take a strategy setup when one prints, or use Buy / Sell on the chart
+          to start a trade yourself.
         </p>
         <div className="stat">
           <span>Virtual account</span>

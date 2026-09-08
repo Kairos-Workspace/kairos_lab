@@ -10,10 +10,22 @@ export function readCssToken(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 }
 
-export function chartSkin(): { background: string; text: string; grid: string } {
+export function chartSkin(): {
+  background: string
+  text: string
+  grid: string
+  bull: string
+  bear: string
+  brand: string
+  warn: string
+} {
   return {
     background: readCssToken('--ink', '#050507'),
     text: readCssToken('--muted', '#9b9bb0'),
-    grid: readCssToken('--rule', '#2a2a3c')
+    grid: readCssToken('--rule', '#2a2a3c'),
+    bull: readCssToken('--bull', '#5dcec0'),
+    bear: readCssToken('--bear', '#e07a5f'),
+    brand: readCssToken('--brand', '#4a45d4'),
+    warn: readCssToken('--warn', '#c9863a')
   }
 }

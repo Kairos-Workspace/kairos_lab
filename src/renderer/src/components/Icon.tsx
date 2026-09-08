@@ -54,7 +54,7 @@ const PATHS: Record<IconName, string> = {
   moon: 'M21 14.3A8.5 8.5 0 1 1 9.7 3 7 7 0 0 0 21 14.3z'
 }
 
-export function Icon({ name, size = 15 }: { name: IconName; size?: number }): JSX.Element {
+export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {
   return (
     <svg
       className="ui-icon"

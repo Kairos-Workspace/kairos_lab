@@ -134,6 +134,7 @@ interface AppState {
   jumpToDate: (timestamp: number) => void
   takeSetup: () => void
   skipSetup: () => void
+  startManualTrade: (direction: Direction) => void
   updateDraft: (patch: Partial<DraftTrade>) => void
   confirmTrade: () => void
   saveCurrentSession: (name?: string) => Promise<void>
@@ -160,6 +161,19 @@ function clearTimer(): void {
 
 function newId(): string {
   return crypto.randomUUID()
+}
+
+function defaultStopTarget(
+  direction: Direction,
+  entry: number,
+  costs: CostConfig,
+  settings: StrategySettings
+): { stopLoss: number; takeProfit: number } {
+  const slDist = Math.max(costs.tickSize * 50, entry * 0.0015)
+  const stopLoss = direction === 'BUY' ? entry - slDist : entry + slDist
+  const takeProfit =
+    direction === 'BUY' ? entry + slDist * settings.defaultRr : entry - slDist * settings.defaultRr
+  return { stopLoss, takeProfit }
 }
 
 function strategyBridge() {
@@ -841,12 +855,7 @@ export const useAppStore = create<AppState>((set, get) => {
         if (pending && next.settings.autoEntry) {
           const dir: Direction = pending.type === 'LONG' ? 'BUY' : 'SELL'
           const entry = pending.price
-          const slDist = Math.max(next.costs.tickSize * 50, entry * 0.0015)
-          const sl = dir === 'BUY' ? entry - slDist : entry + slDist
-          const tp =
-            dir === 'BUY'
-              ? entry + slDist * next.settings.defaultRr
-              : entry - slDist * next.settings.defaultRr
+          const { stopLoss: sl, takeProfit: tp } = defaultStopTarget(dir, entry, next.costs, next.settings)
           const sized = calculatePositionSize({
             balance: account.balance,
             riskPercent: account.riskPerTrade,
@@ -908,12 +917,12 @@ export const useAppStore = create<AppState>((set, get) => {
     if (!signal) return
     const direction: Direction = signal.type === 'LONG' ? 'BUY' : 'SELL'
     const entry = signal.price
-    const slDist = Math.max(get().costs.tickSize * 50, entry * 0.0015)
-    const sl = direction === 'BUY' ? entry - slDist : entry + slDist
-    const tp =
-      direction === 'BUY'
-        ? entry + slDist * get().settings.defaultRr
-        : entry - slDist * get().settings.defaultRr
+    const { stopLoss: sl, takeProfit: tp } = defaultStopTarget(
+      direction,
+      entry,
+      get().costs,
+      get().settings
+    )
     set({
       tradeModalOpen: true,
       draft: {
@@ -922,6 +931,25 @@ export const useAppStore = create<AppState>((set, get) => {
         stopLoss: sl.toFixed(2),
         takeProfit: tp.toFixed(2),
         riskPercent: String(get().account.riskPerTrade)
+      }
+    })
+  },
+
+  startManualTrade: (direction) => {
+    const s = get()
+    if (s.activeTrade || s.pendingSetup || s.tradeModalOpen) return
+    const entry = s.currentCandle()?.close
+    if (entry == null) return
+    if (s.isPlaying) get().pause()
+    const { stopLoss, takeProfit } = defaultStopTarget(direction, entry, s.costs, s.settings)
+    set({
+      tradeModalOpen: true,
+      draft: {
+        direction,
+        entry: entry.toFixed(2),
+        stopLoss: stopLoss.toFixed(2),
+        takeProfit: takeProfit.toFixed(2),
+        riskPercent: String(s.account.riskPerTrade)
       }
     })
   },
