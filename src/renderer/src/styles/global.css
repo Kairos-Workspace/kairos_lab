@@ -598,6 +598,12 @@ select:disabled {
   min-height: 36px;
 }
 
+.tab-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .panel-body {
   overflow: auto;
   padding: 14px;
