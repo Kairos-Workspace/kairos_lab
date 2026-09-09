@@ -1354,9 +1354,16 @@ select:disabled {
    all fixed-width and don't wrap on their own. Stack everything instead
    of letting it silently clip, and let .app scroll to reach it all. */
 @media (max-width: 980px), (max-height: 700px) {
+  html,
+  body,
+  #root {
+    overflow-y: auto;
+  }
+
   .app {
     grid-template-rows: auto auto auto;
-    overflow-y: auto;
+    height: auto;
+    min-height: 100%;
   }
 
   .app[data-frame='full'],
@@ -1389,7 +1396,7 @@ select:disabled {
 
   .workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(360px, 55vh) auto;
+    grid-template-rows: minmax(280px, 38vh) auto;
   }
 
   .app[data-frame='full'] .workspace {
