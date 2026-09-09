@@ -305,6 +305,60 @@ select:disabled {
   gap: 6px;
 }
 
+.trade-ticket {
+  position: absolute;
+  top: 54px;
+  right: 10px;
+  z-index: 10;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(180deg, var(--bar-from) 0%, var(--bar-to) 100%);
+  border: 1px solid var(--gold-dim);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 14px 16px 12px;
+}
+
+.trade-ticket-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.trade-ticket-header h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.trade-ticket-header .row {
+  display: flex;
+  gap: 6px;
+}
+
+.trade-ticket-header .row button {
+  padding: 4px 10px;
+  min-height: 0;
+}
+
+.trade-ticket .field input {
+  width: 100%;
+}
+
+.trade-ticket-stats {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.trade-ticket-stats dt {
+  color: var(--muted);
+}
+
 .pos-tool {
   position: absolute;
   inset: 0;
