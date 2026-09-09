@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { STRATEGY_CATALOG } from '@core/strategy/registry'
 import { Icon } from './Icon'
+import { ReplayRangeModal } from './ReplayRangeModal'
 import { useAppStore } from '../store/useAppStore'
 
 export function StrategyPanel(): React.JSX.Element {
@@ -11,6 +13,7 @@ export function StrategyPanel(): React.JSX.Element {
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
   const strategies = useAppStore((s) => s.strategies)
   const activeName = strategies.find((s) => s.id === activeStrategyId)?.name
+  const [showRangeModal, setShowRangeModal] = useState(false)
 
   return (
     <>
@@ -117,7 +120,7 @@ export function StrategyPanel(): React.JSX.Element {
       )}
       <button
         className="primary icon-label"
-        onClick={() => startReplay()}
+        onClick={() => setShowRangeModal(true)}
         title="Start replay from warmup"
       >
         <Icon name="play" />
@@ -131,6 +134,7 @@ export function StrategyPanel(): React.JSX.Element {
         <Icon name="shuffle" />
         Random
       </button>
+      {showRangeModal ? <ReplayRangeModal onClose={() => setShowRangeModal(false)} /> : null}
     </>
   )
 }
