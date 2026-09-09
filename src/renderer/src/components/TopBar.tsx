@@ -41,53 +41,57 @@ export function TopBar(): React.JSX.Element {
         <BrandMark subtitle={activeName ? `${activeName} · tester` : 'Strategy tester'} />
       </div>
       <div className="top-controls">
-        <label>
-          Symbol
-          <select value={symbol} onChange={(e) => void selectSymbol(e.target.value)}>
-            {pairs.map((pair) => (
-              <option key={pair} value={pair}>
-                {pair}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Timeframe
-          <select
-            value={timeframe}
-            onChange={(e) => void setTimeframe(e.target.value as typeof timeframe)}
-          >
-            {TIMEFRAMES.map((tf) => (
-              <option key={tf} value={tf} disabled={!canShowTimeframe(datasets, symbol, tf)}>
-                {tf}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Date
-          <div className="chip">
-            {clock ? (hideDate && mode === 'replay' ? '••••-••-••' : clock.date) : '—'}
-          </div>
-        </label>
-        <label>
-          Time
-          <div className="chip">{clock ? clock.time : '—'}</div>
-        </label>
-        <label>
-          Session
-          <div className="chip">{session}</div>
-        </label>
-        <label>
-          Speed
-          <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-            {SPEED_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {s}x
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="control-group">
+          <label>
+            Symbol
+            <select value={symbol} onChange={(e) => void selectSymbol(e.target.value)}>
+              {pairs.map((pair) => (
+                <option key={pair} value={pair}>
+                  {pair}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Timeframe
+            <select
+              value={timeframe}
+              onChange={(e) => void setTimeframe(e.target.value as typeof timeframe)}
+            >
+              {TIMEFRAMES.map((tf) => (
+                <option key={tf} value={tf} disabled={!canShowTimeframe(datasets, symbol, tf)}>
+                  {tf}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Speed
+            <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+              {SPEED_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}x
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="readout-group">
+          <label>
+            Date
+            <div className="readout-value">
+              {clock ? (hideDate && mode === 'replay' ? '••••-••-••' : clock.date) : '—'}
+            </div>
+          </label>
+          <label>
+            Time
+            <div className="readout-value">{clock ? clock.time : '—'}</div>
+          </label>
+          <label>
+            Session
+            <div className="readout-value">{session}</div>
+          </label>
+        </div>
       </div>
       <div className="session-chip">
         <ThemeToggle />

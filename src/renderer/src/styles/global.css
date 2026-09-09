@@ -253,6 +253,24 @@ select:disabled {
   min-height: 72px;
 }
 
+.control-group,
+.readout-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.readout-group {
+  padding-left: 16px;
+  border-left: 1px solid var(--rule);
+}
+
+.readout-value {
+  padding: 7px 2px;
+  color: var(--parchment);
+  font-variant-numeric: tabular-nums;
+}
+
 .chip {
   border: 1px solid var(--rule);
   background: var(--steel);
