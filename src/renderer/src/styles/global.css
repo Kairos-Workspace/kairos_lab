@@ -1178,6 +1178,14 @@ select:disabled {
   font-size: 11px;
 }
 
+.market-table tbody tr td {
+  border-top: 0;
+}
+
+.market-table tbody tr[data-group-start='true'] td {
+  border-top: 1px solid var(--rule);
+}
+
 .library-empty {
   height: 100%;
   min-height: 360px;
