@@ -150,6 +150,10 @@ export function StrategyLibrary(): React.JSX.Element {
                 />
               </article>
             ))}
+            <button type="button" className="strategy-card-add" onClick={() => setComposer(true)}>
+              <Icon name="plus" />
+              <span>New strategy</span>
+            </button>
           </div>
         )}
       </section>

@@ -1204,7 +1204,8 @@ select:disabled {
 
 .strategy-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+  justify-content: start;
   gap: 12px;
 }
 
@@ -1265,6 +1266,27 @@ select:disabled {
   position: absolute;
   top: 10px;
   right: 10px;
+}
+
+.strategy-card-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 210px;
+  padding: 20px 18px 18px;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--muted);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.strategy-card-add:hover {
+  border-color: var(--gold-dim);
+  color: var(--gold);
+  background: var(--gold-soft);
 }
 
 @media (prefers-reduced-motion: reduce) {
