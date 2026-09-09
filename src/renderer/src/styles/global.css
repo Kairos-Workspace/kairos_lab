@@ -1389,11 +1389,20 @@ select:disabled {
 
   .workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(360px, 55vh) minmax(320px, auto);
+    grid-template-rows: minmax(360px, 55vh) auto;
   }
 
   .app[data-frame='full'] .workspace {
     grid-template-rows: minmax(0, 1fr);
+  }
+
+  .right-panel {
+    display: block;
+    overflow: visible;
+  }
+
+  .panel-body {
+    overflow: visible;
   }
 
   .bottom {
