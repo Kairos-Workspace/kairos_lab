@@ -776,6 +776,10 @@ select:disabled {
   flex-wrap: wrap;
 }
 
+.filters .muted {
+  margin-left: auto;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
