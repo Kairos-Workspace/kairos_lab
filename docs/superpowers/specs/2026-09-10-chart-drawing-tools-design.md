@@ -248,11 +248,21 @@ Unit tests (vitest):
 
 - Fib level calculation (7 fixed ratios → correct prices given two anchor
   prices, both directions of retracement).
-- Store reducer logic: add/update/remove/select drawings, symbol-switch
-  replaces the array, debounced-save call count during a rapid-update drag
-  simulation.
-- Hit-testing helpers (point-to-segment distance, point-in-rect,
-  point-in-ellipse) with known coordinates/expected results.
+- Drawing validation/defaults (`parseDrawing`, `isDrawingComplete`) with
+  junk input, missing points, and valid payloads.
+- Hit-testing and pixel-projection helpers (point-to-segment distance,
+  point-in-rect, point-in-ellipse, ray/horizontal/vertical extension) with
+  known coordinates/expected results.
+
+`useAppStore.ts`'s new drawing actions are **not** unit tested, matching
+this codebase's existing convention: nothing in `tests/` imports
+`useAppStore` today, because `desktop()` (`src/renderer/src/lib/desktop.ts`)
+references the global `window` directly with no guard, and this project's
+`vitest.config.ts` runs in a plain Node environment (no jsdom) — importing
+the store under vitest throws `ReferenceError: window is not defined`. All
+store logic worth unit testing is instead extracted into the `@core/drawings/*`
+modules above, the same way `@core/trade/sizing` and `@core/desk/prefs`
+already carry the testable logic out of the store.
 
 Manual verification via the `run` skill (Electron app, no UI test harness):
 
