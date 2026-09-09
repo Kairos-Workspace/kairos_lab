@@ -18,5 +18,9 @@ export const IPC = {
   PREFS_SAVE: 'prefs:save',
   TRADES_SAVE: 'trades:save',
   TRADES_LIST: 'trades:list',
+  DRAWINGS_LIST: 'drawings:list',
+  DRAWINGS_SAVE: 'drawings:save',
+  DRAWINGS_DELETE: 'drawings:delete',
+  DRAWINGS_CLEAR: 'drawings:clear',
   DB_PATH: 'db:path'
 } as const
