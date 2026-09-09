@@ -1,19 +1,7 @@
 import { useEffect, useState } from 'react'
+import { fromReplayInput, toReplayInput } from '../lib/replayRange'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
-
-function toInput(ts: number | null | undefined): string {
-  if (ts == null) return ''
-  const date = new Date(ts)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-function fromInput(value: string): number | null {
-  if (!value) return null
-  const ts = Date.parse(value)
-  return Number.isNaN(ts) ? null : ts
-}
 
 export function ReplayControls(): React.JSX.Element {
   const togglePlay = useAppStore((s) => s.togglePlay)
@@ -30,13 +18,13 @@ export function ReplayControls(): React.JSX.Element {
   const [to, setTo] = useState('')
 
   useEffect(() => {
-    setFrom(toInput(replayFromTs ?? candles[0]?.timestamp))
-    setTo(toInput(replayToTs ?? candles.at(-1)?.timestamp))
+    setFrom(toReplayInput(replayFromTs ?? candles[0]?.timestamp))
+    setTo(toReplayInput(replayToTs ?? candles.at(-1)?.timestamp))
   }, [replayFromTs, replayToTs, candles])
 
   function applyRange(): void {
-    const fromTs = fromInput(from)
-    const toTs = fromInput(to)
+    const fromTs = fromReplayInput(from)
+    const toTs = fromReplayInput(to)
     setReplayRange(fromTs, toTs)
     startReplay({ fromTs: fromTs ?? undefined, toTs: toTs ?? undefined })
   }
