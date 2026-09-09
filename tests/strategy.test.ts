@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BreakoutStrategy } from '@core/strategy/breakout'
 import { MaCrossoverStrategy } from '@core/strategy/ma-crossover'
 import { BbmaStrategy } from '@core/strategy/bbma'
+import { NoneStrategy } from '@core/strategy/none'
 import { createStrategy } from '@core/strategy/registry'
 import { DEFAULT_STRATEGY_SETTINGS } from '@shared/constants'
 import { candle } from './helpers'
@@ -135,9 +136,31 @@ describe('BbmaStrategy', () => {
   })
 })
 
+describe('NoneStrategy', () => {
+  it('never emits a signal, no matter what the candles look like', () => {
+    const strategy = new NoneStrategy()
+    strategy.initialize()
+    const bars = [
+      candle(start, 100, 101, 99, 100),
+      candle(start + MIN, 100, 110, 90, 109),
+      candle(start + 2 * MIN, 109, 120, 80, 81)
+    ]
+    let signal = null
+    for (let i = 0; i < bars.length; i++) {
+      signal = strategy.onCandle(bars[i], ctx(bars.slice(0, i + 1)))
+    }
+    expect(signal).toBeNull()
+  })
+})
+
 describe('createStrategy', () => {
   it('builds the BBMA engine from settings', () => {
     const strategy = createStrategy({ ...DEFAULT_STRATEGY_SETTINGS, strategyId: 'bbma', lookback: 20 })
     expect(strategy.id).toBe('bbma')
+  })
+
+  it('builds the None engine from settings instead of falling back to Breakout', () => {
+    const strategy = createStrategy({ ...DEFAULT_STRATEGY_SETTINGS, strategyId: 'none' })
+    expect(strategy.id).toBe('none')
   })
 })

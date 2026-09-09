@@ -1223,12 +1223,19 @@ select:disabled {
   font-size: 11px;
 }
 
-.market-table tbody tr td {
-  border-top: 0;
+.tf-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.market-table tbody tr[data-group-start='true'] td {
-  border-top: 1px solid var(--rule);
+.tf-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  color: var(--muted);
 }
 
 .library-empty {

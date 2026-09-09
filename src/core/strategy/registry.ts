@@ -2,6 +2,7 @@ import type { Strategy, StrategySettings } from '@shared/types'
 import { BbmaStrategy } from './bbma'
 import { BreakoutStrategy } from './breakout'
 import { MaCrossoverStrategy } from './ma-crossover'
+import { NoneStrategy } from './none'
 
 export const STRATEGY_CATALOG = [
   {
@@ -18,10 +19,18 @@ export const STRATEGY_CATALOG = [
     id: 'bbma',
     name: 'BBMA',
     description: 'BB extreme, then re-entry on MA5/MA10 high-low toward MA50.'
+  },
+  {
+    id: 'none',
+    name: 'None',
+    description: 'No automated signals — chart replay and manual trade entry only.'
   }
 ] as const
 
 export function createStrategy(settings: StrategySettings): Strategy {
+  if (settings.strategyId === 'none') {
+    return new NoneStrategy()
+  }
   if (settings.strategyId === 'ma-crossover') {
     return new MaCrossoverStrategy({
       fast: Math.max(2, Math.round(settings.lookback / 2)),

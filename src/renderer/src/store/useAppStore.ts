@@ -111,11 +111,13 @@ interface AppState {
   downloadPair: (input: {
     symbol: string
     timeframe: Timeframe
-    lookbackMs: number
+    startTs: number
+    endTs: number
   }) => Promise<void>
   refreshTape: (id: number) => Promise<number>
   refreshTapes: (ids: number[]) => Promise<number>
   removeTape: (id: number) => Promise<void>
+  removeTapes: (ids: number[]) => Promise<void>
   loadDataset: (id: number) => Promise<void>
   startReplay: (opts?: {
     random?: boolean
@@ -520,14 +522,13 @@ export const useAppStore = create<AppState>((set, get) => {
       notifyError('Enter a pair such as EURUSD.')
       return
     }
-    const range = downloadWindow(input.timeframe, input.lookbackMs)
     set({ busy: true, status: `Downloading ${symbol} ${input.timeframe}…` })
     try {
       const result = await requireDesktop().datasets.download({
         symbol,
         timeframe: input.timeframe,
-        startTs: range.startTs,
-        endTs: range.endTs
+        startTs: input.startTs,
+        endTs: input.endTs
       })
       const status = `${symbol} ${input.timeframe} · ${result.dataset.candleCount.toLocaleString()} bars ready`
       set({
@@ -567,33 +568,61 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ busy: true, status: 'Getting latest data…' })
     try {
       let added = 0
+      let failed = 0
+      let rateLimited = false
       let datasets = get().datasets
-      for (const id of unique) {
+      let i = 0
+      for (; i < unique.length; i++) {
+        const id = unique[i]
         const tape = get().datasets.find((row) => row.id === id)
         set({
           status: tape
             ? `Getting latest ${tape.symbol} ${tape.timeframe}…`
             : 'Getting latest data…'
         })
-        const result = await requireDesktop().datasets.refresh(id)
-        added += result.added
-        datasets = result.datasets
-        set({ datasets })
+        try {
+          const result = await requireDesktop().datasets.refresh(id)
+          added += result.added
+          datasets = result.datasets
+          set({ datasets })
+        } catch (error) {
+          failed += 1
+          console.error('[refreshTapes] failed for dataset', id, error)
+          // A 429 means the provider is already throttling us — stop asking
+          // for more tapes instead of hammering it again on every remaining
+          // one (that's why the same tape could fail over and over before).
+          if (error instanceof Error && error.message.includes('429')) {
+            rateLimited = true
+            break
+          }
+        }
+        // Refreshing several timeframes back to back can trip the provider's
+        // rate limit even though each individual download paces its own
+        // requests — leave a gap between tapes, not just within one.
+        if (i < unique.length - 1) await new Promise((resolve) => setTimeout(resolve, 800))
       }
+      const skipped = rateLimited ? unique.length - 1 - i : 0
       const openId = get().datasetId
       const shouldReload =
         openId != null &&
         (unique.includes(openId) || datasets.some((row) => row.id === openId && unique.includes(row.id)))
+      const parts: string[] = []
+      if (added > 0) parts.push(`${added.toLocaleString()} new bars`)
+      if (rateLimited) {
+        parts.push('rate-limited by the data provider — wait a minute and try again')
+        if (skipped > 0) parts.push(`${skipped} tape${skipped === 1 ? '' : 's'} not attempted`)
+      } else if (failed > 0) {
+        parts.push(`${failed} tape${failed === 1 ? '' : 's'} failed`)
+      }
       const status =
-        added > 0
-          ? `Latest data in · ${added.toLocaleString()} new bars`
-          : 'Already latest — nothing new to pull.'
+        parts.length > 0 ? `Latest data in · ${parts.join(' · ')}` : 'Already latest — nothing new to pull.'
       set({
         datasets,
         busy: false,
         status
       })
-      if (added > 0) notifySuccess(status)
+      if (failed > 0) notifyError(status)
+      else if (added > 0) notifySuccess(status)
       else notifyInfo(status)
       if (shouldReload && openId != null) await get().loadDataset(openId)
       return added
@@ -628,6 +657,36 @@ export const useAppStore = create<AppState>((set, get) => {
         status: error instanceof Error ? error.message : 'Could not remove that tape.'
       })
       notifyError('Could not remove that tape.', error)
+    }
+  },
+
+  removeTapes: async (ids) => {
+    if (!desktop()) return
+    const unique = [...new Set(ids.filter((id) => Number.isFinite(id)))]
+    if (unique.length === 0) return
+    set({ busy: true, status: 'Removing tapes…' })
+    try {
+      let datasets = get().datasets
+      for (const id of unique) {
+        datasets = await requireDesktop().datasets.delete(id)
+      }
+      const openId = get().datasetId
+      const stillOpen = openId != null && unique.includes(openId)
+      set({
+        datasets,
+        ...(stillOpen
+          ? { datasetId: null, sourceCandles: [], displayCandles: [], gaps: [] }
+          : {}),
+        busy: false,
+        status: 'Tapes removed'
+      })
+      notifySuccess('Tapes removed')
+    } catch (error) {
+      set({
+        busy: false,
+        status: error instanceof Error ? error.message : 'Could not remove those tapes.'
+      })
+      notifyError('Could not remove those tapes.', error)
     }
   },
 

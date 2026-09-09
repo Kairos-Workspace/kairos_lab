@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pickLocalDataset } from '@core/candles/dataset'
+import { exactTimeframesForSymbol, pickLocalDataset } from '@core/candles/dataset'
 import type { DatasetInfo } from '@shared/types'
 
 function ds(partial: Partial<DatasetInfo> & Pick<DatasetInfo, 'id' | 'symbol' | 'timeframe'>): DatasetInfo {
@@ -63,5 +63,22 @@ describe('pickLocalDataset', () => {
 
   it('returns null when the pair is not stored locally', () => {
     expect(pickLocalDataset(tapes, 'EURUSD', '1H')).toBeNull()
+  })
+
+  describe('exactTimeframesForSymbol', () => {
+    it('lists only the timeframes actually downloaded for that symbol', () => {
+      expect(exactTimeframesForSymbol(tapes, 'XAUUSD').sort()).toEqual(
+        ['1D', '1H', '4H', '5M'].sort()
+      )
+    })
+
+    it('does not include coarser timeframes that could only be derived by resampling', () => {
+      expect(exactTimeframesForSymbol(tapes, 'XAUUSD')).not.toContain('30M')
+      expect(exactTimeframesForSymbol(tapes, 'XAUUSD')).not.toContain('1M')
+    })
+
+    it('returns an empty list for a symbol with no local tapes', () => {
+      expect(exactTimeframesForSymbol(tapes, 'EURUSD')).toEqual([])
+    })
   })
 })

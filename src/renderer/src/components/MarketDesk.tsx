@@ -1,18 +1,13 @@
 import { useMemo, useState } from 'react'
 import {
-  DOWNLOAD_LOOKBACKS,
   MARKET_CATALOG,
   findMarketInstrument,
-  resolveMarketSource,
-  type DownloadLookbackId
 } from '@core/market/catalog'
 import { PRODUCT_NAME } from '@shared/constants'
 import { TIMEFRAMES, type DatasetInfo, type Timeframe } from '@shared/types'
 import { ConfirmIconButton } from './ConfirmIconButton'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
-
-const CUSTOM = '__custom__'
 
 type MarketView = 'data' | 'add'
 
@@ -29,17 +24,22 @@ export function MarketDesk(): React.JSX.Element {
   const status = useAppStore((s) => s.status)
   const downloadPair = useAppStore((s) => s.downloadPair)
   const refreshTapes = useAppStore((s) => s.refreshTapes)
-  const removeTape = useAppStore((s) => s.removeTape)
+  const removeTapes = useAppStore((s) => s.removeTapes)
+  
   const [view, setView] = useState<MarketView>('data')
-  const [symbol, setSymbol] = useState('EURUSD')
-  const [custom, setCustom] = useState('')
-  const [timeframe, setTimeframe] = useState<Timeframe>('1H')
-  const [lookback, setLookback] = useState<DownloadLookbackId>('2y')
-
-  const selected = symbol === CUSTOM ? custom : symbol
-  const route = resolveMarketSource(selected)
-  const instrument = findMarketInstrument(selected)
-  const lookbackMs = DOWNLOAD_LOOKBACKS.find((row) => row.id === lookback)?.ms ?? DOWNLOAD_LOOKBACKS[2].ms
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  
+  // Modal state
+  const [selectedPair, setSelectedPair] = useState<string | null>(null)
+  const [timeframes, setTimeframes] = useState<Timeframe[]>(['1H'])
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() - 2)
+    return d.toISOString().slice(0, 10)
+  })
+  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   const rows = useMemo(() => {
     return datasets
@@ -61,8 +61,14 @@ export function MarketDesk(): React.JSX.Element {
   const pairCount = groups.length
 
   async function addPair(): Promise<void> {
+    if (timeframes.length === 0 || !selectedPair) return
     try {
-      await downloadPair({ symbol: selected, timeframe, lookbackMs })
+      const startTs = new Date(fromDate).getTime()
+      const endTs = new Date(toDate).getTime()
+      for (const tf of timeframes) {
+        await downloadPair({ symbol: selectedPair, timeframe: tf, startTs, endTs })
+      }
+      setSelectedPair(null)
     } catch {
       // Store already toasts the failure.
     }
@@ -75,6 +81,13 @@ export function MarketDesk(): React.JSX.Element {
       // Store already toasts the failure.
     }
   }
+
+  const filteredPairs = MARKET_CATALOG.filter(row => 
+    row.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    row.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  const showCustomOption = searchQuery && !MARKET_CATALOG.some(row => row.symbol.toLowerCase() === searchQuery.toLowerCase())
 
   return (
     <section className="library-board market-desk">
@@ -140,40 +153,50 @@ export function MarketDesk(): React.JSX.Element {
                   {groups.map((tapes) => {
                     const pair = tapes[0].symbol
                     const meta = findMarketInstrument(pair)
-                    return tapes.map((row, i) => (
-                      <tr key={row.id} data-group-start={i === 0}>
-                        {i === 0 ? (
-                          <td className="market-table-pair" rowSpan={tapes.length}>
-                            <b>{pair}</b>
-                            <span className="market-table-sub">{meta?.name ?? 'Custom tape'}</span>
-                          </td>
-                        ) : null}
-                        <td>{row.timeframe}</td>
-                        <td>{row.candleCount.toLocaleString()}</td>
-                        <td>{formatRange(row.startTs, row.endTs)}</td>
-                        <td>{row.source}</td>
+                    const ids = tapes.map((row) => row.id)
+                    const primary = tapes.reduce((best, row) =>
+                      row.candleCount > best.candleCount ? row : best
+                    )
+                    return (
+                      <tr key={pair}>
+                        <td className="market-table-pair">
+                          <b>{pair}</b>
+                          <span className="market-table-sub">{meta?.name ?? 'Custom tape'}</span>
+                        </td>
+                        <td>
+                          <div className="tf-tags">
+                            {tapes.map((row) => (
+                              <span key={row.id} className="tf-tag">
+                                {row.timeframe}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td>{primary.candleCount.toLocaleString()}</td>
+                        <td>{formatRange(primary.startTs, primary.endTs)}</td>
+                        <td>{primary.source}</td>
                         <td>
                           <div className="market-tape-actions">
                             <button
                               type="button"
                               className="icon-btn"
-                              title={`Get latest ${row.symbol} ${row.timeframe}`}
-                              aria-label={`Get latest ${row.symbol} ${row.timeframe}`}
+                              title={`Get latest ${pair} data`}
+                              aria-label={`Get latest ${pair} data`}
                               disabled={busy}
-                              onClick={() => void updateLatest([row.id])}
+                              onClick={() => void updateLatest(ids)}
                             >
                               <Icon name="download" />
                             </button>
                             <ConfirmIconButton
                               icon="trash"
-                              label={`Remove ${row.symbol} ${row.timeframe}`}
-                              confirmLabel={`Click again to remove ${row.symbol} ${row.timeframe}`}
-                              onConfirm={() => void removeTape(row.id)}
+                              label={`Remove ${pair}`}
+                              confirmLabel={`Click again to remove all ${pair} data`}
+                              onConfirm={() => void removeTapes(ids)}
                             />
                           </div>
                         </td>
                       </tr>
-                    ))
+                    )
                   })}
                 </tbody>
               </table>
@@ -181,82 +204,139 @@ export function MarketDesk(): React.JSX.Element {
           )}
         </section>
       ) : (
-        <section className="market-section">
+        <section className="market-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <header className="market-section-header" style={{ marginBottom: '24px' }}>
+            <div>
+              <span className="stamp">Free tape</span>
+              <h2>Add a pair</h2>
+            </div>
+            <div className="search-bar" style={{ width: '300px' }}>
+              <input
+                type="text"
+                placeholder="Search symbol..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoFocus
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--rule)', background: 'var(--steel)', color: 'var(--parchment)' }}
+              />
+            </div>
+          </header>
+          
+          <div className="pair-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', overflowY: 'auto', paddingBottom: '24px' }}>
+            {filteredPairs.map(row => (
+              <button
+                key={row.symbol}
+                className="pair-card ghost"
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '16px', border: '1px solid var(--rule)', borderRadius: '8px', cursor: 'pointer', background: 'var(--plate)', transition: 'background 0.2s' }}
+                onClick={() => setSelectedPair(row.symbol)}
+                onMouseOver={(e) => e.currentTarget.style.background = 'var(--rule)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'var(--plate)'}
+              >
+                <b style={{ fontSize: '16px', color: 'var(--parchment)' }}>{row.symbol}</b>
+                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{row.name}</span>
+              </button>
+            ))}
+            {/* Custom option */}
+            {showCustomOption && (
+              <button
+                className="pair-card ghost"
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '16px', border: '1px dashed var(--rule)', borderRadius: '8px', cursor: 'pointer', background: 'transparent' }}
+                onClick={() => setSelectedPair(searchQuery.toUpperCase())}
+                onMouseOver={(e) => e.currentTarget.style.background = 'var(--rule)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <b style={{ fontSize: '16px', color: 'var(--parchment)' }}>{searchQuery.toUpperCase()}</b>
+                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Custom Symbol</span>
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Modal Overlay for downloading */}
+      {selectedPair && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedPair(null)
+          }}
+        >
           <form
-            className="market-add"
+            className="composer"
             onSubmit={(event) => {
               event.preventDefault()
               void addPair()
             }}
           >
-            <header className="market-section-header">
+            <header>
               <div>
-                <span className="stamp">Free tape</span>
-                <h2>Search &amp; add a pair</h2>
+                <span className="stamp">Download Data</span>
+                <h2>{selectedPair}</h2>
               </div>
-              <p>
-                {instrument?.name ?? (selected.toUpperCase() || 'Custom')} ·{' '}
-                {route.source === 'dukascopy' ? 'Dukascopy' : 'Yahoo Finance'}
-              </p>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setSelectedPair(null)}
+                title="Close"
+              >
+                <Icon name="close" />
+              </button>
             </header>
-            <div className="row composer-metrics">
-              <label className="field">
-                Pair
-                <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-                  {MARKET_CATALOG.map((row) => (
-                    <option key={row.symbol} value={row.symbol}>
-                      {row.symbol} · {row.name}
-                    </option>
-                  ))}
-                  <option value={CUSTOM}>Custom…</option>
-                </select>
-              </label>
-              <label className="field">
-                Timeframe
-                <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as Timeframe)}>
-                  {TIMEFRAMES.map((tf) => (
-                    <option key={tf} value={tf}>
-                      {tf}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                History
-                <select
-                  value={lookback}
-                  onChange={(e) => setLookback(e.target.value as DownloadLookbackId)}
-                >
-                  {DOWNLOAD_LOOKBACKS.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            
+            <div className="field" style={{ border: '1px solid var(--rule)', padding: '12px', borderRadius: 'var(--radius)', background: 'var(--vault)' }}>
+              <span style={{ fontSize: '13px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>Timeframes</span>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                {TIMEFRAMES.map((tf) => (
+                  <label key={tf} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '14px' }}>
+                    <input
+                      type="checkbox"
+                      checked={timeframes.includes(tf)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setTimeframes([...timeframes, tf])
+                        } else {
+                          setTimeframes(timeframes.filter((t) => t !== tf))
+                        }
+                      }}
+                    />
+                    {tf}
+                  </label>
+                ))}
+              </div>
             </div>
-            {symbol === CUSTOM ? (
+
+            <div className="row composer-metrics" style={{ marginTop: '16px' }}>
               <label className="field">
-                Custom symbol
+                From Date
                 <input
-                  autoFocus
-                  value={custom}
-                  onChange={(e) => setCustom(e.target.value)}
-                  placeholder="AUDUSD or AAPL"
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  max={toDate}
                 />
               </label>
-            ) : null}
-            <p className="composer-hint">
-              XAUUSD stays on the desk. Minute tapes use a shorter window so the pull stays light.
-            </p>
+              <label className="field">
+                To Date
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  min={fromDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                />
+              </label>
+            </div>
+
             <div className="composer-actions">
-              <button className="primary icon-label" type="submit" disabled={busy}>
-                <Icon name="plus" />
+              <button className="primary icon-label" type="submit" disabled={busy || timeframes.length === 0}>
+                <Icon name="download" />
                 {busy ? 'Working…' : 'Download'}
               </button>
             </div>
           </form>
-        </section>
+        </div>
       )}
     </section>
   )

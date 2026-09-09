@@ -216,15 +216,7 @@ export function StrategyLibrary(): React.JSX.Element {
             <p className="composer-hint">
               {STRATEGY_CATALOG.find((s) => s.id === settings.strategyId)?.description}
             </p>
-            <div className="row composer-metrics">
-              <label className="field">
-                {settings.strategyId === 'bbma' ? 'BB period' : 'Lookback'}
-                <input
-                  type="number"
-                  value={settings.lookback}
-                  onChange={(e) => setSettings({ ...settings, lookback: Number(e.target.value) })}
-                />
-              </label>
+            {settings.strategyId === 'none' ? (
               <label className="field">
                 Default RR
                 <input
@@ -234,18 +226,38 @@ export function StrategyLibrary(): React.JSX.Element {
                   onChange={(e) => setSettings({ ...settings, defaultRr: Number(e.target.value) })}
                 />
               </label>
-              <label className="field">
-                Vol
-                <input
-                  type="number"
-                  step="0.1"
-                  value={settings.volumeMultiplier}
-                  onChange={(e) =>
-                    setSettings({ ...settings, volumeMultiplier: Number(e.target.value) })
-                  }
-                />
-              </label>
-            </div>
+            ) : (
+              <div className="row composer-metrics">
+                <label className="field">
+                  {settings.strategyId === 'bbma' ? 'BB period' : 'Lookback'}
+                  <input
+                    type="number"
+                    value={settings.lookback}
+                    onChange={(e) => setSettings({ ...settings, lookback: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="field">
+                  Default RR
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={settings.defaultRr}
+                    onChange={(e) => setSettings({ ...settings, defaultRr: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="field">
+                  Vol
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={settings.volumeMultiplier}
+                    onChange={(e) =>
+                      setSettings({ ...settings, volumeMultiplier: Number(e.target.value) })
+                    }
+                  />
+                </label>
+              </div>
+            )}
             <label className="field">
               Notes
               <textarea

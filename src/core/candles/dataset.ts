@@ -9,14 +9,8 @@ export function localSymbols(datasets: DatasetInfo[]): string[] {
   return [...new Set(datasets.filter((d) => d.candleCount > 0).map((d) => d.symbol))].sort()
 }
 
-export function canShowTimeframe(
-  datasets: DatasetInfo[],
-  symbol: string,
-  timeframe: Timeframe
-): boolean {
-  return datasetsForSymbol(datasets, symbol).some(
-    (d) => intervalMs(d.timeframe) <= intervalMs(timeframe)
-  )
+export function exactTimeframesForSymbol(datasets: DatasetInfo[], symbol: string): Timeframe[] {
+  return [...new Set(datasetsForSymbol(datasets, symbol).map((d) => d.timeframe))]
 }
 
 function coverage(dataset: DatasetInfo): number {
