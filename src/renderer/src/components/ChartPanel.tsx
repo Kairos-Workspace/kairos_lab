@@ -22,6 +22,7 @@ import type { Candle, StrategySettings } from '@shared/types'
 import { Icon } from './Icon'
 import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
 import { ReplayControls } from './ReplayControls'
+import { TradeTicket } from './TradeTicket'
 import { chartSkin } from '@core/desk/theme'
 import { useAppStore } from '../store/useAppStore'
 
@@ -106,26 +107,16 @@ export function ChartPanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const levels = useAppStore((s) => s.horizontalLevels)
   const mode = useAppStore((s) => s.mode)
-  const pendingSetup = useAppStore((s) => s.pendingSetup)
   const draft = useAppStore((s) => s.draft)
-  const tradeModalOpen = useAppStore((s) => s.tradeModalOpen)
   const settings = useAppStore((s) => s.settings)
-  const costs = useAppStore((s) => s.costs)
   const theme = useAppStore((s) => s.theme)
   const chartFull = useAppStore((s) => s.chartFull)
   const toggleChartFull = useAppStore((s) => s.toggleChartFull)
   const startManualTrade = useAppStore((s) => s.startManualTrade)
-  const canStartManualTrade = hasTape && !activeTrade && !pendingSetup && !tradeModalOpen
+  const canStartManualTrade = hasTape && !activeTrade && !draft
   const extras = (() => {
     const prices: number[] = []
-    const live = resolvePositionLevels({
-      setup: pendingSetup,
-      draft,
-      tradeOpen: tradeModalOpen,
-      active: activeTrade,
-      settings,
-      costs
-    })
+    const live = resolvePositionLevels({ draft, active: activeTrade })
     if (live) prices.push(live.entry, live.stopLoss, live.takeProfit)
     return prices
   })()
@@ -326,14 +317,7 @@ export function ChartPanel(): React.JSX.Element {
     const skin = chartSkin()
     for (const line of linesRef.current) series.removePriceLine(line)
     linesRef.current = []
-    const tradeLevels = resolvePositionLevels({
-      setup: pendingSetup,
-      draft,
-      tradeOpen: tradeModalOpen,
-      active: activeTrade,
-      settings,
-      costs
-    })
+    const tradeLevels = resolvePositionLevels({ draft, active: activeTrade })
     const entry = tradeLevels?.entry
     const sl = tradeLevels?.stopLoss
     const tp = tradeLevels?.takeProfit
@@ -391,18 +375,7 @@ export function ChartPanel(): React.JSX.Element {
           text: t.direction
         }))
     )
-  }, [
-    activeTrade,
-    selectedId,
-    trades,
-    levels,
-    draft,
-    pendingSetup,
-    tradeModalOpen,
-    settings,
-    costs,
-    theme
-  ])
+  }, [activeTrade, selectedId, trades, levels, draft, settings, theme])
 
   return (
     <section className="chart-shell" ref={shellRef}>
@@ -434,6 +407,7 @@ export function ChartPanel(): React.JSX.Element {
         )}
         <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
       </div>
+      <TradeTicket />
       <ReplayControls />
     </section>
   )
