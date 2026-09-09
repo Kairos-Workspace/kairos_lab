@@ -1348,3 +1348,65 @@ select:disabled {
     animation: none !important;
   }
 }
+
+/* Below this, the side-by-side desk layout no longer has room to breathe:
+   the chart, the 360px right panel, and the 280/420px bottom columns are
+   all fixed-width and don't wrap on their own. Stack everything instead
+   of letting it silently clip, and let .app scroll to reach it all. */
+@media (max-width: 980px), (max-height: 700px) {
+  .app {
+    grid-template-rows: auto auto auto;
+    overflow-y: auto;
+  }
+
+  .app[data-frame='full'],
+  .app[data-frame='library'] {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .topbar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'brand chip'
+      'controls controls';
+    row-gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .topbar .brand {
+    grid-area: brand;
+  }
+
+  .topbar .top-controls {
+    grid-area: controls;
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .topbar .session-chip {
+    grid-area: chip;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(360px, 55vh) minmax(320px, auto);
+  }
+
+  .app[data-frame='full'] .workspace {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .bottom {
+    grid-template-columns: 1fr;
+    grid-auto-rows: minmax(220px, auto);
+  }
+
+  .bottom > section {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .bottom > section:last-child {
+    border-bottom: 0;
+  }
+}
