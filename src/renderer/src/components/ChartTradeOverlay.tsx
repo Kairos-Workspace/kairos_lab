@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts'
-import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 
 interface Props {
@@ -33,28 +32,13 @@ const DEFAULT_BARS = 24
 const MIN_BARS = 6
 
 export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Element | null {
-  const setup = useAppStore((s) => s.pendingSetup)
   const draft = useAppStore((s) => s.draft)
-  const tradeOpen = useAppStore((s) => s.tradeModalOpen)
   const active = useAppStore((s) => s.activeTrade)
   const trades = useAppStore((s) => s.trades)
-  const takeSetup = useAppStore((s) => s.takeSetup)
-  const skipSetup = useAppStore((s) => s.skipSetup)
-  const settings = useAppStore((s) => s.settings)
-  const costs = useAppStore((s) => s.costs)
   const isPlaying = useAppStore((s) => s.isPlaying)
   const [boxes, setBoxes] = useState<Record<string, Box>>({})
   const barWidths = useRef<Record<string, number>>({})
-  const frames = listPositionFrames({
-    setup,
-    draft,
-    tradeOpen,
-    active,
-    trades,
-    settings,
-    costs,
-    lastTs: setup?.timestamp ?? active?.openedAt
-  })
+  const frames = listPositionFrames({ draft, active, trades })
   const framesRef = useRef(frames)
   framesRef.current = frames
   const frameKey = frames.map((f) => `${f.id}:${f.live}:${f.entry}:${f.stopLoss}:${f.takeProfit}`).join('|')
@@ -129,11 +113,6 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
 
   if (frames.length === 0) return null
 
-  function takeNow(): void {
-    if (setup) takeSetup()
-    queueMicrotask(() => useAppStore.getState().confirmTrade())
-  }
-
   function applyPrice(edge: DragEdge, price: number): void {
     const rounded = price.toFixed(2)
     const state = useAppStore.getState()
@@ -148,13 +127,11 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
       })
       return
     }
-    if (!state.draft && state.pendingSetup) state.takeSetup()
-    const next = useAppStore.getState().draft
-    if (!next) return
+    if (!state.draft) return
     state.updateDraft({
-      entry: edge === 'entry' ? rounded : next.entry,
-      stopLoss: edge === 'stopLoss' ? rounded : next.stopLoss,
-      takeProfit: edge === 'takeProfit' ? rounded : next.takeProfit
+      entry: edge === 'entry' ? rounded : state.draft.entry,
+      stopLoss: edge === 'stopLoss' ? rounded : state.draft.stopLoss,
+      takeProfit: edge === 'takeProfit' ? rounded : state.draft.takeProfit
     })
   }
 
@@ -220,12 +197,6 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
             key={frame.id}
             box={box}
             live={frame.live}
-            showActions={frame.live && Boolean((setup || tradeOpen) && !active)}
-            onTake={takeNow}
-            onSkip={() => {
-              if (setup) skipSetup()
-              else useAppStore.setState({ tradeModalOpen: false, draft: null })
-            }}
             onDrag={(edge, event, resizeWidth) => startDrag(frame.id, edge, event, resizeWidth)}
             onResize={(event) => startWidthDrag(frame.id, event)}
           />
@@ -238,17 +209,11 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
 function PositionFrame({
   box,
   live,
-  showActions,
-  onTake,
-  onSkip,
   onDrag,
   onResize
 }: {
   box: Box
   live: boolean
-  showActions: boolean
-  onTake: () => void
-  onSkip: () => void
   onDrag: (
     edge: DragEdge,
     event: React.PointerEvent<HTMLButtonElement>,
@@ -260,7 +225,6 @@ function PositionFrame({
   const profitH = Math.abs(box.tpY - box.entryY)
   const lossTop = Math.min(box.slY, box.entryY)
   const lossH = Math.abs(box.slY - box.entryY)
-  const frameTop = Math.min(profitTop, lossTop)
 
   return (
     <>
@@ -290,24 +254,6 @@ function PositionFrame({
             onPointerDown={onResize}
           />
         </>
-      ) : null}
-
-      {showActions ? (
-        <div
-          className="pos-card pos-card-actions"
-          style={{ left: box.left + box.width / 2, top: frameTop }}
-        >
-          <div className="tv-pop-actions">
-            <button className="primary icon-label" onClick={onTake} title="Take trade">
-              <Icon name="check" />
-              Take
-            </button>
-            <button className="ghost icon-label" onClick={onSkip} title="Skip setup">
-              <Icon name="skip" />
-              Skip
-            </button>
-          </div>
-        </div>
       ) : null}
     </>
   )
@@ -342,26 +288,16 @@ function Handle({
 }
 
 export function resolvePositionLevels(input: {
-  setup: ReturnType<typeof useAppStore.getState>['pendingSetup']
   draft: ReturnType<typeof useAppStore.getState>['draft']
-  tradeOpen: boolean
   active: ReturnType<typeof useAppStore.getState>['activeTrade']
-  settings: ReturnType<typeof useAppStore.getState>['settings']
-  costs: ReturnType<typeof useAppStore.getState>['costs']
-  lastTs?: number
 }): PositionLevels | null {
   return listPositionFrames({ ...input, trades: [] }).find((frame) => frame.live) ?? null
 }
 
 export function listPositionFrames(input: {
-  setup: ReturnType<typeof useAppStore.getState>['pendingSetup']
   draft: ReturnType<typeof useAppStore.getState>['draft']
-  tradeOpen: boolean
   active: ReturnType<typeof useAppStore.getState>['activeTrade']
   trades?: ReturnType<typeof useAppStore.getState>['trades']
-  settings: ReturnType<typeof useAppStore.getState>['settings']
-  costs: ReturnType<typeof useAppStore.getState>['costs']
-  lastTs?: number
 }): PositionLevels[] {
   const frames: PositionLevels[] = []
   const seen = new Set<string>()
@@ -387,13 +323,8 @@ export function listPositionFrames(input: {
 }
 
 function resolveLiveLevels(input: {
-  setup: ReturnType<typeof useAppStore.getState>['pendingSetup']
   draft: ReturnType<typeof useAppStore.getState>['draft']
-  tradeOpen: boolean
   active: ReturnType<typeof useAppStore.getState>['activeTrade']
-  settings: ReturnType<typeof useAppStore.getState>['settings']
-  costs: ReturnType<typeof useAppStore.getState>['costs']
-  lastTs?: number
 }): PositionLevels | null {
   if (input.active) {
     return {
@@ -406,39 +337,19 @@ function resolveLiveLevels(input: {
       timestamp: input.active.openedAt
     }
   }
-  if (input.tradeOpen && input.draft) {
+  if (input.draft) {
     const entry = Number(input.draft.entry)
     const stopLoss = Number(input.draft.stopLoss)
     const takeProfit = Number(input.draft.takeProfit)
     if (![entry, stopLoss, takeProfit].every(Number.isFinite)) return null
-    const timestamp = input.setup?.timestamp ?? input.lastTs ?? Date.now()
     return {
-      id: `t:${timestamp}`,
+      id: `t:${input.draft.timestamp}`,
       live: true,
       direction: input.draft.direction,
       entry,
       stopLoss,
       takeProfit,
-      timestamp
-    }
-  }
-  if (input.setup) {
-    const direction = input.setup.type === 'LONG' ? 'BUY' : 'SELL'
-    const entry = input.setup.price
-    const slDist = Math.max(input.costs.tickSize * 50, entry * 0.0015)
-    const stopLoss = direction === 'BUY' ? entry - slDist : entry + slDist
-    const takeProfit =
-      direction === 'BUY'
-        ? entry + slDist * input.settings.defaultRr
-        : entry - slDist * input.settings.defaultRr
-    return {
-      id: `t:${input.setup.timestamp}`,
-      live: true,
-      direction,
-      entry,
-      stopLoss,
-      takeProfit,
-      timestamp: input.setup.timestamp
+      timestamp: input.draft.timestamp
     }
   }
   return null
