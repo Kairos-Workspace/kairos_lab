@@ -253,6 +253,24 @@ select:disabled {
   min-height: 72px;
 }
 
+.control-group,
+.readout-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.readout-group {
+  padding-left: 16px;
+  border-left: 1px solid var(--rule);
+}
+
+.readout-value {
+  padding: 7px 2px;
+  color: var(--parchment);
+  font-variant-numeric: tabular-nums;
+}
+
 .chip {
   border: 1px solid var(--rule);
   background: var(--steel);
@@ -652,6 +670,12 @@ select:disabled {
   min-height: 36px;
 }
 
+.tab-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .panel-body {
   overflow: auto;
   padding: 14px;
@@ -804,6 +828,10 @@ select:disabled {
   gap: 6px;
   margin: 8px 0;
   flex-wrap: wrap;
+}
+
+.filters .muted {
+  margin-left: auto;
 }
 
 .modal-backdrop {
@@ -1208,6 +1236,14 @@ select:disabled {
   font-size: 11px;
 }
 
+.market-table tbody tr td {
+  border-top: 0;
+}
+
+.market-table tbody tr[data-group-start='true'] td {
+  border-top: 1px solid var(--rule);
+}
+
 .library-empty {
   height: 100%;
   min-height: 360px;
@@ -1234,7 +1270,8 @@ select:disabled {
 
 .strategy-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+  justify-content: start;
   gap: 12px;
 }
 
@@ -1295,6 +1332,27 @@ select:disabled {
   position: absolute;
   top: 10px;
   right: 10px;
+}
+
+.strategy-card-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 210px;
+  padding: 20px 18px 18px;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--muted);
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.strategy-card-add:hover {
+  border-color: var(--gold-dim);
+  color: var(--gold);
+  background: var(--gold-soft);
 }
 
 @media (prefers-reduced-motion: reduce) {
