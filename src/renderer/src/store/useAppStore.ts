@@ -45,6 +45,7 @@ export interface DraftTrade {
   stopLoss: string
   takeProfit: string
   riskPercent: string
+  timestamp: number
 }
 
 interface AppState {
@@ -67,7 +68,6 @@ interface AppState {
   hideDate: boolean
   settings: StrategySettings
   pendingSetup: StrategySignal | null
-  tradeModalOpen: boolean
   draft: DraftTrade | null
   activeTrade: Trade | null
   trades: Trade[]
@@ -176,6 +176,25 @@ function defaultStopTarget(
   return { stopLoss, takeProfit }
 }
 
+function draftFromSignal(
+  signal: StrategySignal,
+  costs: CostConfig,
+  settings: StrategySettings,
+  riskPercent: number
+): DraftTrade {
+  const direction: Direction = signal.type === 'LONG' ? 'BUY' : 'SELL'
+  const entry = signal.price
+  const { stopLoss, takeProfit } = defaultStopTarget(direction, entry, costs, settings)
+  return {
+    direction,
+    entry: entry.toFixed(2),
+    stopLoss: stopLoss.toFixed(2),
+    takeProfit: takeProfit.toFixed(2),
+    riskPercent: String(riskPercent),
+    timestamp: signal.timestamp
+  }
+}
+
 function strategyBridge() {
   return desktop()?.strategies
 }
@@ -242,7 +261,6 @@ export const useAppStore = create<AppState>((set, get) => {
   hideDate: false,
   settings: { ...DEFAULT_STRATEGY_SETTINGS },
   pendingSetup: null,
-  tradeModalOpen: false,
   draft: null,
   activeTrade: null,
   trades: [],
@@ -347,7 +365,7 @@ export const useAppStore = create<AppState>((set, get) => {
       mode: 'view',
       isPlaying: false,
       pendingSetup: null,
-      tradeModalOpen: false,
+      draft: null,
       activeTrade: null,
       trades: [],
       skipped: [],
@@ -364,7 +382,7 @@ export const useAppStore = create<AppState>((set, get) => {
       screen: 'library',
       isPlaying: false,
       pendingSetup: null,
-      tradeModalOpen: false,
+      draft: null,
       chartFull: false,
       status: 'Strategy library'
     })
@@ -644,6 +662,7 @@ export const useAppStore = create<AppState>((set, get) => {
       replayToTs: displayCandles.at(-1)?.timestamp ?? null,
       isPlaying: false,
       pendingSetup: null,
+      draft: null,
       activeTrade: null,
       busy: false,
       status: `${dataset.symbol} ${dataset.timeframe} · ${sourceCandles.length.toLocaleString()} candles`
@@ -700,7 +719,7 @@ export const useAppStore = create<AppState>((set, get) => {
       hideDate: Boolean(opts?.hideDate),
       isPlaying: false,
       pendingSetup: null,
-      tradeModalOpen: false,
+      draft: null,
       activeTrade: null,
       trades: [],
       skipped: [],
@@ -720,20 +739,21 @@ export const useAppStore = create<AppState>((set, get) => {
       mode: 'view',
       isPlaying: false,
       pendingSetup: null,
+      draft: null,
       replayIndex: Math.max(0, s.displayCandles.length - 1)
     })
   },
 
   play: () => {
     const s = get()
-    if (s.pendingSetup || s.tradeModalOpen || s.displayCandles.length === 0) return
+    if (s.pendingSetup || s.draft || s.displayCandles.length === 0) return
     if (s.mode !== 'replay') get().startReplay()
     clearTimer()
     set({ isPlaying: true, status: 'Replaying…' })
     lastTick = performance.now()
     const loop = (now: number) => {
       const current = get()
-      if (!current.isPlaying || current.pendingSetup || current.tradeModalOpen) {
+      if (!current.isPlaying || current.pendingSetup || current.draft) {
         raf = 0
         return
       }
@@ -764,7 +784,7 @@ export const useAppStore = create<AppState>((set, get) => {
     const s = get()
     if (s.displayCandles.length === 0) return
     if (s.mode !== 'replay') get().startReplay()
-    if (s.pendingSetup || s.tradeModalOpen) return
+    if (s.pendingSetup || s.draft) return
 
     const next = get()
     const tape = next.displayCandles
@@ -802,6 +822,9 @@ export const useAppStore = create<AppState>((set, get) => {
           trades,
           account,
           pendingSetup: pending,
+          draft: pending
+            ? draftFromSignal(pending, next.costs, next.settings, account.riskPerTrade)
+            : null,
           status: 'End of selected range.'
         })
         return
@@ -890,6 +913,9 @@ export const useAppStore = create<AppState>((set, get) => {
       trades,
       account,
       pendingSetup: pending,
+      draft: pending
+        ? draftFromSignal(pending, next.costs, next.settings, account.riskPerTrade)
+        : null,
       isPlaying: pending ? false : get().isPlaying,
       status: pending ? 'Setup detected. Replay paused.' : get().status
     })
@@ -913,43 +939,24 @@ export const useAppStore = create<AppState>((set, get) => {
   },
 
   takeSetup: () => {
-    const signal = get().pendingSetup
-    if (!signal) return
-    const direction: Direction = signal.type === 'LONG' ? 'BUY' : 'SELL'
-    const entry = signal.price
-    const { stopLoss: sl, takeProfit: tp } = defaultStopTarget(
-      direction,
-      entry,
-      get().costs,
-      get().settings
-    )
-    set({
-      tradeModalOpen: true,
-      draft: {
-        direction,
-        entry: entry.toFixed(2),
-        stopLoss: sl.toFixed(2),
-        takeProfit: tp.toFixed(2),
-        riskPercent: String(get().account.riskPerTrade)
-      }
-    })
+    get().confirmTrade()
   },
 
   startManualTrade: (direction) => {
     const s = get()
-    if (s.activeTrade || s.pendingSetup || s.tradeModalOpen) return
-    const entry = s.currentCandle()?.close
-    if (entry == null) return
+    if (s.activeTrade || s.pendingSetup || s.draft) return
+    const candle = s.currentCandle()
+    if (!candle) return
     if (s.isPlaying) get().pause()
-    const { stopLoss, takeProfit } = defaultStopTarget(direction, entry, s.costs, s.settings)
+    const { stopLoss, takeProfit } = defaultStopTarget(direction, candle.close, s.costs, s.settings)
     set({
-      tradeModalOpen: true,
       draft: {
         direction,
-        entry: entry.toFixed(2),
+        entry: candle.close.toFixed(2),
         stopLoss: stopLoss.toFixed(2),
         takeProfit: takeProfit.toFixed(2),
-        riskPercent: String(s.account.riskPerTrade)
+        riskPercent: String(s.account.riskPerTrade),
+        timestamp: candle.timestamp
       }
     })
   },
@@ -975,6 +982,7 @@ export const useAppStore = create<AppState>((set, get) => {
     set({
       skipped: [...get().skipped, skipped],
       pendingSetup: null,
+      draft: null,
       status: 'Setup skipped.'
     })
   },
@@ -1014,14 +1022,13 @@ export const useAppStore = create<AppState>((set, get) => {
       takeProfit,
       positionSize: sized.positionSize,
       riskAmount: sized.riskAmount,
-      openedAt: pendingSetup?.timestamp ?? get().currentCandle()?.timestamp ?? Date.now(),
+      openedAt: draft.timestamp,
       strategy: pendingSetup?.strategy,
       reason: pendingSetup?.reason
     }
     set({
       activeTrade: trade,
       pendingSetup: null,
-      tradeModalOpen: false,
       draft: null,
       status: `${draft.direction} opened · RR ${riskReward(entry, stopLoss, takeProfit).toFixed(2)}`
     })
