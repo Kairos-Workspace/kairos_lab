@@ -445,6 +445,9 @@ export function listDrawings(symbol: string): Drawing[] {
 }
 
 export function saveDrawing(drawing: Drawing): void {
+  const validated = parseDrawing(drawing)
+  if (!validated) return
+  const updatedAt = Date.now()
   getDb()
     .prepare(
       `INSERT INTO drawings (id, symbol, type, payload_json, created_at, updated_at)
@@ -454,17 +457,17 @@ export function saveDrawing(drawing: Drawing): void {
          updated_at = excluded.updated_at`
     )
     .run({
-      id: drawing.id,
-      symbol: drawing.symbol,
-      type: drawing.type,
+      id: validated.id,
+      symbol: validated.symbol,
+      type: validated.type,
       payload: JSON.stringify({
-        type: drawing.type,
-        points: drawing.points,
-        text: drawing.text,
-        style: drawing.style
+        type: validated.type,
+        points: validated.points,
+        text: validated.text,
+        style: validated.style
       }),
-      created: drawing.createdAt,
-      updated: drawing.updatedAt
+      created: validated.createdAt,
+      updated: updatedAt
     })
 }
 
