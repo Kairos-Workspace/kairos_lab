@@ -181,6 +181,33 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
     }
   }, [chart, series, host])
 
+  const selectedDrawingId = useAppStore((s) => s.selectedDrawingId)
+  const selected = drawings.find((d) => d.id === selectedDrawingId) ?? null
+
+  function dragHandle(index: number, event: React.PointerEvent<HTMLButtonElement>): void {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!selected || !host) return
+    const box = host.getBoundingClientRect()
+    const move = (ev: PointerEvent): void => {
+      const point = fromPixel({ x: ev.clientX - box.left, y: ev.clientY - box.top })
+      if (!point) return
+      const points = [...selected.points]
+      points[index] = point
+      useAppStore.getState().updateDrawing(selected.id, { points })
+    }
+    const up = (ev: PointerEvent): void => {
+      const point = fromPixel({ x: ev.clientX - box.left, y: ev.clientY - box.top })
+      const points = [...selected.points]
+      if (point) points[index] = point
+      useAppStore.getState().updateDrawing(selected.id, { points, immediate: true })
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   function hitTest(target: Point, width: number, height: number): string | null {
     for (let i = drawingsRef.current.length - 1; i >= 0; i--) {
       const drawing = drawingsRef.current[i]
@@ -303,6 +330,22 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
   return (
     <>
       <canvas className="drawing-layer-canvas" ref={canvasRef} data-capture="false" />
+      {selected
+        ? selected.points.map((point, index) => {
+            const pixel = toPixel(point)
+            if (!pixel) return null
+            return (
+              <button
+                key={index}
+                type="button"
+                className="drawing-handle"
+                style={{ left: pixel.x, top: pixel.y }}
+                aria-label={`Drag ${selected.type} anchor ${index + 1}`}
+                onPointerDown={(event) => dragHandle(index, event)}
+              />
+            )
+          })
+        : null}
       {measureReadout ? (
         <div
           className="drawing-measure-label"

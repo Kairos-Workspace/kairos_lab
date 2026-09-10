@@ -397,6 +397,22 @@ select:disabled {
   transform: translate(12px, -50%);
 }
 
+.drawing-handle {
+  position: absolute;
+  z-index: 6;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+  border: 2px solid var(--brand);
+  border-radius: 50%;
+  background: var(--parchment);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: move;
+}
+
 .pos-zone {
   position: absolute;
   pointer-events: none;
