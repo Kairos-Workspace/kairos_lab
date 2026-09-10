@@ -31,10 +31,16 @@ export function useKeyboard(): void {
           break
         case 'Escape':
           if (store.chartFull) store.setChartFull(false)
+          else if (store.activeTool) store.setActiveTool(null)
+          else if (store.selectedDrawingId) store.selectDrawing(null)
           break
         case 'r':
         case 'R':
           store.resetReplay()
+          break
+        case 'Delete':
+        case 'Backspace':
+          if (store.selectedDrawingId) store.removeDrawing(store.selectedDrawingId)
           break
         case 't':
         case 'T':
