@@ -371,6 +371,17 @@ select:disabled {
   pointer-events: none;
 }
 
+.drawing-layer-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.drawing-layer-canvas[data-capture='true'] {
+  pointer-events: auto;
+}
+
 .pos-zone {
   position: absolute;
   pointer-events: none;

@@ -21,6 +21,7 @@ import {
 import type { Candle, StrategySettings } from '@shared/types'
 import { Icon } from './Icon'
 import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
+import { DrawingLayer } from './DrawingLayer'
 import { ReplayControls } from './ReplayControls'
 import { TradeTicket } from './TradeTicket'
 import { chartSkin } from '@core/desk/theme'
@@ -406,6 +407,7 @@ export function ChartPanel(): React.JSX.Element {
           </div>
         )}
         <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
+        <DrawingLayer chart={chartApi} series={seriesApi} host={hostRef.current} />
       </div>
       <TradeTicket />
       <ReplayControls />
