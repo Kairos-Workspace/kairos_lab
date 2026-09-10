@@ -1308,6 +1308,8 @@ export const useAppStore = create<AppState>((set, get) => {
 
   clearDrawings: () => {
     const symbol = get().symbol
+    for (const timer of drawingSaveTimers.values()) clearTimeout(timer)
+    drawingSaveTimers.clear()
     set({ drawings: [], selectedDrawingId: null })
     const api = desktop()
     if (api?.drawings) void api.drawings.clear(symbol)
