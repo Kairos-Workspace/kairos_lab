@@ -218,6 +218,7 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
         if (!point) return
         points = [point]
         lastPixel = pixel
+        canvas.setPointerCapture(event.pointerId)
       }
       const onMove = (event: PointerEvent): void => {
         if (points.length === 0) return
@@ -236,13 +237,20 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
         pendingPointsRef.current = []
         useAppStore.getState().setActiveTool(null)
       }
+      const onCancel = (): void => {
+        points = []
+        pendingPointsRef.current = []
+        useAppStore.getState().setActiveTool(null)
+      }
       canvas.addEventListener('pointerdown', onDown)
       canvas.addEventListener('pointermove', onMove)
       canvas.addEventListener('pointerup', onUp)
+      canvas.addEventListener('pointercancel', onCancel)
       return () => {
         canvas.removeEventListener('pointerdown', onDown)
         canvas.removeEventListener('pointermove', onMove)
         canvas.removeEventListener('pointerup', onUp)
+        canvas.removeEventListener('pointercancel', onCancel)
       }
     }
 
@@ -250,6 +258,7 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
     const onDown = (event: PointerEvent): void => {
       const box = bounds()
       anchor = fromPixel({ x: event.clientX - box.left, y: event.clientY - box.top })
+      canvas.setPointerCapture(event.pointerId)
     }
     const onMove = (event: PointerEvent): void => {
       if (!anchor) return
@@ -274,13 +283,20 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
       setMeasureReadout(null)
       useAppStore.getState().setActiveTool(null)
     }
+    const onCancel = (): void => {
+      anchor = null
+      setMeasureReadout(null)
+      useAppStore.getState().setActiveTool(null)
+    }
     canvas.addEventListener('pointerdown', onDown)
     canvas.addEventListener('pointermove', onMove)
     canvas.addEventListener('pointerup', onUp)
+    canvas.addEventListener('pointercancel', onCancel)
     return () => {
       canvas.removeEventListener('pointerdown', onDown)
       canvas.removeEventListener('pointermove', onMove)
       canvas.removeEventListener('pointerup', onUp)
+      canvas.removeEventListener('pointercancel', onCancel)
     }
   }, [activeTool, chart, series, host])
 
