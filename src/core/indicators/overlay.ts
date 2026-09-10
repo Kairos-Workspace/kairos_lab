@@ -15,6 +15,7 @@ export interface IndicatorLine extends IndicatorSpec {
 }
 
 export function strategyIndicatorSpecs(settings: StrategySettings): IndicatorSpec[] {
+  if (settings.strategyId === 'none') return []
   if (settings.strategyId === 'bbma') {
     const period = Math.max(2, settings.lookback)
     return [
@@ -82,7 +83,7 @@ export function strategyIndicatorLines(
       if (fastMa != null) buckets.get('sma-fast')?.push({ timestamp: time, value: fastMa })
       if (slowMa != null) buckets.get('sma-slow')?.push({ timestamp: time, value: slowMa })
     }
-  } else {
+  } else if (settings.strategyId !== 'none') {
     const lookback = Math.max(1, settings.lookback)
     for (let i = 0; i < candles.length; i++) {
       const prior = candles.slice(Math.max(0, i - lookback), i)
@@ -106,6 +107,7 @@ export function strategyIndicatorLast(
 ): { id: string; timestamp: number; value: number }[] {
   const last = candles.at(-1)
   if (!last) return []
+  if (settings.strategyId === 'none') return []
   if (settings.strategyId === 'bbma') {
     const period = Math.max(2, settings.lookback)
     const bands = bollinger(candles.slice(0, -1), period, 2)

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { strategyIndicatorLines } from '@core/indicators/overlay'
+import {
+  strategyIndicatorLast,
+  strategyIndicatorLines,
+  strategyIndicatorSpecs
+} from '@core/indicators/overlay'
 import { DEFAULT_STRATEGY_SETTINGS } from '@shared/constants'
 import { series } from './helpers'
 
@@ -35,6 +39,13 @@ describe('strategyIndicatorLines', () => {
     expect(lines.map((line) => line.id)).toEqual(['sma-fast', 'sma-slow'])
     const slow = lines.find((line) => line.id === 'sma-slow')?.points.at(-1)
     expect(slow?.value).toBeCloseTo((100 + 101 + 102 + 100.5) / 4)
+  })
+
+  it('draws no overlays when no strategy is selected', () => {
+    const settings = { ...DEFAULT_STRATEGY_SETTINGS, strategyId: 'none', lookback: 3 }
+    expect(strategyIndicatorSpecs(settings)).toEqual([])
+    expect(strategyIndicatorLines(settings, bars)).toEqual([])
+    expect(strategyIndicatorLast(settings, bars)).toEqual([])
   })
 
   it('plots lookback high and low for breakout', () => {
