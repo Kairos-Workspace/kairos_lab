@@ -18,12 +18,17 @@ import type {
   AmbiguityRule,
   BacktestSession,
   Candle,
+  ChartTool,
   CostConfig,
   DataGap,
   DatasetInfo,
   DeskPrefs,
   DeskTheme,
   Direction,
+  Drawing,
+  DrawingPoint,
+  DrawingStyle,
+  DrawingTool,
   SavedStrategy,
   StrategySettings,
   StrategySignal,
@@ -34,6 +39,7 @@ import { desktop, desktopMissingMessage, loadDeskPrefs, requireDesktop } from '@
 import { applyDeskTheme } from '@core/desk/theme'
 import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strategyVault'
+import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 
 export type AppScreen = 'library' | 'workspace'
 export type RightTab = 'strategy' | 'trade' | 'sessions' | 'costs'
@@ -83,6 +89,11 @@ interface AppState {
   sessionId: string
   sessionName: string
   horizontalLevels: number[]
+  drawings: Drawing[]
+  drawingsHidden: boolean
+  activeTool: ChartTool | null
+  selectedDrawingId: string | null
+  drawingDefaults: Record<DrawingTool, DrawingStyle>
   chartFull: boolean
   screen: AppScreen
   strategies: SavedStrategy[]
@@ -144,6 +155,17 @@ interface AppState {
   deleteSession: (id: string) => Promise<void>
   selectTrade: (id: string | null) => void
   addHorizontal: (price: number) => void
+  setActiveTool: (tool: ChartTool | null) => void
+  selectDrawing: (id: string | null) => void
+  setDrawingsHidden: (hidden: boolean) => void
+  addDrawing: (input: { type: DrawingTool; points: DrawingPoint[]; text?: string }) => string
+  updateDrawing: (
+    id: string,
+    patch: { points?: DrawingPoint[]; text?: string; style?: Partial<DrawingStyle>; immediate?: boolean }
+  ) => void
+  removeDrawing: (id: string) => void
+  clearDrawings: () => void
+  loadDrawingsForSymbol: (symbol: string) => Promise<void>
   currentCandle: () => Candle | undefined
 }
 
@@ -243,6 +265,30 @@ export const useAppStore = create<AppState>((set, get) => {
     void api.prefs.save(deskFromState(get()))
   }
 
+  const drawingSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  const saveDrawingNow = (drawing: Drawing): void => {
+    const api = desktop()
+    if (api?.drawings) void api.drawings.save(drawing)
+  }
+
+  const scheduleDrawingSave = (drawing: Drawing, immediate: boolean): void => {
+    const existing = drawingSaveTimers.get(drawing.id)
+    if (existing) clearTimeout(existing)
+    if (immediate) {
+      drawingSaveTimers.delete(drawing.id)
+      saveDrawingNow(drawing)
+      return
+    }
+    drawingSaveTimers.set(
+      drawing.id,
+      setTimeout(() => {
+        drawingSaveTimers.delete(drawing.id)
+        saveDrawingNow(drawing)
+      }, 300)
+    )
+  }
+
   return {
   datasets: [],
   sessions: [],
@@ -278,6 +324,13 @@ export const useAppStore = create<AppState>((set, get) => {
   sessionId: newId(),
   sessionName: 'Untitled session',
   horizontalLevels: [],
+  drawings: [],
+  drawingsHidden: false,
+  activeTool: null,
+  selectedDrawingId: null,
+  drawingDefaults: Object.fromEntries(
+    DRAWING_TOOLS.map((t) => [t, { ...DEFAULT_DRAWING_STYLE }])
+  ) as Record<DrawingTool, DrawingStyle>,
   chartFull: false,
   screen: 'library',
   strategies: [],
@@ -1192,6 +1245,90 @@ export const useAppStore = create<AppState>((set, get) => {
     if (trade) get().jumpToDate(trade.openedAt)
   },
 
-  addHorizontal: (price) => set({ horizontalLevels: [...get().horizontalLevels, price] })
+  addHorizontal: (price) => set({ horizontalLevels: [...get().horizontalLevels, price] }),
+
+  setActiveTool: (tool) => set({ activeTool: tool, selectedDrawingId: tool ? null : get().selectedDrawingId }),
+
+  selectDrawing: (id) => set({ selectedDrawingId: id, activeTool: id ? null : get().activeTool }),
+
+  setDrawingsHidden: (hidden) => set({ drawingsHidden: hidden }),
+
+  addDrawing: (input) => {
+    const id = newId()
+    const now = Date.now()
+    const drawing: Drawing = {
+      id,
+      symbol: get().symbol,
+      type: input.type,
+      points: input.points,
+      text: input.text,
+      style: { ...get().drawingDefaults[input.type] },
+      createdAt: now,
+      updatedAt: now
+    }
+    set({ drawings: [...get().drawings, drawing], selectedDrawingId: id, activeTool: null })
+    scheduleDrawingSave(drawing, true)
+    return id
+  },
+
+  updateDrawing: (id, patch) => {
+    let updated: Drawing | undefined
+    const drawings = get().drawings.map((d) => {
+      if (d.id !== id) return d
+      updated = {
+        ...d,
+        points: patch.points ?? d.points,
+        text: patch.text !== undefined ? patch.text : d.text,
+        style: patch.style ? { ...d.style, ...patch.style } : d.style,
+        updatedAt: Date.now()
+      }
+      return updated
+    })
+    if (!updated) return
+    set({ drawings })
+    if (patch.style) {
+      set({ drawingDefaults: { ...get().drawingDefaults, [updated.type]: updated.style } })
+    }
+    scheduleDrawingSave(updated, patch.immediate ?? false)
+  },
+
+  removeDrawing: (id) => {
+    set({
+      drawings: get().drawings.filter((d) => d.id !== id),
+      selectedDrawingId: get().selectedDrawingId === id ? null : get().selectedDrawingId
+    })
+    const timer = drawingSaveTimers.get(id)
+    if (timer) {
+      clearTimeout(timer)
+      drawingSaveTimers.delete(id)
+    }
+    const api = desktop()
+    if (api?.drawings) void api.drawings.delete(id)
+  },
+
+  clearDrawings: () => {
+    const symbol = get().symbol
+    set({ drawings: [], selectedDrawingId: null })
+    const api = desktop()
+    if (api?.drawings) void api.drawings.clear(symbol)
+  },
+
+  loadDrawingsForSymbol: async (symbol) => {
+    const api = desktop()
+    if (!api?.drawings) {
+      set({ drawings: [], selectedDrawingId: null })
+      return
+    }
+    try {
+      const drawings = await api.drawings.list(symbol)
+      if (get().symbol === symbol) set({ drawings, selectedDrawingId: null })
+    } catch {
+      if (get().symbol === symbol) set({ drawings: [], selectedDrawingId: null })
+    }
+  }
 }
+})
+
+useAppStore.subscribe((state, prev) => {
+  if (state.symbol !== prev.symbol) void state.loadDrawingsForSymbol(state.symbol)
 })
