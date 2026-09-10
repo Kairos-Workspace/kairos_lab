@@ -10,6 +10,7 @@ import {
   type Point
 } from '@core/drawings/geometry'
 import { useAppStore } from '../store/useAppStore'
+import { DrawingStyleMenu } from './DrawingStyleMenu'
 
 interface Props {
   chart: IChartApi | null
@@ -345,6 +346,21 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
               />
             )
           })
+        : null}
+      {selected
+        ? (() => {
+            const anchor = toPixel(selected.points[0])
+            return anchor ? (
+              <DrawingStyleMenu
+                drawing={selected}
+                anchor={anchor}
+                onStyleChange={(style) =>
+                  useAppStore.getState().updateDrawing(selected.id, { style, immediate: true })
+                }
+                onDelete={() => useAppStore.getState().removeDrawing(selected.id)}
+              />
+            ) : null
+          })()
         : null}
       {measureReadout ? (
         <div
