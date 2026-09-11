@@ -136,6 +136,7 @@ interface AppState {
   removeTapes: (ids: number[]) => Promise<void>
   loadDataset: (id: number) => Promise<void>
   loadOlderCandles: () => Promise<void>
+  loadReplayRange: (fromTs: number, toTs: number) => Promise<void>
   startReplay: (opts?: {
     random?: boolean
     hideDate?: boolean
@@ -923,6 +924,35 @@ export const useAppStore = create<AppState>((set, get) => {
     } catch (error) {
       set({ loadingOlderCandles: false })
       notifyError('Could not load older candles.', error)
+    }
+  },
+
+  loadReplayRange: async (fromTs, toTs) => {
+    const s = get()
+    if (s.datasetId == null) return
+    const datasetId = s.datasetId
+    const warmupSpanMs = WARMUP_BARS * intervalMs(s.displayTimeframe) * 3
+    set({ busy: true, status: 'Loading replay range…' })
+    try {
+      const candleBuffer = await requireDesktop().datasets.candles(datasetId, fromTs - warmupSpanMs, toTs)
+      const sourceCandles = fromCandleBuffer(candleBuffer)
+      const next = get()
+      const displayCandles = rebuildDisplay(sourceCandles, next.sourceTimeframe, next.displayTimeframe)
+      set({
+        sourceCandles,
+        displayCandles,
+        sourceHasOlder: true,
+        loadingOlderCandles: false,
+        pendingRangeShift: null,
+        busy: false
+      })
+    } catch (error) {
+      set({
+        busy: false,
+        status: error instanceof Error ? error.message : 'Could not load that replay range.'
+      })
+      notifyError('Could not load that replay range.', error)
+      throw error
     }
   },
 
