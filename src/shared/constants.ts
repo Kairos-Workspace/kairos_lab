@@ -37,6 +37,8 @@ export const DEFAULT_BALANCE = 10_000
 export const DEFAULT_RISK_PCT = 1
 export const BASE_TICK_MS = 280
 export const WARMUP_BARS = 50
+export const INITIAL_VIEW_CANDLES = 2000
+export const CANDLE_PAGE_SIZE = 1000
 
 export const YAHOO_SYMBOLS: Record<string, string> = {
   XAUUSD: 'GC=F',

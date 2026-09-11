@@ -10,8 +10,10 @@ import { evaluateTradeOnCandle, lowerTimeframeWindow } from '@core/trade/simulat
 import { fromCandleBuffer } from '@shared/candleBuffer'
 import {
   BASE_TICK_MS,
+  CANDLE_PAGE_SIZE,
   DEFAULT_COSTS,
   DEFAULT_STRATEGY_SETTINGS,
+  INITIAL_VIEW_CANDLES,
   WARMUP_BARS
 } from '@shared/constants'
 import type {
@@ -62,6 +64,9 @@ interface AppState {
   displayTimeframe: Timeframe
   displayCandles: Candle[]
   gaps: DataGap[]
+  sourceHasOlder: boolean
+  loadingOlderCandles: boolean
+  pendingRangeShift: number | null
   dbPath: string
   symbol: string
   mode: 'view' | 'replay'
@@ -130,6 +135,7 @@ interface AppState {
   removeTape: (id: number) => Promise<void>
   removeTapes: (ids: number[]) => Promise<void>
   loadDataset: (id: number) => Promise<void>
+  loadOlderCandles: () => Promise<void>
   startReplay: (opts?: {
     random?: boolean
     hideDate?: boolean
@@ -295,6 +301,9 @@ export const useAppStore = create<AppState>((set, get) => {
   displayTimeframe: '1H',
   displayCandles: [],
   gaps: [],
+  sourceHasOlder: false,
+  loadingOlderCandles: false,
+  pendingRangeShift: null,
   dbPath: '',
   symbol: 'XAUUSD',
   mode: 'view',
@@ -839,7 +848,7 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ busy: true, status: `Loading ${dataset.source} tape…` })
     try {
     const [candleBuffer, gaps] = await Promise.all([
-      requireDesktop().datasets.candles(id),
+      requireDesktop().datasets.candlesPage(id, INITIAL_VIEW_CANDLES),
       requireDesktop().datasets.gaps(id)
     ])
     const sourceCandles = fromCandleBuffer(candleBuffer)
@@ -858,6 +867,9 @@ export const useAppStore = create<AppState>((set, get) => {
       displayTimeframe,
       displayCandles,
       gaps,
+      sourceHasOlder: sourceCandles.length === INITIAL_VIEW_CANDLES,
+      loadingOlderCandles: false,
+      pendingRangeShift: null,
       mode: 'view',
       replayIndex: Math.max(0, displayCandles.length - 1),
       replayFromTs: displayCandles[0]?.timestamp ?? null,
@@ -867,7 +879,7 @@ export const useAppStore = create<AppState>((set, get) => {
       draft: null,
       activeTrade: null,
       busy: false,
-      status: `${dataset.symbol} ${dataset.timeframe} · ${sourceCandles.length.toLocaleString()} candles`
+      status: `${dataset.symbol} ${dataset.timeframe} · ${dataset.candleCount.toLocaleString()} candles`
     })
     clearTimer()
     persistDesk()
@@ -877,6 +889,40 @@ export const useAppStore = create<AppState>((set, get) => {
         status: error instanceof Error ? error.message : 'Could not load that tape.'
       })
       notifyError('Could not load that tape.', error)
+    }
+  },
+
+  loadOlderCandles: async () => {
+    const s = get()
+    if (s.loadingOlderCandles || !s.sourceHasOlder || s.sourceCandles.length === 0 || s.datasetId == null) {
+      return
+    }
+    const datasetId = s.datasetId
+    const beforeTs = s.sourceCandles[0].timestamp
+    set({ loadingOlderCandles: true })
+    try {
+      const older = fromCandleBuffer(
+        await requireDesktop().datasets.candlesPage(datasetId, CANDLE_PAGE_SIZE, beforeTs)
+      )
+      if (get().datasetId !== datasetId) return
+      if (older.length === 0) {
+        set({ sourceHasOlder: false, loadingOlderCandles: false })
+        return
+      }
+      const next = get()
+      const sourceCandles = [...older, ...next.sourceCandles]
+      const displayCandles = rebuildDisplay(sourceCandles, next.sourceTimeframe, next.displayTimeframe)
+      const addedCount = displayCandles.length - next.displayCandles.length
+      set({
+        sourceCandles,
+        displayCandles,
+        sourceHasOlder: older.length === CANDLE_PAGE_SIZE,
+        loadingOlderCandles: false,
+        pendingRangeShift: addedCount
+      })
+    } catch (error) {
+      set({ loadingOlderCandles: false })
+      notifyError('Could not load older candles.', error)
     }
   },
 
