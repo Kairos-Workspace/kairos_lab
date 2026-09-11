@@ -98,6 +98,8 @@ interface AppState {
   activeTool: ChartTool | null
   selectedDrawingId: string | null
   drawingDefaults: Record<DrawingTool, DrawingStyle>
+  drawingUndoStack: Drawing[][]
+  drawingRedoStack: Drawing[][]
   chartFull: boolean
   screen: AppScreen
   strategies: SavedStrategy[]
@@ -169,6 +171,9 @@ interface AppState {
   ) => void
   removeDrawing: (id: string) => void
   clearDrawings: () => void
+  pushDrawingUndoSnapshot: () => void
+  undoDrawing: () => void
+  redoDrawing: () => void
   loadDrawingsForSymbol: (symbol: string) => Promise<void>
   currentCandle: () => Candle | undefined
 }
@@ -294,6 +299,22 @@ export const useAppStore = create<AppState>((set, get) => {
     )
   }
 
+  const DRAWING_UNDO_LIMIT = 50
+
+  // Undo/redo swap the whole `drawings` array wholesale rather than
+  // replaying individual add/update/remove ops, so reconciling persistence
+  // is simplest as a diff against the array being replaced: delete whatever
+  // existed before and no longer does, upsert everything in the new array.
+  const syncDrawingsToDb = (from: Drawing[], to: Drawing[]): void => {
+    const api = desktop()
+    if (!api?.drawings) return
+    const toIds = new Set(to.map((d) => d.id))
+    for (const drawing of from) {
+      if (!toIds.has(drawing.id)) void api.drawings.delete(drawing.id)
+    }
+    for (const drawing of to) void api.drawings.save(drawing)
+  }
+
   return {
   datasets: [],
   datasetId: null,
@@ -338,6 +359,8 @@ export const useAppStore = create<AppState>((set, get) => {
   drawingDefaults: Object.fromEntries(
     DRAWING_TOOLS.map((t) => [t, { ...DEFAULT_DRAWING_STYLE }])
   ) as Record<DrawingTool, DrawingStyle>,
+  drawingUndoStack: [],
+  drawingRedoStack: [],
   chartFull: false,
   screen: 'library',
   strategies: [],
@@ -1347,6 +1370,7 @@ export const useAppStore = create<AppState>((set, get) => {
   setDrawingsHidden: (hidden) => set({ drawingsHidden: hidden }),
 
   addDrawing: (input) => {
+    get().pushDrawingUndoSnapshot()
     const id = newId()
     const now = Date.now()
     const drawing: Drawing = {
@@ -1386,6 +1410,7 @@ export const useAppStore = create<AppState>((set, get) => {
   },
 
   removeDrawing: (id) => {
+    get().pushDrawingUndoSnapshot()
     set({
       drawings: get().drawings.filter((d) => d.id !== id),
       selectedDrawingId: get().selectedDrawingId === id ? null : get().selectedDrawingId
@@ -1400,6 +1425,7 @@ export const useAppStore = create<AppState>((set, get) => {
   },
 
   clearDrawings: () => {
+    get().pushDrawingUndoSnapshot()
     const symbol = get().symbol
     for (const timer of drawingSaveTimers.values()) clearTimeout(timer)
     drawingSaveTimers.clear()
@@ -1408,7 +1434,46 @@ export const useAppStore = create<AppState>((set, get) => {
     if (api?.drawings) void api.drawings.clear(symbol)
   },
 
+  pushDrawingUndoSnapshot: () => {
+    const stack = [...get().drawingUndoStack, get().drawings]
+    if (stack.length > DRAWING_UNDO_LIMIT) stack.shift()
+    set({ drawingUndoStack: stack, drawingRedoStack: [] })
+  },
+
+  undoDrawing: () => {
+    const stack = get().drawingUndoStack
+    if (stack.length === 0) return
+    const current = get().drawings
+    const previous = stack[stack.length - 1]
+    set({
+      drawings: previous,
+      drawingUndoStack: stack.slice(0, -1),
+      drawingRedoStack: [...get().drawingRedoStack, current],
+      selectedDrawingId: previous.some((d) => d.id === get().selectedDrawingId)
+        ? get().selectedDrawingId
+        : null
+    })
+    syncDrawingsToDb(current, previous)
+  },
+
+  redoDrawing: () => {
+    const stack = get().drawingRedoStack
+    if (stack.length === 0) return
+    const current = get().drawings
+    const next = stack[stack.length - 1]
+    set({
+      drawings: next,
+      drawingRedoStack: stack.slice(0, -1),
+      drawingUndoStack: [...get().drawingUndoStack, current],
+      selectedDrawingId: next.some((d) => d.id === get().selectedDrawingId)
+        ? get().selectedDrawingId
+        : null
+    })
+    syncDrawingsToDb(current, next)
+  },
+
   loadDrawingsForSymbol: async (symbol) => {
+    set({ drawingUndoStack: [], drawingRedoStack: [] })
     const api = desktop()
     if (!api?.drawings) {
       set({ drawings: [], selectedDrawingId: null })

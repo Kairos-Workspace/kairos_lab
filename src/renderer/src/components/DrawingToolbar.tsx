@@ -22,6 +22,10 @@ export function DrawingToolbar(): React.JSX.Element {
   const clearDrawings = useAppStore((s) => s.clearDrawings)
   const drawingsHidden = useAppStore((s) => s.drawingsHidden)
   const setDrawingsHidden = useAppStore((s) => s.setDrawingsHidden)
+  const undoDrawing = useAppStore((s) => s.undoDrawing)
+  const redoDrawing = useAppStore((s) => s.redoDrawing)
+  const canUndo = useAppStore((s) => s.drawingUndoStack.length > 0)
+  const canRedo = useAppStore((s) => s.drawingRedoStack.length > 0)
   const [openFlyout, setOpenFlyout] = useState<'lines' | 'shapes' | null>(null)
 
   function pick(tool: ChartTool): void {
@@ -147,6 +151,28 @@ export function DrawingToolbar(): React.JSX.Element {
         onClick={() => pick('measure')}
       >
         <Icon name="measure" />
+      </button>
+
+      <button
+        type="button"
+        className="icon-btn"
+        disabled={!canUndo}
+        title="Undo (Ctrl/Cmd+Z)"
+        aria-label="Undo"
+        onClick={undoDrawing}
+      >
+        <Icon name="undo" />
+      </button>
+
+      <button
+        type="button"
+        className="icon-btn"
+        disabled={!canRedo}
+        title="Redo (Ctrl/Cmd+Shift+Z)"
+        aria-label="Redo"
+        onClick={redoDrawing}
+      >
+        <Icon name="redo" />
       </button>
 
       <button

@@ -42,6 +42,19 @@ export function useKeyboard(): void {
         case 'Backspace':
           if (store.selectedDrawingId) store.removeDrawing(store.selectedDrawingId)
           break
+        case 'z':
+        case 'Z':
+          if (!(event.metaKey || event.ctrlKey)) break
+          event.preventDefault()
+          if (event.shiftKey) store.redoDrawing()
+          else store.undoDrawing()
+          break
+        case 'y':
+        case 'Y':
+          if (!(event.metaKey || event.ctrlKey)) break
+          event.preventDefault()
+          store.redoDrawing()
+          break
         case 't':
         case 'T':
           if (store.pendingSetup) store.takeSetup()

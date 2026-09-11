@@ -37,6 +37,8 @@ export type IconName =
   | 'measure'
   | 'arrowUp'
   | 'arrowDown'
+  | 'undo'
+  | 'redo'
 
 const PATHS: Record<IconName, string> = {
   play: 'M8 5v14l11-7z',
@@ -77,7 +79,9 @@ const PATHS: Record<IconName, string> = {
   brush: 'M3 21l4-1L18 9l-3-3L4 17l-1 4zM15 4l3 3',
   measure: 'M4 16L16 4M7 13l2 2M11 9l2 2',
   arrowUp: 'M12 19V5M5 12l7-7 7 7',
-  arrowDown: 'M12 5v14M19 12l-7 7-7-7'
+  arrowDown: 'M12 5v14M19 12l-7 7-7-7',
+  undo: 'M7 10H3V6M3 10a8 8 0 1 1 2.3 6.7',
+  redo: 'M17 10h4V6M21 10a8 8 0 1 0-2.3 6.7'
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {

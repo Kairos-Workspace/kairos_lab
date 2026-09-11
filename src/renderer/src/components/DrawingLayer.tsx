@@ -197,6 +197,7 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
     event.preventDefault()
     event.stopPropagation()
     if (!selected || !host) return
+    useAppStore.getState().pushDrawingUndoSnapshot()
     const box = host.getBoundingClientRect()
     const move = (ev: PointerEvent): void => {
       const point = fromPixel({ x: ev.clientX - box.left, y: ev.clientY - box.top })
@@ -368,9 +369,10 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
               <DrawingStyleMenu
                 drawing={selected}
                 anchor={anchor}
-                onStyleChange={(style) =>
+                onStyleChange={(style) => {
+                  useAppStore.getState().pushDrawingUndoSnapshot()
                   useAppStore.getState().updateDrawing(selected.id, { style, immediate: true })
-                }
+                }}
                 onDelete={() => useAppStore.getState().removeDrawing(selected.id)}
               />
             ) : null
