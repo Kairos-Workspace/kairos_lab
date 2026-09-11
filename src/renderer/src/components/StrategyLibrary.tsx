@@ -4,6 +4,7 @@ import { DEFAULT_STRATEGY_SETTINGS } from '@shared/constants'
 import type { StrategySettings } from '@shared/types'
 import { BrandMark } from './BrandMark'
 import { ConfirmIconButton } from './ConfirmIconButton'
+import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
@@ -126,20 +127,6 @@ export function StrategyLibrary(): React.JSX.Element {
                     {s.notes ||
                       STRATEGY_CATALOG.find((c) => c.id === s.settings.strategyId)?.description}
                   </span>
-                  <dl>
-                    <div className="stat">
-                      <span>Lookback</span>
-                      <b>{s.settings.lookback}</b>
-                    </div>
-                    <div className="stat">
-                      <span>RR</span>
-                      <b>{s.settings.defaultRr}</b>
-                    </div>
-                    <div className="stat">
-                      <span>Vol</span>
-                      <b>{s.settings.volumeMultiplier}</b>
-                    </div>
-                  </dl>
                 </button>
                 <ConfirmIconButton
                   className="strategy-delete"
@@ -202,62 +189,16 @@ export function StrategyLibrary(): React.JSX.Element {
             </label>
             <label className="field">
               Engine
-              <select
+              <Dropdown
+                ariaLabel="Engine"
                 value={settings.strategyId}
-                onChange={(e) => setSettings({ ...settings, strategyId: e.target.value })}
-              >
-                {STRATEGY_CATALOG.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setSettings({ ...settings, strategyId: v })}
+                options={STRATEGY_CATALOG.map((s) => ({ value: s.id, label: s.name }))}
+              />
             </label>
             <p className="composer-hint">
               {STRATEGY_CATALOG.find((s) => s.id === settings.strategyId)?.description}
             </p>
-            {settings.strategyId === 'none' ? (
-              <label className="field">
-                Default RR
-                <input
-                  type="number"
-                  step="0.1"
-                  value={settings.defaultRr}
-                  onChange={(e) => setSettings({ ...settings, defaultRr: Number(e.target.value) })}
-                />
-              </label>
-            ) : (
-              <div className="row composer-metrics">
-                <label className="field">
-                  {settings.strategyId === 'bbma' ? 'BB period' : 'Lookback'}
-                  <input
-                    type="number"
-                    value={settings.lookback}
-                    onChange={(e) => setSettings({ ...settings, lookback: Number(e.target.value) })}
-                  />
-                </label>
-                <label className="field">
-                  Default RR
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={settings.defaultRr}
-                    onChange={(e) => setSettings({ ...settings, defaultRr: Number(e.target.value) })}
-                  />
-                </label>
-                <label className="field">
-                  Vol
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={settings.volumeMultiplier}
-                    onChange={(e) =>
-                      setSettings({ ...settings, volumeMultiplier: Number(e.target.value) })
-                    }
-                  />
-                </label>
-              </div>
-            )}
             <label className="field">
               Notes
               <textarea

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { STRATEGY_CATALOG } from '@core/strategy/registry'
+import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ReplayRangeModal } from './ReplayRangeModal'
 import { useAppStore } from '../store/useAppStore'
@@ -7,7 +8,6 @@ import { useAppStore } from '../store/useAppStore'
 export function StrategyPanel(): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const setSettings = useAppStore((s) => s.setSettings)
-  const startReplay = useAppStore((s) => s.startReplay)
   const account = useAppStore((s) => s.account)
   const setAccountRisk = useAppStore((s) => s.setAccountRisk)
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
@@ -20,16 +20,12 @@ export function StrategyPanel(): React.JSX.Element {
       <h3>{activeName ?? 'Strategy settings'}</h3>
       <label className="field">
         Strategy
-        <select
+        <Dropdown
+          ariaLabel="Strategy"
           value={settings.strategyId}
-          onChange={(e) => setSettings({ strategyId: e.target.value })}
-        >
-          {STRATEGY_CATALOG.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => setSettings({ strategyId: v })}
+          options={STRATEGY_CATALOG.map((s) => ({ value: s.id, label: s.name }))}
+        />
       </label>
       <p className="muted">
         {STRATEGY_CATALOG.find((s) => s.id === settings.strategyId)?.description}
@@ -125,14 +121,6 @@ export function StrategyPanel(): React.JSX.Element {
       >
         <Icon name="play" />
         Start
-      </button>
-      <button
-        className="ghost icon-label"
-        onClick={() => startReplay({ random: true, hideDate: true })}
-        title="Random historical start"
-      >
-        <Icon name="shuffle" />
-        Random
       </button>
       {showRangeModal ? <ReplayRangeModal onClose={() => setShowRangeModal(false)} /> : null}
     </>

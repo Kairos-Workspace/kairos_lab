@@ -1,5 +1,12 @@
+import { useEffect, useRef, useState } from 'react'
 import { calculatePositionSize, riskReward } from '@core/trade/sizing'
+import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
+
+interface TicketPosition {
+  left: number
+  top: number
+}
 
 export function TradeTicket(): React.JSX.Element | null {
   const draft = useAppStore((s) => s.draft)
@@ -10,8 +17,49 @@ export function TradeTicket(): React.JSX.Element | null {
   const skipSetup = useAppStore((s) => s.skipSetup)
   const account = useAppStore((s) => s.account)
   const costs = useAppStore((s) => s.costs)
+  const ticketRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState<TicketPosition | null>(null)
+
+  // draft.timestamp is stable across field edits (entry/SL/TP/risk/direction
+  // patches never touch it) but changes whenever a genuinely new draft
+  // starts — reset any drag position from a previous trade so each new
+  // ticket opens at the default spot instead of wherever the last one was
+  // left.
+  useEffect(() => {
+    setPosition(null)
+  }, [draft?.timestamp])
 
   if (!draft || activeTrade) return null
+
+  function startDrag(event: React.PointerEvent<HTMLElement>): void {
+    if ((event.target as HTMLElement).closest('button')) return
+    event.preventDefault()
+    const ticketEl = ticketRef.current
+    const parentEl = ticketEl?.offsetParent as HTMLElement | null
+    if (!ticketEl || !parentEl) return
+    const ticketRect = ticketEl.getBoundingClientRect()
+    const parentRect = parentEl.getBoundingClientRect()
+    const startLeft = ticketRect.left - parentRect.left
+    const startTop = ticketRect.top - parentRect.top
+    const startX = event.clientX
+    const startY = event.clientY
+    const maxLeft = Math.max(0, parentRect.width - ticketRect.width)
+    const maxTop = Math.max(0, parentRect.height - ticketRect.height)
+    const move = (ev: PointerEvent): void => {
+      setPosition({
+        left: Math.min(Math.max(0, startLeft + (ev.clientX - startX)), maxLeft),
+        top: Math.min(Math.max(0, startTop + (ev.clientY - startY)), maxTop)
+      })
+    }
+    const up = (): void => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointercancel', up)
+    window.addEventListener('pointerup', up)
+  }
 
   const entry = Number(draft.entry)
   const sl = Number(draft.stopLoss)
@@ -32,25 +80,21 @@ export function TradeTicket(): React.JSX.Element | null {
   }
 
   return (
-    <div className="trade-ticket" role="dialog" aria-labelledby="ticket-title">
-      <header className="trade-ticket-header">
+    <div
+      ref={ticketRef}
+      className="trade-ticket"
+      role="dialog"
+      aria-labelledby="ticket-title"
+      style={position ? { left: position.left, top: position.top, right: 'auto' } : undefined}
+    >
+      <header className="trade-ticket-header" onPointerDown={startDrag}>
         <h4 id="ticket-title">{pendingSetup ? pendingSetup.strategy : 'Manual trade'}</h4>
-        <div className="row">
-          <button
-            type="button"
-            className={draft.direction === 'BUY' ? 'primary' : 'ghost'}
-            onClick={() => updateDraft({ direction: 'BUY' })}
-          >
-            Buy
-          </button>
-          <button
-            type="button"
-            className={draft.direction === 'SELL' ? 'primary' : 'ghost'}
-            onClick={() => updateDraft({ direction: 'SELL' })}
-          >
-            Sell
-          </button>
-        </div>
+        <span
+          className={`direction-tag ${draft.direction === 'BUY' ? 'direction-tag-buy' : 'direction-tag-sell'}`}
+        >
+          <Icon name={draft.direction === 'BUY' ? 'arrowUp' : 'arrowDown'} size={12} />
+          {draft.direction}
+        </span>
       </header>
       <label className="field">
         Entry

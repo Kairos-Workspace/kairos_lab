@@ -11,7 +11,6 @@ export type IconName =
   | 'compress'
   | 'strategy'
   | 'trade'
-  | 'sessions'
   | 'costs'
   | 'save'
   | 'open'
@@ -36,6 +35,8 @@ export type IconName =
   | 'text'
   | 'brush'
   | 'measure'
+  | 'arrowUp'
+  | 'arrowDown'
 
 const PATHS: Record<IconName, string> = {
   play: 'M8 5v14l11-7z',
@@ -51,7 +52,6 @@ const PATHS: Record<IconName, string> = {
   compress: 'M8 3v5H3M16 3v5h5M8 21v-5H3M21 16h-5v5',
   strategy: 'M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8',
   trade: 'M7 17V7m0 0L4 10m3-3 3 3M17 7v10m0 0 3-3m-3 3-3-3',
-  sessions: 'M4 7h16M4 12h16M4 17h16',
   costs: 'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
   save: 'M5 3h11l3 3v15H5V3zm3 0v6h8V3M8 14h8',
   open: 'M3 7h6l2 2h10v10H3V7z',
@@ -75,7 +75,9 @@ const PATHS: Record<IconName, string> = {
   fib: 'M3 6h18M6 10.5h12M9 15h6M6 19.5h12',
   text: 'M5 4h14M12 4v16M8 20h8',
   brush: 'M3 21l4-1L18 9l-3-3L4 17l-1 4zM15 4l3 3',
-  measure: 'M4 16L16 4M7 13l2 2M11 9l2 2'
+  measure: 'M4 16L16 4M7 13l2 2M11 9l2 2',
+  arrowUp: 'M12 19V5M5 12l7-7 7 7',
+  arrowDown: 'M12 5v14M19 12l-7 7-7-7'
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {

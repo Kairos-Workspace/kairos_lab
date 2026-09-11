@@ -2,6 +2,7 @@ import { SPEED_OPTIONS, SYMBOLS, TIMEFRAMES } from '@shared/types'
 import { sessionAt, formatReplayClock } from '@core/candles/session'
 import { exactTimeframesForSymbol, localSymbols } from '@core/candles/dataset'
 import { BrandMark } from './BrandMark'
+import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { useCurrentCandle } from '../store/selectors'
@@ -46,36 +47,30 @@ export function TopBar(): React.JSX.Element {
         <div className="control-group">
           <label>
             Symbol
-            <select value={symbol} onChange={(e) => void selectSymbol(e.target.value)}>
-              {pairs.map((pair) => (
-                <option key={pair} value={pair}>
-                  {pair}
-                </option>
-              ))}
-            </select>
+            <Dropdown
+              ariaLabel="Symbol"
+              value={symbol}
+              onChange={(v) => void selectSymbol(v)}
+              options={pairs.map((pair) => ({ value: pair, label: pair }))}
+            />
           </label>
           <label>
             Timeframe
-            <select
+            <Dropdown
+              ariaLabel="Timeframe"
               value={timeframe}
-              onChange={(e) => void setTimeframe(e.target.value as typeof timeframe)}
-            >
-              {timeframeOptions.map((tf) => (
-                <option key={tf} value={tf}>
-                  {tf}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => void setTimeframe(v)}
+              options={timeframeOptions.map((tf) => ({ value: tf, label: tf }))}
+            />
           </label>
           <label>
             Speed
-            <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-              {SPEED_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}x
-                </option>
-              ))}
-            </select>
+            <Dropdown
+              ariaLabel="Speed"
+              value={speed}
+              onChange={setSpeed}
+              options={SPEED_OPTIONS.map((s) => ({ value: s, label: `${s}x` }))}
+            />
           </label>
         </div>
         <div className="readout-group">

@@ -25,7 +25,6 @@ import {
   insertDataset,
   listDatasets,
   listDrawings,
-  listSessions,
   listStrategies,
   loadDeskPrefs,
   loadSession,
@@ -173,8 +172,6 @@ export function registerIpc(): void {
     }
   })
 
-  handle(IPC.SESSIONS_LIST, () => listSessions())
-
   handle(
     IPC.SESSIONS_SAVE,
     (_e, session: BacktestSession, trades: Trade[]) => saveSession(session, trades)
@@ -184,7 +181,6 @@ export function registerIpc(): void {
 
   handle(IPC.SESSIONS_DELETE, (_e, id: string) => {
     deleteSession(id)
-    return listSessions()
   })
 
   handle(IPC.STRATEGIES_LIST, () => listStrategies())

@@ -154,10 +154,10 @@ export function ChartPanel(): React.JSX.Element {
         borderColor: skin.grid,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 8,
+        rightOffset: 35,
         barSpacing: 10,
-        fixLeftEdge: false,
-        fixRightEdge: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
         shiftVisibleRangeOnNewBar: true,
         lockVisibleTimeRangeOnResize: true
       },
@@ -282,7 +282,7 @@ export function ChartPanel(): React.JSX.Element {
           const from = Math.max(0, count - VIEW_BARS)
           chart.timeScale().setVisibleLogicalRange({
             from,
-            to: Math.max(count - 1 + 8, from + 24)
+            to: Math.max(count - 1 + 35, from + 24)
           })
           useAppStore.setState({ busy: false })
         })
@@ -392,10 +392,12 @@ export function ChartPanel(): React.JSX.Element {
       </button>
       {canStartManualTrade ? (
         <div className="chart-trade-actions">
-          <button className="primary" onClick={() => startManualTrade('BUY')}>
+          <button className="buy icon-label direction-btn" onClick={() => startManualTrade('BUY')}>
+            <Icon name="arrowUp" size={13} />
             Buy
           </button>
-          <button className="danger" onClick={() => startManualTrade('SELL')}>
+          <button className="sell icon-label direction-btn" onClick={() => startManualTrade('SELL')}>
+            <Icon name="arrowDown" size={13} />
             Sell
           </button>
         </div>

@@ -115,13 +115,16 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
 
   useEffect(() => {
     if (!chart || !series || !host) return
-    let raf = 0
-    const loop = (): void => {
-      paint()
-      raf = requestAnimationFrame(loop)
+    paint()
+    const scale = chart.timeScale()
+    scale.subscribeVisibleLogicalRangeChange(paint)
+    scale.subscribeVisibleTimeRangeChange(paint)
+    scale.subscribeSizeChange(paint)
+    return () => {
+      scale.unsubscribeVisibleLogicalRangeChange(paint)
+      scale.unsubscribeVisibleTimeRangeChange(paint)
+      scale.unsubscribeSizeChange(paint)
     }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
   }, [chart, series, host, drawings, drawingsHidden])
 
   useEffect(() => {
@@ -168,10 +171,14 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
 
     const onCrosshairMove = (param: MouseEventParams): void => {
       if (!param.point || pendingPointsRef.current.length === 0) {
-        previewPointRef.current = null
+        if (previewPointRef.current) {
+          previewPointRef.current = null
+          paint()
+        }
         return
       }
       previewPointRef.current = fromPixel(param.point)
+      paint()
     }
 
     chart.subscribeClick(onClick)

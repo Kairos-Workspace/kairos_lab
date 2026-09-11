@@ -42,7 +42,7 @@ import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strate
 import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 
 export type AppScreen = 'library' | 'workspace'
-export type RightTab = 'strategy' | 'trade' | 'sessions' | 'costs'
+export type RightTab = 'strategy' | 'trade' | 'costs'
 export type HistoryFilter = 'ALL' | 'WIN' | 'LOSS' | 'BUY' | 'SELL'
 
 export interface DraftTrade {
@@ -56,7 +56,6 @@ export interface DraftTrade {
 
 interface AppState {
   datasets: DatasetInfo[]
-  sessions: BacktestSession[]
   datasetId: number | null
   sourceCandles: Candle[]
   sourceTimeframe: Timeframe
@@ -101,7 +100,8 @@ interface AppState {
   theme: DeskTheme
 
   bootstrap: () => Promise<void>
-  openStrategy: (id: string) => void
+  openStrategy: (id: string) => Promise<void>
+  autosaveProgress: () => void
   leaveWorkspace: () => void
   createStrategy: (input: { name: string; notes?: string; settings?: Partial<StrategySettings> }) => Promise<string>
   persistActiveStrategy: () => void
@@ -150,9 +150,6 @@ interface AppState {
   startManualTrade: (direction: Direction) => void
   updateDraft: (patch: Partial<DraftTrade>) => void
   confirmTrade: () => void
-  saveCurrentSession: (name?: string) => Promise<void>
-  loadSession: (id: string) => Promise<void>
-  deleteSession: (id: string) => Promise<void>
   selectTrade: (id: string | null) => void
   addHorizontal: (price: number) => void
   setActiveTool: (tool: ChartTool | null) => void
@@ -291,7 +288,6 @@ export const useAppStore = create<AppState>((set, get) => {
 
   return {
   datasets: [],
-  sessions: [],
   datasetId: null,
   sourceCandles: [],
   sourceTimeframe: '1M',
@@ -354,9 +350,8 @@ export const useAppStore = create<AppState>((set, get) => {
     }
     try {
       const leftover = drainLocalStrategies()
-      const [datasets, sessions, storedStrategies, prefs, dbPath] = await Promise.all([
+      const [datasets, storedStrategies, prefs, dbPath] = await Promise.all([
         api.datasets.list(),
-        api.sessions.list(),
         strategyBridge()?.list().catch(() => []) ?? Promise.resolve([]),
         loadDeskPrefs(),
         api.dbPath()
@@ -370,7 +365,6 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       set({
         datasets,
-        sessions,
         strategies,
         dbPath,
         symbol: prefs.symbol,
@@ -408,13 +402,73 @@ export const useAppStore = create<AppState>((set, get) => {
     }
   },
 
-  openStrategy: (id) => {
+  openStrategy: async (id) => {
     const saved = get().strategies.find((s) => s.id === id)
     if (!saved) return
     const settings = { ...DEFAULT_STRATEGY_SETTINGS, ...saved.settings }
+    clearTimer()
+
+    const resumed = desktop() ? await requireDesktop().sessions.load(id) : null
+    if (resumed) {
+      const resumedSettings = {
+        ...settings,
+        ...(resumed.session.strategyConfig as Partial<StrategySettings>)
+      }
+      strategy = createStrategy(resumedSettings)
+      strategy.initialize()
+      const taken = resumed.trades.filter((t) => !t.skipped)
+      const skippedTrades = resumed.trades.filter((t) => t.skipped)
+      set({
+        screen: 'workspace',
+        activeStrategyId: saved.id,
+        settings: resumedSettings,
+        sessionName: saved.name,
+        sessionId: resumed.session.id,
+        displayTimeframe: resumed.session.timeframe,
+        rightTab: 'strategy',
+        // Stay in 'view' mode until the resumed symbol's candles are
+        // actually loaded below. The chart repaints on every store change
+        // via a raw subscription (not batched React state), so flipping to
+        // 'replay' here — before displayCandles/replayIndex reflect this
+        // strategy's data — lets a freshly-mounted chart's first paint see
+        // 'replay' mode paired with stale leftover data from whatever was
+        // open before, which can wrongly trigger an incremental
+        // series.update() on a series that never had setData() called yet.
+        mode: 'view',
+        isPlaying: false,
+        pendingSetup: null,
+        draft: null,
+        activeTrade: null,
+        trades: taken,
+        skipped: skippedTrades,
+        account: resumed.session.account,
+        costs: resumed.session.costs,
+        selectedTradeId: null,
+        chartFull: false,
+        status: `${saved.name} · resuming…`
+      })
+      await get().selectSymbol(resumed.session.symbol)
+      // Now displayCandles is correct for the resumed symbol/timeframe —
+      // safe to compute the resumed replay position and flip into replay
+      // mode in one atomic update, exactly like startReplay() does.
+      const afterLoad = get()
+      if (afterLoad.displayCandles.length === 0) {
+        // selectSymbol already set a "No local tape for X" status and left
+        // us in view mode — don't stomp that with a fake "resumed" status
+        // or switch into replay mode with nothing to replay.
+        persistDesk()
+        return
+      }
+      const index = resumed.session.replayTimestamp
+        ? ReplayEngine.mapTimestampToIndex(afterLoad.displayCandles, resumed.session.replayTimestamp)
+        : afterLoad.replayIndex
+      set({ mode: 'replay', replayIndex: index, status: `${saved.name} · resumed` })
+      persistDesk()
+      return
+    }
+
     strategy = createStrategy(settings)
     strategy.initialize()
-    clearTimer()
     set({
       screen: 'workspace',
       activeStrategyId: saved.id,
@@ -436,7 +490,36 @@ export const useAppStore = create<AppState>((set, get) => {
     persistDesk()
   },
 
+  autosaveProgress: () => {
+    const s = get()
+    if (!s.activeStrategyId || !desktop()) return
+    // Only persist once a replay has actually been started for this
+    // strategy — not on a bare "opened it and left" view. Trade/skipped
+    // count alone isn't the right gate: resetReplay() legitimately clears
+    // both while still being 'replay' mode, and that reset must still
+    // overwrite the previous autosave, not silently no-op and leave the
+    // old trades to reappear next time this strategy is resumed.
+    if (s.mode !== 'replay') return
+    const session: BacktestSession = {
+      id: s.activeStrategyId,
+      name: s.sessionName,
+      symbol: s.symbol,
+      timeframe: s.displayTimeframe,
+      strategyId: s.activeStrategyId,
+      strategyConfig: { ...s.settings },
+      replayTimestamp: s.displayCandles[s.replayIndex]?.timestamp ?? 0,
+      account: s.account,
+      costs: s.costs,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    void requireDesktop()
+      .sessions.save(session, [...s.trades, ...s.skipped])
+      .catch((error) => console.error('[autosaveProgress] failed', error))
+  },
+
   leaveWorkspace: () => {
+    get().autosaveProgress()
     clearTimer()
     set({
       screen: 'library',
@@ -491,6 +574,7 @@ export const useAppStore = create<AppState>((set, get) => {
       strategies,
       activeStrategyId: get().activeStrategyId === id ? null : get().activeStrategyId
     })
+    if (desktop()) void requireDesktop().sessions.delete(id).catch(() => undefined)
     persistDesk()
     notifyInfo('Strategy removed')
   },
@@ -890,6 +974,7 @@ export const useAppStore = create<AppState>((set, get) => {
   pause: () => {
     clearTimer()
     set({ isPlaying: false })
+    get().autosaveProgress()
   },
 
   togglePlay: () => {
@@ -1150,91 +1235,6 @@ export const useAppStore = create<AppState>((set, get) => {
       status: `${draft.direction} opened · RR ${riskReward(entry, stopLoss, takeProfit).toFixed(2)}`
     })
     requestAnimationFrame(() => get().play())
-  },
-
-  saveCurrentSession: async (name) => {
-    set({ busy: true, status: 'Saving session…' })
-    const s = get()
-    const session: BacktestSession = {
-      id: s.sessionId,
-      name: name?.trim() || s.sessionName,
-      symbol: s.symbol,
-      timeframe: s.displayTimeframe,
-      strategyId: s.activeStrategyId ?? s.settings.strategyId,
-      strategyConfig: { ...s.settings },
-      replayTimestamp: s.displayCandles[s.replayIndex]?.timestamp ?? 0,
-      account: s.account,
-      costs: s.costs,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-    try {
-      await requireDesktop().sessions.save(session, [...s.trades, ...s.skipped])
-      const sessions = await requireDesktop().sessions.list()
-      set({
-        sessions,
-        sessionName: session.name,
-        busy: false,
-        status: `Session saved · ${session.name}`
-      })
-      notifySuccess(`Session saved · ${session.name}`)
-    } catch (error) {
-      set({
-        busy: false,
-        status: error instanceof Error ? error.message : 'Could not save the session.'
-      })
-      notifyError('Could not save the session.', error)
-    }
-  },
-
-  loadSession: async (id) => {
-    set({ busy: true, status: 'Opening session…' })
-    let loaded: Awaited<ReturnType<ReturnType<typeof requireDesktop>['sessions']['load']>>
-    try {
-      loaded = await requireDesktop().sessions.load(id)
-    } catch (error) {
-      set({
-        busy: false,
-        status: error instanceof Error ? error.message : 'Could not open that session.'
-      })
-      notifyError('Could not open that session.', error)
-      return
-    }
-    if (!loaded) {
-      set({ busy: false, status: 'Session not found.' })
-      notifyError('Session not found.')
-      return
-    }
-    const settings = {
-      ...DEFAULT_STRATEGY_SETTINGS,
-      ...(loaded.session.strategyConfig as Partial<StrategySettings>),
-      strategyId: loaded.session.strategyId
-    }
-    strategy = createStrategy(settings)
-    strategy.initialize()
-    const taken = loaded.trades.filter((t: Trade) => !t.skipped)
-    const skipped = loaded.trades.filter((t: Trade) => t.skipped)
-    set({
-      sessionId: loaded.session.id,
-      sessionName: loaded.session.name,
-      symbol: loaded.session.symbol,
-      settings,
-      account: loaded.session.account,
-      costs: loaded.session.costs,
-      trades: taken,
-      skipped,
-      mode: 'replay',
-      busy: false,
-      status: `Opened session · ${loaded.session.name}`
-    })
-    notifySuccess(`Opened session · ${loaded.session.name}`)
-    if (loaded.session.replayTimestamp) get().jumpToDate(loaded.session.replayTimestamp)
-  },
-
-  deleteSession: async (id) => {
-    const sessions = await requireDesktop().sessions.delete(id)
-    set({ sessions })
-    notifyInfo('Session removed')
   },
 
   selectTrade: (id) => {

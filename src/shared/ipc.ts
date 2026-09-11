@@ -7,7 +7,6 @@ export const IPC = {
   DATASETS_DEMO: 'datasets:demo',
   DATASETS_DELETE: 'datasets:delete',
   DATASETS_GAPS: 'datasets:gaps',
-  SESSIONS_LIST: 'sessions:list',
   SESSIONS_SAVE: 'sessions:save',
   SESSIONS_LOAD: 'sessions:load',
   SESSIONS_DELETE: 'sessions:delete',

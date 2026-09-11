@@ -41,7 +41,6 @@ const api = {
       }>
   },
   sessions: {
-    list: () => ipcRenderer.invoke(IPC.SESSIONS_LIST),
     save: (session: BacktestSession, trades: Trade[]) =>
       ipcRenderer.invoke(IPC.SESSIONS_SAVE, session, trades),
     load: (id: string) =>

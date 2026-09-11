@@ -1,5 +1,5 @@
 import { PRODUCT_NAME } from '@shared/constants'
-import type { AmbiguityRule } from '@shared/types'
+import { Dropdown } from './Dropdown'
 import { useAppStore } from '../store/useAppStore'
 
 export function CostsPanel(): React.JSX.Element {
@@ -38,12 +38,17 @@ export function CostsPanel(): React.JSX.Element {
       ))}
       <label className="field">
         Same-bar SL and TP
-        <select value={rule} onChange={(e) => setRule(e.target.value as AmbiguityRule)}>
-          <option value="ambiguous">Mark ambiguous</option>
-          <option value="sl-first">Assume stop first</option>
-          <option value="tp-first">Assume target first</option>
-          <option value="random">Random</option>
-        </select>
+        <Dropdown
+          ariaLabel="Same-bar SL and TP"
+          value={rule}
+          onChange={setRule}
+          options={[
+            { value: 'ambiguous', label: 'Mark ambiguous' },
+            { value: 'sl-first', label: 'Assume stop first' },
+            { value: 'tp-first', label: 'Assume target first' },
+            { value: 'random', label: 'Random' }
+          ]}
+        />
       </label>
       <p className="muted">
         If 1-minute data is stored, {PRODUCT_NAME} walks that path first. Starting balance $
