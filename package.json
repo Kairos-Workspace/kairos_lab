@@ -1,6 +1,6 @@
 {
   "name": "quantify-strategy-tester",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Desktop Strategy Tester and Market Replay",
   "main": "./out/main/index.js",
   "type": "module",
