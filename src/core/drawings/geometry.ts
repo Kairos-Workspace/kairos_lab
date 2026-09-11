@@ -55,6 +55,36 @@ export function pointInEllipse(p: Point, a: Point, b: Point): boolean {
  * don't extend (trendline, rectangle, ellipse, fib) and brush strokes pass
  * through unchanged.
  */
+export const HANDLE_EDGE_MARGIN = 12
+
+/**
+ * Horizontal/vertical lines render using only one axis of their anchor point
+ * (see projectedPixelPoints) — the other axis is whatever pixel the line was
+ * originally drawn at, which drifts off-screen as the chart pans or replay
+ * advances. Left unclamped, the drag handle for that anchor is placed at that
+ * stale, off-screen pixel and becomes impossible to grab even though the line
+ * itself is still visible. Pin it back onto the visible edge instead.
+ */
+export function clampHandlePixel(
+  type: DrawingTool,
+  pixel: Point,
+  width: number,
+  height: number
+): Point {
+  if (type === 'horizontal') {
+    return { x: clamp(pixel.x, HANDLE_EDGE_MARGIN, width - HANDLE_EDGE_MARGIN), y: pixel.y }
+  }
+  if (type === 'vertical') {
+    return { x: pixel.x, y: clamp(pixel.y, HANDLE_EDGE_MARGIN, height - HANDLE_EDGE_MARGIN) }
+  }
+  return pixel
+}
+
+function clamp(value: number, min: number, max: number): number {
+  if (max < min) return (min + max) / 2
+  return Math.min(Math.max(value, min), max)
+}
+
 export function projectedPixelPoints(
   type: DrawingTool,
   anchors: Point[],

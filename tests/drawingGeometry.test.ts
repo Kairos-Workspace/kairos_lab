@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clampHandlePixel,
   distanceToPolyline,
   distanceToSegment,
   pointInEllipse,
@@ -103,5 +104,43 @@ describe('projectedPixelPoints', () => {
     ]
     expect(projectedPixelPoints('trendline', anchors, width, height)).toEqual(anchors)
     expect(projectedPixelPoints('brush', anchors, width, height)).toEqual(anchors)
+  })
+})
+
+describe('clampHandlePixel', () => {
+  const width = 100
+  const height = 100
+
+  it('leaves an on-screen horizontal handle alone', () => {
+    expect(clampHandlePixel('horizontal', { x: 40, y: 30 }, width, height)).toEqual({ x: 40, y: 30 })
+  })
+
+  it('pulls an off-screen horizontal handle back onto the visible edge', () => {
+    expect(clampHandlePixel('horizontal', { x: -5000, y: 30 }, width, height)).toEqual({
+      x: 12,
+      y: 30
+    })
+    expect(clampHandlePixel('horizontal', { x: 5000, y: 30 }, width, height)).toEqual({
+      x: 88,
+      y: 30
+    })
+  })
+
+  it('pulls an off-screen vertical handle back onto the visible edge', () => {
+    expect(clampHandlePixel('vertical', { x: 40, y: -5000 }, width, height)).toEqual({
+      x: 40,
+      y: 12
+    })
+    expect(clampHandlePixel('vertical', { x: 40, y: 5000 }, width, height)).toEqual({
+      x: 40,
+      y: 88
+    })
+  })
+
+  it('passes other drawing types through unchanged, even off-screen', () => {
+    expect(clampHandlePixel('trendline', { x: -5000, y: 5000 }, width, height)).toEqual({
+      x: -5000,
+      y: 5000
+    })
   })
 })

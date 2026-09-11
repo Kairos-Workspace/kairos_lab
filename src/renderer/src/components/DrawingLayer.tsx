@@ -3,6 +3,7 @@ import type { IChartApi, ISeriesApi, MouseEventParams, UTCTimestamp } from 'ligh
 import type { ChartTool, Drawing, DrawingPoint, DrawingTool } from '@shared/types'
 import { fibLevels } from '@core/drawings/fib'
 import {
+  clampHandlePixel,
   distanceToPolyline,
   pointInEllipse,
   pointInRect,
@@ -340,8 +341,14 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
       <canvas className="drawing-layer-canvas" ref={canvasRef} data-capture="false" />
       {selected
         ? selected.points.map((point, index) => {
-            const pixel = toPixel(point)
-            if (!pixel) return null
+            const rawPixel = toPixel(point)
+            if (!rawPixel || !host) return null
+            const pixel = clampHandlePixel(
+              selected.type,
+              rawPixel,
+              host.clientWidth,
+              host.clientHeight
+            )
             return (
               <button
                 key={index}
