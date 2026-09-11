@@ -7,6 +7,7 @@ import { IPC } from '@shared/ipc'
 import { toCandleBuffer } from '@shared/candleBuffer'
 import type {
   BacktestSession,
+  Candle,
   DeskPrefs,
   Drawing,
   SavedStrategy,
@@ -22,6 +23,7 @@ import {
   deleteStrategy,
   getCandles,
   getGaps,
+  getRecentCandles,
   insertDataset,
   listDatasets,
   listDrawings,
@@ -67,6 +69,23 @@ export function registerIpc(): void {
         isCsvDataset(datasetId)
           ? csvCandles(datasetId, fromTs, toTs)
           : getCandles(datasetId, fromTs, toTs)
+      )
+  )
+
+  function csvCandlesPage(datasetId: number, limit: number, beforeTs?: number): Candle[] {
+    const all = csvCandles(datasetId)
+    const upToIndex = beforeTs === undefined ? all.length : all.findIndex((c) => c.timestamp >= beforeTs)
+    const end = upToIndex === -1 ? all.length : upToIndex
+    return all.slice(Math.max(0, end - limit), end)
+  }
+
+  handle(
+    IPC.DATASETS_CANDLES_PAGE,
+    (_e, datasetId: number, limit: number, beforeTs?: number) =>
+      toCandleBuffer(
+        isCsvDataset(datasetId)
+          ? csvCandlesPage(datasetId, limit, beforeTs)
+          : getRecentCandles(datasetId, limit, beforeTs)
       )
   )
 

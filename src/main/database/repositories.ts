@@ -163,6 +163,26 @@ export function getCandles(datasetId: number, fromTs?: number, toTs?: number): C
     .all(datasetId) as Candle[]
 }
 
+export function getRecentCandles(datasetId: number, limit: number, beforeTs?: number): Candle[] {
+  const rows =
+    beforeTs === undefined
+      ? getDb()
+          .prepare(
+            `SELECT timestamp, open, high, low, close, volume
+             FROM candles WHERE dataset_id = ?
+             ORDER BY timestamp DESC LIMIT ?`
+          )
+          .all(datasetId, limit)
+      : getDb()
+          .prepare(
+            `SELECT timestamp, open, high, low, close, volume
+             FROM candles WHERE dataset_id = ? AND timestamp < ?
+             ORDER BY timestamp DESC LIMIT ?`
+          )
+          .all(datasetId, beforeTs, limit)
+  return (rows as Candle[]).reverse()
+}
+
 export function getGaps(datasetId: number): DataGap[] {
   return (
     getDb()

@@ -17,6 +17,8 @@ const api = {
     list: () => ipcRenderer.invoke(IPC.DATASETS_LIST) as Promise<DatasetInfo[]>,
     candles: (datasetId: number, fromTs?: number, toTs?: number) =>
       ipcRenderer.invoke(IPC.DATASETS_CANDLES, datasetId, fromTs, toTs) as Promise<CandleBuffer>,
+    candlesPage: (datasetId: number, limit: number, beforeTs?: number) =>
+      ipcRenderer.invoke(IPC.DATASETS_CANDLES_PAGE, datasetId, limit, beforeTs) as Promise<CandleBuffer>,
     gaps: (datasetId: number) => ipcRenderer.invoke(IPC.DATASETS_GAPS, datasetId),
     delete: (datasetId: number) => ipcRenderer.invoke(IPC.DATASETS_DELETE, datasetId),
     importCsv: (payload: { symbol: string; timeframe: Timeframe; csv: string; source?: string }) =>

@@ -1,6 +1,7 @@
 export const IPC = {
   DATASETS_LIST: 'datasets:list',
   DATASETS_CANDLES: 'datasets:candles',
+  DATASETS_CANDLES_PAGE: 'datasets:candles-page',
   DATASETS_DOWNLOAD: 'datasets:download',
   DATASETS_REFRESH: 'datasets:refresh',
   DATASETS_IMPORT: 'datasets:import',
