@@ -397,6 +397,11 @@ export const useAppStore = create<AppState>((set, get) => {
       } else {
         set({ busy: false, status: 'No local market data found in the project database.' })
       }
+      // The symbol-change subscriber that loads drawings only fires when the
+      // resolved symbol differs from the store's hardcoded initial value, so
+      // a remembered symbol that happens to match it (the common case) would
+      // otherwise never trigger a load. Load explicitly once bootstrap settles.
+      void get().loadDrawingsForSymbol(get().symbol)
     } catch {
       set({ busy: false, status: 'Could not open the local desk.' })
       notifyError('Could not open the local desk.')
