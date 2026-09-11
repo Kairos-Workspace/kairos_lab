@@ -156,8 +156,8 @@ export function ChartPanel(): React.JSX.Element {
         secondsVisible: false,
         rightOffset: 50,
         barSpacing: 10,
-        fixLeftEdge: true,
-        fixRightEdge: true,
+        fixLeftEdge: false,
+        fixRightEdge: false,
         shiftVisibleRangeOnNewBar: true,
         lockVisibleTimeRangeOnResize: true
       },
@@ -282,7 +282,7 @@ export function ChartPanel(): React.JSX.Element {
           const from = Math.max(0, count - VIEW_BARS)
           chart.timeScale().setVisibleLogicalRange({
             from,
-            to: Math.max(count - 1 + 50, from + 24)
+            to: Math.max(count - 1, from + 24)
           })
           useAppStore.setState({ busy: false })
         })
