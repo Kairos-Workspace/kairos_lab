@@ -3,30 +3,29 @@ import { fromReplayInput, toReplayInput } from '../lib/replayRange'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 
-type RangeMode = 'full' | 'custom'
-
 export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JSX.Element {
   const replayFromTs = useAppStore((s) => s.replayFromTs)
   const replayToTs = useAppStore((s) => s.replayToTs)
-  const candles = useAppStore((s) => s.displayCandles)
+  const datasetId = useAppStore((s) => s.datasetId)
+  const datasets = useAppStore((s) => s.datasets)
+  const dataset = datasets.find((d) => d.id === datasetId)
   const setReplayRange = useAppStore((s) => s.setReplayRange)
   const startReplay = useAppStore((s) => s.startReplay)
+  const loadReplayRange = useAppStore((s) => s.loadReplayRange)
 
-  const [mode, setMode] = useState<RangeMode>('full')
-  const [from, setFrom] = useState(() => toReplayInput(replayFromTs ?? candles[0]?.timestamp))
-  const [to, setTo] = useState(() => toReplayInput(replayToTs ?? candles.at(-1)?.timestamp))
+  const [from, setFrom] = useState(() => toReplayInput(replayFromTs ?? dataset?.startTs))
+  const [to, setTo] = useState(() => toReplayInput(replayToTs ?? dataset?.endTs))
 
   function handleStart(): void {
-    if (mode === 'full') {
-      setReplayRange(null, null)
-      startReplay()
-    } else {
-      const fromTs = fromReplayInput(from)
-      const toTs = fromReplayInput(to)
-      setReplayRange(fromTs, toTs)
-      startReplay({ fromTs: fromTs ?? undefined, toTs: toTs ?? undefined })
-    }
+    const fromTs = fromReplayInput(from)
+    const toTs = fromReplayInput(to)
+    if (fromTs == null || toTs == null) return
     onClose()
+    void (async () => {
+      await loadReplayRange(fromTs, toTs)
+      setReplayRange(fromTs, toTs)
+      startReplay({ fromTs, toTs })
+    })()
   }
 
   return (
@@ -56,51 +55,28 @@ export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JS
           </button>
         </header>
 
-        <label className="field">
-          <span>
+        <div className="row">
+          <label className="field">
+            From
             <input
-              type="radio"
-              name="replay-range-mode"
-              checked={mode === 'full'}
-              onChange={() => setMode('full')}
-            />{' '}
-            Full history
-          </span>
-        </label>
-        <label className="field">
-          <span>
+              type="datetime-local"
+              value={from}
+              required
+              onChange={(e) => setFrom(e.target.value)}
+              aria-label="Replay from"
+            />
+          </label>
+          <label className="field">
+            To
             <input
-              type="radio"
-              name="replay-range-mode"
-              checked={mode === 'custom'}
-              onChange={() => setMode('custom')}
-            />{' '}
-            Custom range
-          </span>
-        </label>
-
-        {mode === 'custom' ? (
-          <div className="row">
-            <label className="field">
-              From
-              <input
-                type="datetime-local"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                aria-label="Replay from"
-              />
-            </label>
-            <label className="field">
-              To
-              <input
-                type="datetime-local"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                aria-label="Replay to"
-              />
-            </label>
-          </div>
-        ) : null}
+              type="datetime-local"
+              value={to}
+              required
+              onChange={(e) => setTo(e.target.value)}
+              aria-label="Replay to"
+            />
+          </label>
+        </div>
 
         <div className="composer-actions">
           <button className="ghost" type="button" onClick={onClose}>
