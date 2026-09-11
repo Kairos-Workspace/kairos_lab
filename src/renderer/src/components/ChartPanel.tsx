@@ -18,6 +18,7 @@ import {
   strategyIndicatorLines,
   strategyIndicatorSpecs
 } from '@core/indicators/overlay'
+import { shouldLoadOlder, shiftedVisibleRange } from '@core/candles/pagination'
 import type { Candle, StrategySettings } from '@shared/types'
 import { Icon } from './Icon'
 import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
@@ -29,6 +30,7 @@ import { chartSkin } from '@core/desk/theme'
 import { useAppStore } from '../store/useAppStore'
 
 const VIEW_BARS = 160
+const LOAD_MORE_THRESHOLD = 200
 
 function visibleSlice(candles: Candle[], from: number, to: number): Candle[] {
   if (candles.length === 0) return []
@@ -198,6 +200,18 @@ export function ChartPanel(): React.JSX.Element {
   }, [theme, chartFull])
 
   useEffect(() => {
+    if (!chartApi) return
+    const scale = chartApi.timeScale()
+    const onRangeChange = (range: { from: number; to: number } | null): void => {
+      if (useAppStore.getState().mode !== 'view') return
+      if (!shouldLoadOlder(range, LOAD_MORE_THRESHOLD)) return
+      void useAppStore.getState().loadOlderCandles()
+    }
+    scale.subscribeVisibleLogicalRangeChange(onRangeChange)
+    return () => scale.unsubscribeVisibleLogicalRangeChange(onRangeChange)
+  }, [chartApi])
+
+  useEffect(() => {
     if (mode !== 'replay') return
     shellRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [mode])
@@ -275,16 +289,22 @@ export function ChartPanel(): React.JSX.Element {
             useAppStore.setState({ busy: false })
             return
           }
+          const pendingShift = useAppStore.getState().pendingRangeShift
+          const priorRange = pendingShift != null ? chart.timeScale().getVisibleLogicalRange() : null
           series.setData(visible.map(toBar))
           for (const line of strategyIndicatorLines(settings, visible)) {
             indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
           }
-          const from = Math.max(0, count - VIEW_BARS)
-          chart.timeScale().setVisibleLogicalRange({
-            from,
-            to: Math.max(count - 1, from + 24)
-          })
-          useAppStore.setState({ busy: false })
+          if (pendingShift != null && priorRange) {
+            chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(priorRange, pendingShift))
+          } else {
+            const from = Math.max(0, count - VIEW_BARS)
+            chart.timeScale().setVisibleLogicalRange({
+              from,
+              to: Math.max(count - 1, from + 24)
+            })
+          }
+          useAppStore.setState({ pendingRangeShift: null, busy: false })
         })
       })
     }
