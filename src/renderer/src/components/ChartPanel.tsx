@@ -21,6 +21,8 @@ import {
 import type { Candle, StrategySettings } from '@shared/types'
 import { Icon } from './Icon'
 import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
+import { DrawingLayer } from './DrawingLayer'
+import { DrawingToolbar } from './DrawingToolbar'
 import { ReplayControls } from './ReplayControls'
 import { TradeTicket } from './TradeTicket'
 import { chartSkin } from '@core/desk/theme'
@@ -398,7 +400,8 @@ export function ChartPanel(): React.JSX.Element {
           </button>
         </div>
       ) : null}
-      <div className="chart" ref={hostRef}>
+      <DrawingToolbar />
+      <div className="chart" data-drawing-active={useAppStore((s) => s.activeTool) !== null} ref={hostRef}>
         {hasTape ? null : (
           <div className="chart-empty">
             <h2>Pick a pair</h2>
@@ -406,6 +409,7 @@ export function ChartPanel(): React.JSX.Element {
           </div>
         )}
         <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
+        <DrawingLayer chart={chartApi} series={seriesApi} host={hostRef.current} />
       </div>
       <TradeTicket />
       <ReplayControls />

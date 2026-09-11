@@ -5,22 +5,33 @@ import { validateCandles, dedupeCandles } from '@core/candles/validate'
 import { parseCandleCsv } from '@core/csv/parse'
 import { IPC } from '@shared/ipc'
 import { toCandleBuffer } from '@shared/candleBuffer'
-import type { BacktestSession, DeskPrefs, SavedStrategy, Timeframe, Trade } from '@shared/types'
+import type {
+  BacktestSession,
+  DeskPrefs,
+  Drawing,
+  SavedStrategy,
+  Timeframe,
+  Trade
+} from '@shared/types'
 import { dbPath, getDb } from './database/db'
 import {
+  clearDrawings,
   deleteDataset,
+  deleteDrawing,
   deleteSession,
   deleteStrategy,
   getCandles,
   getGaps,
   insertDataset,
   listDatasets,
+  listDrawings,
   listSessions,
   listStrategies,
   loadDeskPrefs,
   loadSession,
   replaceTape,
   saveDeskPrefs,
+  saveDrawing,
   saveSession,
   saveStrategy
 } from './database/repositories'
@@ -191,4 +202,12 @@ export function registerIpc(): void {
   handle(IPC.PREFS_LOAD, () => loadDeskPrefs())
 
   handle(IPC.PREFS_SAVE, (_e, prefs: DeskPrefs) => saveDeskPrefs(prefs))
+
+  handle(IPC.DRAWINGS_LIST, (_e, symbol: string) => listDrawings(symbol))
+
+  handle(IPC.DRAWINGS_SAVE, (_e, drawing: Drawing) => saveDrawing(drawing))
+
+  handle(IPC.DRAWINGS_DELETE, (_e, id: string) => deleteDrawing(id))
+
+  handle(IPC.DRAWINGS_CLEAR, (_e, symbol: string) => clearDrawings(symbol))
 }

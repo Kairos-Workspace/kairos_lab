@@ -24,6 +24,18 @@ export type IconName =
   | 'download'
   | 'sun'
   | 'moon'
+  | 'dashed'
+  | 'cursor'
+  | 'trendLine'
+  | 'horizontalLine'
+  | 'ray'
+  | 'verticalLine'
+  | 'rectangle'
+  | 'ellipse'
+  | 'fib'
+  | 'text'
+  | 'brush'
+  | 'measure'
 
 const PATHS: Record<IconName, string> = {
   play: 'M8 5v14l11-7z',
@@ -51,7 +63,19 @@ const PATHS: Record<IconName, string> = {
   close: 'M6 6l12 12M18 6L6 18',
   download: 'M12 3v12m0 0l-4-4m4 4l4-4M4 21h16',
   sun: 'M12 4V2M12 22v-2M4.9 4.9 3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1 3.5 20.5M20.5 3.5l-1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z',
-  moon: 'M21 14.3A8.5 8.5 0 1 1 9.7 3 7 7 0 0 0 21 14.3z'
+  moon: 'M21 14.3A8.5 8.5 0 1 1 9.7 3 7 7 0 0 0 21 14.3z',
+  dashed: 'M3 12h3M10 12h3M17 12h3',
+  cursor: 'M4 3l16 6-6.5 2.5L11 18z',
+  trendLine: 'M4 20L20 4',
+  horizontalLine: 'M3 12h18',
+  ray: 'M3 12h14m0 0-4-4m4 4-4 4',
+  verticalLine: 'M12 3v18',
+  rectangle: 'M4 6h16v12H4z',
+  ellipse: 'M4 12a8 5 0 1 0 16 0 8 5 0 1 0-16 0z',
+  fib: 'M3 6h18M6 10.5h12M9 15h6M6 19.5h12',
+  text: 'M5 4h14M12 4v16M8 20h8',
+  brush: 'M3 21l4-1L18 9l-3-3L4 17l-1 4zM15 4l3 3',
+  measure: 'M4 16L16 4M7 13l2 2M11 9l2 2'
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {

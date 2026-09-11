@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { DEFAULT_DESK_PREFS, parseDeskPrefs } from '@core/desk/prefs'
+import { parseDrawing } from '@core/drawings/model'
 import type {
   BacktestSession,
   Candle,
   DataGap,
   DatasetInfo,
   DeskPrefs,
+  Drawing,
   SavedStrategy,
   StrategySettings,
   Timeframe,
@@ -408,4 +410,71 @@ export function saveDeskPrefs(prefs: DeskPrefs): DeskPrefs {
     )
     .run('desk', JSON.stringify(next))
   return next
+}
+
+interface DrawingRow {
+  id: string
+  symbol: string
+  type: string
+  payload_json: string
+  created_at: number
+  updated_at: number
+}
+
+function mapDrawing(row: DrawingRow): Drawing | null {
+  let payload: unknown = {}
+  try {
+    payload = JSON.parse(row.payload_json)
+  } catch {
+    return null
+  }
+  return parseDrawing({
+    ...(payload as object),
+    id: row.id,
+    symbol: row.symbol,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  })
+}
+
+export function listDrawings(symbol: string): Drawing[] {
+  const rows = getDb()
+    .prepare('SELECT * FROM drawings WHERE symbol = ? ORDER BY created_at ASC')
+    .all(symbol) as DrawingRow[]
+  return rows.map(mapDrawing).filter((d): d is Drawing => d !== null)
+}
+
+export function saveDrawing(drawing: Drawing): void {
+  const validated = parseDrawing(drawing)
+  if (!validated) return
+  const updatedAt = Date.now()
+  getDb()
+    .prepare(
+      `INSERT INTO drawings (id, symbol, type, payload_json, created_at, updated_at)
+       VALUES (@id, @symbol, @type, @payload, @created, @updated)
+       ON CONFLICT(id) DO UPDATE SET
+         payload_json = excluded.payload_json,
+         updated_at = excluded.updated_at`
+    )
+    .run({
+      id: validated.id,
+      symbol: validated.symbol,
+      type: validated.type,
+      payload: JSON.stringify({
+        type: validated.type,
+        points: validated.points,
+        text: validated.text,
+        style: validated.style
+      }),
+      created: validated.createdAt,
+      updated: updatedAt
+    })
+}
+
+export function deleteDrawing(id: string): void {
+  getDb().prepare('DELETE FROM drawings WHERE id = ?').run(id)
+}
+
+export function clearDrawings(symbol: string): void {
+  getDb().prepare('DELETE FROM drawings WHERE symbol = ?').run(symbol)
 }

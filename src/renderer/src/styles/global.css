@@ -131,6 +131,81 @@ select:disabled {
   opacity: 0.5;
 }
 
+.dropdown-trigger {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  padding: 7px 30px 7px 11px;
+  font-size: 13px;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--parchment);
+  cursor: pointer;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.dropdown-trigger:hover,
+.dropdown-trigger[aria-expanded='true'] {
+  border-color: var(--gold-dim);
+  background-color: var(--steel);
+  background-image: var(--chevron-active);
+}
+
+.dropdown-trigger:focus-visible {
+  outline: 1px solid var(--gold);
+  outline-offset: 1px;
+}
+
+.field .dropdown-trigger {
+  width: 100%;
+}
+
+.dropdown-menu {
+  position: fixed;
+  z-index: 100;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--vault);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+}
+
+.dropdown-option {
+  padding: 7px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  color: var(--parchment);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-option[data-active='true'] {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.dropdown-option[aria-selected='true'] {
+  font-weight: 600;
+}
+
 .app {
   display: grid;
   grid-template-rows: 60px minmax(0, 1fr) 268px;
@@ -371,6 +446,79 @@ select:disabled {
   pointer-events: none;
 }
 
+.drawing-layer-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.drawing-layer-canvas[data-capture='true'] {
+  pointer-events: auto;
+}
+
+.drawing-measure-label {
+  position: absolute;
+  z-index: 7;
+  padding: 4px 8px;
+  background: rgba(18, 22, 18, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(12px, -50%);
+}
+
+.drawing-handle {
+  position: absolute;
+  z-index: 6;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+  border: 2px solid var(--brand);
+  border-radius: 50%;
+  background: var(--parchment);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: move;
+}
+
+.drawing-style-menu {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--steel);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  transform: translate(-50%, calc(-100% - 12px));
+  pointer-events: auto;
+}
+
+.drawing-color-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  min-height: 0;
+  min-width: 0;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.drawing-color-swatch[data-active='true'] {
+  border-color: var(--parchment);
+  box-shadow: 0 0 0 2px var(--brand);
+}
+
 .pos-zone {
   position: absolute;
   pointer-events: none;
@@ -501,6 +649,42 @@ select:disabled {
 .chart {
   min-height: 0;
   position: relative;
+}
+
+.chart[data-drawing-active='true'] {
+  cursor: crosshair;
+}
+
+.drawing-toolbar {
+  position: absolute;
+  top: 54px;
+  left: 10px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--steel);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+}
+
+.drawing-toolbar-group {
+  position: relative;
+}
+
+.drawing-flyout {
+  position: absolute;
+  left: calc(100% + 6px);
+  top: 0;
+  z-index: 7;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: var(--steel);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
 }
 
 .chart-empty {

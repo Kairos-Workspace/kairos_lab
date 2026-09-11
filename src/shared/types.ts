@@ -190,3 +190,38 @@ export interface DeskPrefs {
   lastStrategyId: string | null
   lastDatasetId: number | null
 }
+
+export type DrawingTool =
+  | 'trendline'
+  | 'horizontal'
+  | 'ray'
+  | 'vertical'
+  | 'rectangle'
+  | 'ellipse'
+  | 'fib'
+  | 'text'
+  | 'brush'
+
+export type ChartTool = DrawingTool | 'measure'
+
+export interface DrawingPoint {
+  time: number
+  price: number
+}
+
+export interface DrawingStyle {
+  color: string
+  lineWidth: number
+  dashed: boolean
+}
+
+export interface Drawing {
+  id: string
+  symbol: string
+  type: DrawingTool
+  points: DrawingPoint[]
+  text?: string
+  style: DrawingStyle
+  createdAt: number
+  updatedAt: number
+}

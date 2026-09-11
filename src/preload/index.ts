@@ -1,7 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { CandleBuffer } from '../shared/candleBuffer'
-import type { BacktestSession, DatasetInfo, DeskPrefs, SavedStrategy, Timeframe, Trade } from '../shared/types'
+import type {
+  BacktestSession,
+  DatasetInfo,
+  DeskPrefs,
+  Drawing,
+  SavedStrategy,
+  Timeframe,
+  Trade
+} from '../shared/types'
 
 const api = {
   dbPath: (): Promise<string> => ipcRenderer.invoke(IPC.DB_PATH),
@@ -53,6 +61,12 @@ const api = {
   prefs: {
     load: () => ipcRenderer.invoke(IPC.PREFS_LOAD) as Promise<DeskPrefs>,
     save: (prefs: DeskPrefs) => ipcRenderer.invoke(IPC.PREFS_SAVE, prefs) as Promise<DeskPrefs>
+  },
+  drawings: {
+    list: (symbol: string) => ipcRenderer.invoke(IPC.DRAWINGS_LIST, symbol) as Promise<Drawing[]>,
+    save: (drawing: Drawing) => ipcRenderer.invoke(IPC.DRAWINGS_SAVE, drawing) as Promise<void>,
+    delete: (id: string) => ipcRenderer.invoke(IPC.DRAWINGS_DELETE, id) as Promise<void>,
+    clear: (symbol: string) => ipcRenderer.invoke(IPC.DRAWINGS_CLEAR, symbol) as Promise<void>
   }
 }
 
