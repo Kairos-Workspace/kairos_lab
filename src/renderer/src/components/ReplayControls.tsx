@@ -10,7 +10,6 @@ export function ReplayControls(): React.JSX.Element {
   const startReplay = useAppStore((s) => s.startReplay)
   const setReplayRange = useAppStore((s) => s.setReplayRange)
   const isPlaying = useAppStore((s) => s.isPlaying)
-  const mode = useAppStore((s) => s.mode)
   const replayFromTs = useAppStore((s) => s.replayFromTs)
   const replayToTs = useAppStore((s) => s.replayToTs)
   const candles = useAppStore((s) => s.displayCandles)
@@ -64,25 +63,6 @@ export function ReplayControls(): React.JSX.Element {
         >
           <Icon name="shuffle" />
         </button>
-        {mode === 'replay' ? (
-          <button
-            className="icon-btn"
-            onClick={() => useAppStore.getState().stopReplay()}
-            title="Show full tape"
-            aria-label="Show full tape"
-          >
-            <Icon name="eye" />
-          </button>
-        ) : (
-          <button
-            className="icon-btn"
-            onClick={() => startReplay()}
-            title="Hide future"
-            aria-label="Hide future"
-          >
-            <Icon name="eyeOff" />
-          </button>
-        )}
       </div>
       <form
         className="replay-range"
