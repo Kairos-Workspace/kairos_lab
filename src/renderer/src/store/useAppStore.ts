@@ -263,6 +263,7 @@ export const useAppStore = create<AppState>((set, get) => {
   }
 
   const drawingSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const triggeredAlertIds = new Set<string>()
 
   const saveDrawingNow = (drawing: Drawing): void => {
     const api = desktop()
@@ -912,6 +913,7 @@ export const useAppStore = create<AppState>((set, get) => {
     }
     const fromLabel = fromTs != null ? new Date(fromTs).toISOString().slice(0, 16).replace('T', ' ') : 'start'
     const toLabel = toTs != null ? new Date(toTs).toISOString().slice(0, 16).replace('T', ' ') : 'end'
+    triggeredAlertIds.clear()
     set({
       mode: 'replay',
       replayIndex: index,
@@ -1039,6 +1041,16 @@ export const useAppStore = create<AppState>((set, get) => {
       index += direction
       const candle = tape[index]
       if (!candle) break
+
+      if (direction > 0) {
+        for (const drawing of next.drawings) {
+          if (drawing.type !== 'horizontal' || triggeredAlertIds.has(drawing.id)) continue
+          const level = drawing.points[0]?.price
+          if (level == null || level < candle.low || level > candle.high) continue
+          triggeredAlertIds.add(drawing.id)
+          notifyInfo(`${next.symbol} crossed ${level.toFixed(2)}`)
+        }
+      }
 
       if (active && direction > 0) {
         const prev = tape[index - 1]
