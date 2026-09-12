@@ -74,6 +74,7 @@ interface AppState {
   replayFromTs: number | null
   replayToTs: number | null
   isPlaying: boolean
+  followReplay: boolean
   speed: number
   hideDate: boolean
   settings: StrategySettings
@@ -151,6 +152,8 @@ interface AppState {
   play: () => void
   pause: () => void
   togglePlay: () => void
+  setFollowReplay: (follow: boolean) => void
+  manualStep: (n: number) => void
   step: (n: number) => void
   resetReplay: () => void
   jumpToDate: (timestamp: number) => void
@@ -333,6 +336,7 @@ export const useAppStore = create<AppState>((set, get) => {
   replayFromTs: null,
   replayToTs: null,
   isPlaying: false,
+  followReplay: true,
   speed: 1,
   hideDate: false,
   settings: { ...DEFAULT_STRATEGY_SETTINGS },
@@ -1020,6 +1024,7 @@ export const useAppStore = create<AppState>((set, get) => {
       replayToTs: toTs ?? s.replayToTs,
       hideDate: Boolean(opts?.hideDate),
       isPlaying: false,
+      followReplay: true,
       pendingSetup: null,
       draft: null,
       activeTrade: null,
@@ -1080,7 +1085,10 @@ export const useAppStore = create<AppState>((set, get) => {
 
   togglePlay: () => {
     if (get().isPlaying) get().pause()
-    else get().play()
+    else {
+      set({ followReplay: true })
+      get().play()
+    }
   },
 
   step: (n) => {
@@ -1244,10 +1252,17 @@ export const useAppStore = create<AppState>((set, get) => {
     })
   },
 
+  setFollowReplay: (follow) => set({ followReplay: follow }),
+
+  manualStep: (n) => {
+    set({ followReplay: true })
+    get().step(n)
+  },
+
   jumpToDate: (timestamp) => {
     const s = get()
     const index = ReplayEngine.mapTimestampToIndex(s.displayCandles, timestamp)
-    if (s.mode === 'replay') set({ replayIndex: index, isPlaying: false })
+    if (s.mode === 'replay') set({ replayIndex: index, isPlaying: false, followReplay: true })
     else set({ selectedTradeId: get().selectedTradeId })
   },
 
