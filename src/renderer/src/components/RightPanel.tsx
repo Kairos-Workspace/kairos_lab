@@ -26,7 +26,10 @@ export function RightPanel(): React.JSX.Element {
             title={t.label}
             aria-label={t.label}
           >
-            <Icon name={t.icon} />
+            <span className="icon-label">
+              <Icon name={t.icon} />
+              <span className="tab-label">{t.label}</span>
+            </span>
           </button>
         ))}
       </nav>

@@ -854,6 +854,12 @@ button:focus-visible {
   color: var(--gold);
 }
 
+.tab-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .primary {
   background: var(--brand);
   color: var(--on-brand);
