@@ -31,6 +31,7 @@ import { useAppStore } from '../store/useAppStore'
 
 const VIEW_BARS = 160
 const LOAD_MORE_THRESHOLD = 200
+const FOLLOW_RESUME_MS = 4000
 
 function visibleSlice(candles: Candle[], from: number, to: number): Candle[] {
   if (candles.length === 0) return []
@@ -102,6 +103,7 @@ export function ChartPanel(): React.JSX.Element {
   const prevOverlayKey = useRef('')
   const indicatorsRef = useRef(new Map<string, ISeriesApi<'Line'>>())
   const paintTokenRef = useRef(0)
+  const followIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [chartApi, setChartApi] = useState<IChartApi | null>(null)
   const [seriesApi, setSeriesApi] = useState<ISeriesApi<'Candlestick'> | null>(null)
 
@@ -111,6 +113,8 @@ export function ChartPanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const levels = useAppStore((s) => s.horizontalLevels)
   const mode = useAppStore((s) => s.mode)
+  const isPlaying = useAppStore((s) => s.isPlaying)
+  const followReplay = useAppStore((s) => s.followReplay)
   const draft = useAppStore((s) => s.draft)
   const settings = useAppStore((s) => s.settings)
   const theme = useAppStore((s) => s.theme)
@@ -210,6 +214,47 @@ export function ChartPanel(): React.JSX.Element {
     scale.subscribeVisibleLogicalRangeChange(onRangeChange)
     return () => scale.unsubscribeVisibleLogicalRangeChange(onRangeChange)
   }, [chartApi])
+
+  useEffect(() => {
+    const el = hostRef.current
+    if (!el) return
+    const onInteract = (): void => {
+      const s = useAppStore.getState()
+      if (s.mode !== 'replay' || !s.isPlaying) return
+      if (s.followReplay) s.setFollowReplay(false)
+      if (followIdleTimerRef.current) clearTimeout(followIdleTimerRef.current)
+      followIdleTimerRef.current = setTimeout(() => {
+        if (useAppStore.getState().isPlaying) useAppStore.getState().setFollowReplay(true)
+      }, FOLLOW_RESUME_MS)
+    }
+    el.addEventListener('pointerdown', onInteract, { passive: true })
+    el.addEventListener('wheel', onInteract, { passive: true })
+    return () => {
+      el.removeEventListener('pointerdown', onInteract)
+      el.removeEventListener('wheel', onInteract)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isPlaying) return
+    if (followIdleTimerRef.current) {
+      clearTimeout(followIdleTimerRef.current)
+      followIdleTimerRef.current = null
+    }
+  }, [isPlaying])
+
+  useEffect(() => {
+    if (!chartApi || !followReplay) return
+    const s = useAppStore.getState()
+    if (s.mode !== 'replay') return
+    const count = s.replayIndex + 1
+    const from = Math.max(0, count - VIEW_BARS)
+    chartApi.timeScale().setVisibleLogicalRange({ from, to: Math.max(count - 1, from + 24) })
+  }, [chartApi, followReplay])
+
+  useEffect(() => {
+    chartApi?.timeScale().applyOptions({ shiftVisibleRangeOnNewBar: followReplay })
+  }, [chartApi, followReplay])
 
   useEffect(() => {
     if (mode !== 'replay') return
