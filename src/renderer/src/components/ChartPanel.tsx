@@ -104,6 +104,7 @@ export function ChartPanel(): React.JSX.Element {
   const indicatorsRef = useRef(new Map<string, ISeriesApi<'Line'>>())
   const paintTokenRef = useRef(0)
   const followIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastVisibleRangeRef = useRef<{ from: number; to: number } | null>(null)
   const [chartApi, setChartApi] = useState<IChartApi | null>(null)
   const [seriesApi, setSeriesApi] = useState<ISeriesApi<'Candlestick'> | null>(null)
 
@@ -338,7 +339,10 @@ export function ChartPanel(): React.JSX.Element {
           const pendingShift = useAppStore.getState().pendingRangeShift
           const followReplay = useAppStore.getState().followReplay
           const preserveRange = pendingShift != null || (mode === 'replay' && !followReplay)
-          const priorRange = preserveRange ? chart.timeScale().getVisibleLogicalRange() : null
+          const priorRange = preserveRange
+            ? (chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current)
+            : null
+          if (priorRange) lastVisibleRangeRef.current = priorRange
           series.setData(visible.map(toBar))
           for (const line of strategyIndicatorLines(settings, visible)) {
             indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
