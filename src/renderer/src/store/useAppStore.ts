@@ -13,6 +13,7 @@ import {
   CANDLE_PAGE_SIZE,
   DEFAULT_COSTS,
   DEFAULT_STRATEGY_SETTINGS,
+  DEFAULT_SYMBOL,
   INITIAL_VIEW_CANDLES,
   WARMUP_BARS
 } from '@shared/constants'
@@ -521,6 +522,11 @@ export const useAppStore = create<AppState>((set, get) => {
       chartFull: false,
       status: `${saved.name} · ready to backtest`
     })
+    // A brand-new strategy (no prior session to resume) carries forward
+    // whatever symbol happened to be loaded before, which is often nothing
+    // — leaving the chart on an empty "pick a pair" state. Default to
+    // XAUUSD so the chart always has something to show right away.
+    if (get().displayCandles.length === 0) await get().selectSymbol(DEFAULT_SYMBOL)
     persistDesk()
   },
 
