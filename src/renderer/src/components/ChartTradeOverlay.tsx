@@ -35,7 +35,6 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
   const draft = useAppStore((s) => s.draft)
   const active = useAppStore((s) => s.activeTrade)
   const trades = useAppStore((s) => s.trades)
-  const isPlaying = useAppStore((s) => s.isPlaying)
   const [boxes, setBoxes] = useState<Record<string, Box>>({})
   const barWidths = useRef<Record<string, number>>({})
   const frames = listPositionFrames({ draft, active, trades })
@@ -89,27 +88,17 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
       })
     }
 
-    let raf = 0
-    let alive = true
-    const loop = () => {
-      if (!alive) return
-      place()
-      raf = requestAnimationFrame(loop)
-    }
-
+    place()
     const scale = chart.timeScale()
     scale.subscribeVisibleLogicalRangeChange(place)
     scale.subscribeVisibleTimeRangeChange(place)
     scale.subscribeSizeChange(place)
-    if (!isPlaying) raf = requestAnimationFrame(loop)
     return () => {
-      alive = false
-      cancelAnimationFrame(raf)
       scale.unsubscribeVisibleLogicalRangeChange(place)
       scale.unsubscribeVisibleTimeRangeChange(place)
       scale.unsubscribeSizeChange(place)
     }
-  }, [chart, series, host, frameKey, isPlaying])
+  }, [chart, series, host, frameKey])
 
   if (frames.length === 0) return null
 
