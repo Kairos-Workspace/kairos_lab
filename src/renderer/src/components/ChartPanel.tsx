@@ -114,9 +114,9 @@ export function ChartPanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const levels = useAppStore((s) => s.horizontalLevels)
   const mode = useAppStore((s) => s.mode)
-  const datasetId = useAppStore((s) => s.datasetId)
   const isPlaying = useAppStore((s) => s.isPlaying)
   const followReplay = useAppStore((s) => s.followReplay)
+  const displayCandles = useAppStore((s) => s.displayCandles)
   const draft = useAppStore((s) => s.draft)
   const settings = useAppStore((s) => s.settings)
   const theme = useAppStore((s) => s.theme)
@@ -249,7 +249,7 @@ export function ChartPanel(): React.JSX.Element {
 
   useEffect(() => {
     lastVisibleRangeRef.current = null
-  }, [datasetId])
+  }, [displayCandles])
 
   useEffect(() => {
     if (!chartApi || !followReplay) return
