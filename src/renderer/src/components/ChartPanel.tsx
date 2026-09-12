@@ -336,13 +336,17 @@ export function ChartPanel(): React.JSX.Element {
             return
           }
           const pendingShift = useAppStore.getState().pendingRangeShift
-          const priorRange = pendingShift != null ? chart.timeScale().getVisibleLogicalRange() : null
+          const followReplay = useAppStore.getState().followReplay
+          const preserveRange = pendingShift != null || (mode === 'replay' && !followReplay)
+          const priorRange = preserveRange ? chart.timeScale().getVisibleLogicalRange() : null
           series.setData(visible.map(toBar))
           for (const line of strategyIndicatorLines(settings, visible)) {
             indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
           }
           if (pendingShift != null && priorRange) {
             chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(priorRange, pendingShift))
+          } else if (mode === 'replay' && !followReplay && priorRange) {
+            chart.timeScale().setVisibleLogicalRange(priorRange)
           } else {
             const from = Math.max(0, count - VIEW_BARS)
             chart.timeScale().setVisibleLogicalRange({
