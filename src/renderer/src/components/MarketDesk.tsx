@@ -210,43 +210,36 @@ export function MarketDesk(): React.JSX.Element {
               <span className="stamp">Free tape</span>
               <h2>Add a pair</h2>
             </div>
-            <div className="search-bar" style={{ width: '300px' }}>
+            <div className="search-bar">
               <input
                 type="text"
                 placeholder="Search symbol..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--rule)', background: 'var(--steel)', color: 'var(--parchment)' }}
               />
             </div>
           </header>
           
-          <div className="pair-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '12px', overflowY: 'auto', paddingBottom: '24px' }}>
+          <div className="pair-grid">
             {filteredPairs.map(row => (
               <button
                 key={row.symbol}
-                className="pair-card ghost"
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '16px', border: '1px solid var(--rule)', borderRadius: '8px', cursor: 'pointer', background: 'var(--plate)', transition: 'background 0.2s' }}
+                className="pair-card"
                 onClick={() => setSelectedPair(row.symbol)}
-                onMouseOver={(e) => e.currentTarget.style.background = 'var(--rule)'}
-                onMouseOut={(e) => e.currentTarget.style.background = 'var(--plate)'}
               >
-                <b style={{ fontSize: '16px', color: 'var(--parchment)' }}>{row.symbol}</b>
-                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>{row.name}</span>
+                <b>{row.symbol}</b>
+                <span>{row.name}</span>
               </button>
             ))}
             {/* Custom option */}
             {showCustomOption && (
               <button
-                className="pair-card ghost"
-                style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '16px', border: '1px dashed var(--rule)', borderRadius: '8px', cursor: 'pointer', background: 'transparent' }}
+                className="pair-card pair-card-custom"
                 onClick={() => setSelectedPair(searchQuery.toUpperCase())}
-                onMouseOver={(e) => e.currentTarget.style.background = 'var(--rule)'}
-                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
               >
-                <b style={{ fontSize: '16px', color: 'var(--parchment)' }}>{searchQuery.toUpperCase()}</b>
-                <span style={{ fontSize: '13px', color: 'var(--muted)' }}>Custom Symbol</span>
+                <b>{searchQuery.toUpperCase()}</b>
+                <span>Custom Symbol</span>
               </button>
             )}
           </div>
@@ -285,8 +278,8 @@ export function MarketDesk(): React.JSX.Element {
               </button>
             </header>
             
-            <div className="field" style={{ border: '1px solid var(--rule)', padding: '12px', borderRadius: 'var(--radius)', background: 'var(--vault)' }}>
-              <span style={{ fontSize: '13px', color: 'var(--muted)', display: 'block', marginBottom: '8px' }}>Timeframes</span>
+            <div className="field field-group">
+              <span style={{ display: 'block', marginBottom: '8px' }}>Timeframes</span>
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                 {TIMEFRAMES.map((tf) => (
                   <label key={tf} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '14px' }}>

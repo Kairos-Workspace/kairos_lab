@@ -44,7 +44,7 @@ export function DrawingStyleMenu({
         title="Dashed"
         onClick={() => onStyleChange({ dashed: !drawing.style.dashed })}
       >
-        <Icon name="dashed" size={12} />
+        <Icon name="dashed" />
       </button>
       <button
         type="button"
