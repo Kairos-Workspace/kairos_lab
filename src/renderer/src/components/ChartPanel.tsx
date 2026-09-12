@@ -232,6 +232,7 @@ export function ChartPanel(): React.JSX.Element {
     return () => {
       el.removeEventListener('pointerdown', onInteract)
       el.removeEventListener('wheel', onInteract)
+      if (followIdleTimerRef.current) clearTimeout(followIdleTimerRef.current)
     }
   }, [])
 
