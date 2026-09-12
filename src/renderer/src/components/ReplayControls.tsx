@@ -5,7 +5,7 @@ import { useAppStore } from '../store/useAppStore'
 
 export function ReplayControls(): React.JSX.Element {
   const togglePlay = useAppStore((s) => s.togglePlay)
-  const step = useAppStore((s) => s.step)
+  const step = useAppStore((s) => s.manualStep)
   const resetReplay = useAppStore((s) => s.resetReplay)
   const startReplay = useAppStore((s) => s.startReplay)
   const setReplayRange = useAppStore((s) => s.setReplayRange)
