@@ -656,6 +656,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
   setTimeframe: async (tf) => {
     const s = get()
+    if (tf === s.displayTimeframe) return
     const best = pickLocalDataset(s.datasets, s.symbol, tf)
     if (best && best.id !== s.datasetId) {
       set({ displayTimeframe: tf })
