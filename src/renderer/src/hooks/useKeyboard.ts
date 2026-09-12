@@ -20,10 +20,10 @@ export function useKeyboard(): void {
           store.togglePlay()
           break
         case 'ArrowRight':
-          store.step(event.shiftKey ? 10 : 1)
+          store.manualStep(event.shiftKey ? 10 : 1)
           break
         case 'ArrowLeft':
-          store.step(event.shiftKey ? -10 : -1)
+          store.manualStep(event.shiftKey ? -10 : -1)
           break
         case 'f':
         case 'F':

@@ -31,6 +31,7 @@ import { useAppStore } from '../store/useAppStore'
 
 const VIEW_BARS = 160
 const LOAD_MORE_THRESHOLD = 200
+const FOLLOW_RESUME_MS = 4000
 
 function visibleSlice(candles: Candle[], from: number, to: number): Candle[] {
   if (candles.length === 0) return []
@@ -100,8 +101,11 @@ export function ChartPanel(): React.JSX.Element {
   const candlesRef = useRef<Candle[]>([])
   const prevCount = useRef(0)
   const prevOverlayKey = useRef('')
+  const prevDisplayCandlesRef = useRef<Candle[] | null>(null)
   const indicatorsRef = useRef(new Map<string, ISeriesApi<'Line'>>())
   const paintTokenRef = useRef(0)
+  const followIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastVisibleRangeRef = useRef<{ from: number; to: number } | null>(null)
   const [chartApi, setChartApi] = useState<IChartApi | null>(null)
   const [seriesApi, setSeriesApi] = useState<ISeriesApi<'Candlestick'> | null>(null)
 
@@ -111,6 +115,9 @@ export function ChartPanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const levels = useAppStore((s) => s.horizontalLevels)
   const mode = useAppStore((s) => s.mode)
+  const isPlaying = useAppStore((s) => s.isPlaying)
+  const followReplay = useAppStore((s) => s.followReplay)
+  const displayCandles = useAppStore((s) => s.displayCandles)
   const draft = useAppStore((s) => s.draft)
   const settings = useAppStore((s) => s.settings)
   const theme = useAppStore((s) => s.theme)
@@ -203,6 +210,7 @@ export function ChartPanel(): React.JSX.Element {
     if (!chartApi) return
     const scale = chartApi.timeScale()
     const onRangeChange = (range: { from: number; to: number } | null): void => {
+      if (range) lastVisibleRangeRef.current = range
       if (useAppStore.getState().mode !== 'view') return
       if (!shouldLoadOlder(range, LOAD_MORE_THRESHOLD)) return
       void useAppStore.getState().loadOlderCandles()
@@ -210,6 +218,52 @@ export function ChartPanel(): React.JSX.Element {
     scale.subscribeVisibleLogicalRangeChange(onRangeChange)
     return () => scale.unsubscribeVisibleLogicalRangeChange(onRangeChange)
   }, [chartApi])
+
+  useEffect(() => {
+    const el = hostRef.current
+    if (!el) return
+    const onInteract = (): void => {
+      const s = useAppStore.getState()
+      if (s.mode !== 'replay' || !s.isPlaying) return
+      if (s.followReplay) s.setFollowReplay(false)
+      if (followIdleTimerRef.current) clearTimeout(followIdleTimerRef.current)
+      followIdleTimerRef.current = setTimeout(() => {
+        if (useAppStore.getState().isPlaying) useAppStore.getState().setFollowReplay(true)
+      }, FOLLOW_RESUME_MS)
+    }
+    el.addEventListener('pointerdown', onInteract, { passive: true })
+    el.addEventListener('wheel', onInteract, { passive: true })
+    return () => {
+      el.removeEventListener('pointerdown', onInteract)
+      el.removeEventListener('wheel', onInteract)
+      if (followIdleTimerRef.current) clearTimeout(followIdleTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isPlaying) return
+    if (followIdleTimerRef.current) {
+      clearTimeout(followIdleTimerRef.current)
+      followIdleTimerRef.current = null
+    }
+  }, [isPlaying])
+
+  useEffect(() => {
+    lastVisibleRangeRef.current = null
+  }, [displayCandles])
+
+  useEffect(() => {
+    if (!chartApi || !followReplay) return
+    const s = useAppStore.getState()
+    if (s.mode !== 'replay') return
+    const count = s.replayIndex + 1
+    const from = Math.max(0, count - VIEW_BARS)
+    chartApi.timeScale().setVisibleLogicalRange({ from, to: Math.max(count - 1, from + 24) })
+  }, [chartApi, followReplay])
+
+  useEffect(() => {
+    chartApi?.timeScale().applyOptions({ shiftVisibleRangeOnNewBar: followReplay })
+  }, [chartApi, followReplay])
 
   useEffect(() => {
     if (mode !== 'replay') return
@@ -290,13 +344,23 @@ export function ChartPanel(): React.JSX.Element {
             return
           }
           const pendingShift = useAppStore.getState().pendingRangeShift
-          const priorRange = pendingShift != null ? chart.timeScale().getVisibleLogicalRange() : null
+          const followReplay = useAppStore.getState().followReplay
+          const tapeChanged = displayCandles !== prevDisplayCandlesRef.current
+          prevDisplayCandlesRef.current = displayCandles
+          const preserveReplayView = mode === 'replay' && !followReplay && !tapeChanged
+          const preserveRange = pendingShift != null || preserveReplayView
+          const priorRange = preserveRange
+            ? (chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current)
+            : null
+          if (priorRange) lastVisibleRangeRef.current = priorRange
           series.setData(visible.map(toBar))
           for (const line of strategyIndicatorLines(settings, visible)) {
             indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
           }
           if (pendingShift != null && priorRange) {
             chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(priorRange, pendingShift))
+          } else if (preserveReplayView && priorRange) {
+            chart.timeScale().setVisibleLogicalRange(priorRange)
           } else {
             const from = Math.max(0, count - VIEW_BARS)
             chart.timeScale().setVisibleLogicalRange({
