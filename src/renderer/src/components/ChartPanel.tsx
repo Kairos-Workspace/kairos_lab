@@ -101,6 +101,7 @@ export function ChartPanel(): React.JSX.Element {
   const candlesRef = useRef<Candle[]>([])
   const prevCount = useRef(0)
   const prevOverlayKey = useRef('')
+  const prevDisplayCandlesRef = useRef<Candle[] | null>(null)
   const indicatorsRef = useRef(new Map<string, ISeriesApi<'Line'>>())
   const paintTokenRef = useRef(0)
   const followIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -344,7 +345,10 @@ export function ChartPanel(): React.JSX.Element {
           }
           const pendingShift = useAppStore.getState().pendingRangeShift
           const followReplay = useAppStore.getState().followReplay
-          const preserveRange = pendingShift != null || (mode === 'replay' && !followReplay)
+          const tapeChanged = displayCandles !== prevDisplayCandlesRef.current
+          prevDisplayCandlesRef.current = displayCandles
+          const preserveReplayView = mode === 'replay' && !followReplay && !tapeChanged
+          const preserveRange = pendingShift != null || preserveReplayView
           const priorRange = preserveRange
             ? (chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current)
             : null
@@ -355,7 +359,7 @@ export function ChartPanel(): React.JSX.Element {
           }
           if (pendingShift != null && priorRange) {
             chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(priorRange, pendingShift))
-          } else if (mode === 'replay' && !followReplay && priorRange) {
+          } else if (preserveReplayView && priorRange) {
             chart.timeScale().setVisibleLogicalRange(priorRange)
           } else {
             const from = Math.max(0, count - VIEW_BARS)
