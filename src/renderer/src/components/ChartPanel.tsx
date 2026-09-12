@@ -114,6 +114,7 @@ export function ChartPanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const levels = useAppStore((s) => s.horizontalLevels)
   const mode = useAppStore((s) => s.mode)
+  const datasetId = useAppStore((s) => s.datasetId)
   const isPlaying = useAppStore((s) => s.isPlaying)
   const followReplay = useAppStore((s) => s.followReplay)
   const draft = useAppStore((s) => s.draft)
@@ -208,6 +209,7 @@ export function ChartPanel(): React.JSX.Element {
     if (!chartApi) return
     const scale = chartApi.timeScale()
     const onRangeChange = (range: { from: number; to: number } | null): void => {
+      if (range) lastVisibleRangeRef.current = range
       if (useAppStore.getState().mode !== 'view') return
       if (!shouldLoadOlder(range, LOAD_MORE_THRESHOLD)) return
       void useAppStore.getState().loadOlderCandles()
@@ -244,6 +246,10 @@ export function ChartPanel(): React.JSX.Element {
       followIdleTimerRef.current = null
     }
   }, [isPlaying])
+
+  useEffect(() => {
+    lastVisibleRangeRef.current = null
+  }, [datasetId])
 
   useEffect(() => {
     if (!chartApi || !followReplay) return
