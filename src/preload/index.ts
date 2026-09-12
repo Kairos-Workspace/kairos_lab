@@ -35,6 +35,17 @@ const api = {
         dataset: DatasetInfo
         datasets: DatasetInfo[]
       }>,
+    downloadEstimate: (payload: {
+      symbol: string
+      timeframe: Timeframe
+      startTs: number
+      endTs: number
+    }) =>
+      ipcRenderer.invoke(IPC.DATASETS_DOWNLOAD_ESTIMATE, payload) as Promise<{
+        chunks: number | null
+        batchSize: number
+        pauseBetweenBatchesMs: number
+      }>,
     refresh: (datasetId: number) =>
       ipcRenderer.invoke(IPC.DATASETS_REFRESH, datasetId) as Promise<{
         dataset: DatasetInfo

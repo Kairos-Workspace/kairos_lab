@@ -1,7 +1,35 @@
 import { findMarketInstrument, recentWindow, resolveMarketSource, yahooWindow } from '@core/market/catalog'
 import type { Candle, Timeframe } from '@shared/types'
-import { downloadDukascopy } from './dukascopy'
+import {
+  DUKASCOPY_BATCH_SIZE,
+  DUKASCOPY_PAUSE_BETWEEN_BATCHES_MS,
+  downloadDukascopy,
+  estimateDukascopyChunks
+} from './dukascopy'
 import { downloadYahoo } from './yahoo'
+
+/**
+ * A rough, honestly-labeled estimate for how long a download will take,
+ * grounded in real numbers (the actual chunk count dukascopy-node will fetch,
+ * and its own configured batch pacing) rather than a guess — used to drive a
+ * progress bar since the underlying library has no public per-chunk hook.
+ * Yahoo-sourced symbols fetch in a single request, so there's nothing to
+ * estimate chunk-by-chunk; `chunks: null` tells the caller to show an
+ * indeterminate progress state instead of a fake percentage.
+ */
+export function estimateDownload(input: {
+  symbol: string
+  timeframe: Timeframe
+  startTs: number
+  endTs: number
+}): { chunks: number | null; batchSize: number; pauseBetweenBatchesMs: number } {
+  const route = resolveMarketSource(input.symbol)
+  if (route.source === 'yahoo') {
+    return { chunks: null, batchSize: 1, pauseBetweenBatchesMs: 0 }
+  }
+  const chunks = estimateDukascopyChunks({ ...input, instrument: route.instrument })
+  return { chunks, batchSize: DUKASCOPY_BATCH_SIZE, pauseBetweenBatchesMs: DUKASCOPY_PAUSE_BETWEEN_BATCHES_MS }
+}
 
 async function pullDukascopy(
   input: {

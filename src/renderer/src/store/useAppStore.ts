@@ -68,6 +68,7 @@ interface AppState {
   sourceHasOlder: boolean
   loadingOlderCandles: boolean
   pendingRangeShift: number | null
+  downloadProgress: { fraction: number; indeterminate: boolean } | null
   dbPath: string
   symbol: string
   mode: 'view' | 'replay'
@@ -113,6 +114,7 @@ interface AppState {
   autosaveProgress: () => void
   leaveWorkspace: () => void
   createStrategy: (input: { name: string; notes?: string; settings?: Partial<StrategySettings> }) => Promise<string>
+  updateSavedStrategy: (id: string, patch: { name: string; notes?: string; settings: StrategySettings }) => Promise<void>
   persistActiveStrategy: () => void
   deleteSavedStrategy: (id: string) => Promise<void>
   purgeSeededStrategies: () => void
@@ -279,6 +281,14 @@ export const useAppStore = create<AppState>((set, get) => {
   }
 
   const drawingSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  let downloadProgressTimer: ReturnType<typeof setInterval> | null = null
+
+  const clearDownloadProgressTimer = (): void => {
+    if (downloadProgressTimer) {
+      clearInterval(downloadProgressTimer)
+      downloadProgressTimer = null
+    }
+  }
   const triggeredAlertIds = new Set<string>()
 
   const saveDrawingNow = (drawing: Drawing): void => {
@@ -330,6 +340,7 @@ export const useAppStore = create<AppState>((set, get) => {
   sourceHasOlder: false,
   loadingOlderCandles: false,
   pendingRangeShift: null,
+  downloadProgress: null,
   dbPath: '',
   symbol: 'XAUUSD',
   mode: 'view',
@@ -592,6 +603,25 @@ export const useAppStore = create<AppState>((set, get) => {
     return saved.id
   },
 
+  updateSavedStrategy: async (id, patch) => {
+    const current = get().strategies.find((row) => row.id === id)
+    if (!current) return
+    const next: SavedStrategy = {
+      ...current,
+      name: patch.name.trim() || 'Untitled strategy',
+      notes: patch.notes?.trim() ?? '',
+      settings: patch.settings,
+      updatedAt: Date.now()
+    }
+    const strategies = (await strategyBridge()?.save(next)) ?? [
+      next,
+      ...get().strategies.filter((row) => row.id !== id)
+    ]
+    set({ strategies })
+    persistDesk()
+    notifySuccess(`${next.name} updated`)
+  },
+
   persistActiveStrategy: () => {
     const s = get()
     if (!s.activeStrategyId) return
@@ -711,24 +741,52 @@ export const useAppStore = create<AppState>((set, get) => {
     }
     set({ busy: true, status: `Downloading ${symbol} ${input.timeframe}…` })
     try {
+      const estimate = await requireDesktop().datasets.downloadEstimate({
+        symbol,
+        timeframe: input.timeframe,
+        startTs: input.startTs,
+        endTs: input.endTs
+      })
+      clearDownloadProgressTimer()
+      if (estimate.chunks == null) {
+        set({ downloadProgress: { fraction: 0, indeterminate: true } })
+      } else {
+        const totalBatches = Math.max(1, Math.ceil(estimate.chunks / estimate.batchSize))
+        const estimatedMs = Math.max(600, totalBatches * estimate.pauseBetweenBatchesMs)
+        const startedAt = Date.now()
+        const PROGRESS_CAP = 0.92
+        set({ downloadProgress: { fraction: 0, indeterminate: false } })
+        downloadProgressTimer = setInterval(() => {
+          const fraction = Math.min(PROGRESS_CAP, (Date.now() - startedAt) / estimatedMs)
+          set({ downloadProgress: { fraction, indeterminate: false } })
+        }, 100)
+      }
+
       const result = await requireDesktop().datasets.download({
         symbol,
         timeframe: input.timeframe,
         startTs: input.startTs,
         endTs: input.endTs
       })
+      clearDownloadProgressTimer()
       const status = `${symbol} ${input.timeframe} · ${result.dataset.candleCount.toLocaleString()} bars ready`
       set({
         datasets: result.datasets,
         busy: false,
-        status
+        status,
+        downloadProgress: { fraction: 1, indeterminate: false }
       })
       persistDesk()
       notifySuccess(status)
+      setTimeout(() => {
+        if (get().downloadProgress?.fraction === 1) set({ downloadProgress: null })
+      }, 400)
     } catch (error) {
+      clearDownloadProgressTimer()
       set({
         busy: false,
-        status: error instanceof Error ? error.message : `Could not download ${symbol}.`
+        status: error instanceof Error ? error.message : `Could not download ${symbol}.`,
+        downloadProgress: null
       })
       notifyError(`Could not download ${symbol}.`, error)
       throw error

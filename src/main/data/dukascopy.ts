@@ -1,5 +1,8 @@
-import { getHistoricalRates } from 'dukascopy-node'
+import { generateUrls, getHistoricalRates, normaliseDates } from 'dukascopy-node'
 import type { Candle, Timeframe } from '@shared/types'
+
+export const DUKASCOPY_BATCH_SIZE = 15
+export const DUKASCOPY_PAUSE_BETWEEN_BATCHES_MS = 400
 
 const TF_MAP: Record<Timeframe, string> = {
   '1M': 'm1',
@@ -42,6 +45,38 @@ function toCandle(row: RawRow): Candle | null {
   }
 }
 
+/**
+ * How many chunk files the download will actually fetch, computed the exact
+ * same way getHistoricalRates plans its work internally (generateUrls is a
+ * pure, side-effect-free public export of dukascopy-node — this doesn't
+ * duplicate or reimplement any of the fetch/parse pipeline itself). Lets the
+ * caller show a progress estimate before/while the real download runs, since
+ * getHistoricalRates itself has no public per-chunk progress hook.
+ */
+export function estimateDukascopyChunks(input: {
+  symbol: string
+  timeframe: Timeframe
+  startTs: number
+  endTs: number
+  instrument?: string
+}): number {
+  const instrument = (input.instrument ?? input.symbol).toLowerCase()
+  const [startDate, endDate] = normaliseDates({
+    instrument: instrument as 'xauusd',
+    startDate: new Date(input.startTs),
+    endDate: new Date(input.endTs),
+    timeframe: TF_MAP[input.timeframe] as 'm5',
+    utcOffset: 0
+  })
+  return generateUrls({
+    instrument: instrument as 'xauusd',
+    timeframe: TF_MAP[input.timeframe] as 'm5',
+    priceType: 'bid',
+    startDate,
+    endDate
+  }).length
+}
+
 export async function downloadDukascopy(input: {
   symbol: string
   timeframe: Timeframe
@@ -68,8 +103,8 @@ export async function downloadDukascopy(input: {
     ignoreFlats: true,
     useCache: true,
     cacheFolderPath: '.dukascopy-cache',
-    batchSize: 15,
-    pauseBetweenBatchesMs: 400,
+    batchSize: DUKASCOPY_BATCH_SIZE,
+    pauseBetweenBatchesMs: DUKASCOPY_PAUSE_BETWEEN_BATCHES_MS,
     retryCount: 5,
     pauseBetweenRetriesMs: 500
   })) as RawRow[]

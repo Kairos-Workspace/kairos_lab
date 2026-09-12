@@ -3,6 +3,7 @@ export const IPC = {
   DATASETS_CANDLES: 'datasets:candles',
   DATASETS_CANDLES_PAGE: 'datasets:candles-page',
   DATASETS_DOWNLOAD: 'datasets:download',
+  DATASETS_DOWNLOAD_ESTIMATE: 'datasets:download-estimate',
   DATASETS_REFRESH: 'datasets:refresh',
   DATASETS_IMPORT: 'datasets:import',
   DATASETS_DEMO: 'datasets:demo',

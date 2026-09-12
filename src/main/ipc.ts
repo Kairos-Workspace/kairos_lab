@@ -38,7 +38,7 @@ import {
 } from './database/repositories'
 import { latestWindow } from '@core/market/catalog'
 import { csvCandles, deleteCsvTape, isCsvDataset, refreshCsvDatasets } from './data/csvTape'
-import { fetchMarketCandles } from './data/fetchMarket'
+import { estimateDownload, fetchMarketCandles } from './data/fetchMarket'
 
 function handle(
   channel: string,
@@ -133,6 +133,19 @@ export function registerIpc(): void {
       })
       return { dataset, report, datasets: mergedDatasets() }
     }
+  )
+
+  handle(
+    IPC.DATASETS_DOWNLOAD_ESTIMATE,
+    (
+      _e,
+      payload: {
+        symbol: string
+        timeframe: Timeframe
+        startTs: number
+        endTs: number
+      }
+    ) => estimateDownload(payload)
   )
 
   handle(
