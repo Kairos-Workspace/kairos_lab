@@ -528,9 +528,9 @@ button:focus-visible {
   position: absolute;
   z-index: 7;
   padding: 4px 8px;
-  background: rgba(18, 22, 18, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 6px;
+  background: rgba(18, 22, 18, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 10px;
   color: #fff;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
