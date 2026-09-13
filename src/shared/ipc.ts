@@ -26,10 +26,11 @@ export const IPC = {
   DRAWINGS_SAVE: 'drawings:save',
   DRAWINGS_DELETE: 'drawings:delete',
   DRAWINGS_CLEAR: 'drawings:clear',
-  AI_GET_SETTINGS: 'ai:get-settings',
-  AI_SAVE_SETTINGS: 'ai:save-settings',
-  AI_SET_API_KEY: 'ai:set-api-key',
-  AI_CLEAR_API_KEY: 'ai:clear-api-key',
+  AI_LIST_PROVIDERS: 'ai:list-providers',
+  AI_SAVE_PROVIDER: 'ai:save-provider',
+  AI_SET_PROVIDER_API_KEY: 'ai:set-provider-api-key',
+  AI_CLEAR_PROVIDER_API_KEY: 'ai:clear-provider-api-key',
+  AI_DELETE_PROVIDER: 'ai:delete-provider',
   AI_TEST_CONNECTION: 'ai:test-connection',
   DB_PATH: 'db:path'
 } as const
