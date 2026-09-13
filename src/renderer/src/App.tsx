@@ -3,6 +3,7 @@ import { applyDeskTheme } from '@core/desk/theme'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { StrategyLibrary } from './components/StrategyLibrary'
 import { ToastHost } from './components/ToastHost'
+import { Welcome } from './components/Welcome'
 import { Workspace } from './components/Workspace'
 import { useKeyboard } from './hooks/useKeyboard'
 import { useAppStore } from './store/useAppStore'
@@ -23,7 +24,13 @@ export function App(): React.JSX.Element {
 
   return (
     <>
-      {screen === 'workspace' ? <Workspace /> : <StrategyLibrary />}
+      {screen === 'workspace' ? (
+        <Workspace />
+      ) : screen === 'welcome' ? (
+        <Welcome />
+      ) : (
+        <StrategyLibrary />
+      )}
       <LoadingOverlay />
       <ToastHost />
     </>
