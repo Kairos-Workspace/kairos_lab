@@ -181,6 +181,13 @@ export interface EaScript {
   updatedAt: number
 }
 
+export interface AiSettings {
+  provider: 'openai' | 'anthropic' | 'gemini' | 'custom'
+  model: string
+  baseUrl: string | null
+  hasApiKey: boolean
+}
+
 export const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 5, 10, 20] as const
 export type PlaybackSpeed = (typeof SPEED_OPTIONS)[number]
 export const DESK_THEMES = ['dark', 'light'] as const
