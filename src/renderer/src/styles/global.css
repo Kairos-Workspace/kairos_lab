@@ -225,6 +225,57 @@ button:focus-visible {
   gap: 10px;
 }
 
+.welcome-labs {
+  display: flex;
+  gap: 12px;
+}
+
+.welcome-lab-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 220px;
+  padding: 16px 18px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--bar-from) 0%, var(--bar-to) 100%);
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.welcome-lab-card strong {
+  font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--parchment);
+}
+
+.welcome-lab-card > span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.welcome-lab-card:not([data-disabled='true']):hover {
+  border-color: var(--gold-dim);
+  cursor: pointer;
+}
+
+.welcome-lab-card[data-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.welcome-lab-soon {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
 .topbar {
   display: grid;
   grid-template-columns: minmax(280px, 320px) 1fr auto;
