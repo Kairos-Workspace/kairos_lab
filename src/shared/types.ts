@@ -181,7 +181,9 @@ export interface EaScript {
   updatedAt: number
 }
 
-export interface AiSettings {
+export interface AiProviderProfile {
+  id: string
+  name: string
   provider: 'openai' | 'anthropic' | 'gemini' | 'custom'
   model: string
   baseUrl: string | null
