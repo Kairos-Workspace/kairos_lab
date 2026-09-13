@@ -21,10 +21,12 @@ export function StrategyLibrary(): React.JSX.Element {
   const strategies = withoutSeeds(useAppStore((s) => s.strategies))
   const openStrategy = useAppStore((s) => s.openStrategy)
   const createStrategy = useAppStore((s) => s.createStrategy)
+  const updateSavedStrategy = useAppStore((s) => s.updateSavedStrategy)
   const deleteSavedStrategy = useAppStore((s) => s.deleteSavedStrategy)
   const purgeSeededStrategies = useAppStore((s) => s.purgeSeededStrategies)
   const [desk, setDesk] = useState<LibraryDesk>('strategies')
   const [composer, setComposer] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const datasets = useAppStore((s) => s.datasets)
   const tapeCount = new Set(datasets.filter((row) => row.candleCount > 0).map((row) => row.symbol)).size
   const [name, setName] = useState('')
@@ -44,9 +46,30 @@ export function StrategyLibrary(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [composer])
 
+  function openCreate(): void {
+    setEditingId(null)
+    setName('')
+    setNotes('')
+    setSettings({ ...DEFAULT_STRATEGY_SETTINGS })
+    setComposer(true)
+  }
+
+  function openEdit(s: (typeof strategies)[number]): void {
+    setEditingId(s.id)
+    setName(s.name)
+    setNotes(s.notes)
+    setSettings({ ...s.settings })
+    setComposer(true)
+  }
+
   async function submit(): Promise<void> {
-    await createStrategy({ name, notes, settings })
+    if (editingId) {
+      await updateSavedStrategy(editingId, { name, notes, settings })
+    } else {
+      await createStrategy({ name, notes, settings })
+    }
     setComposer(false)
+    setEditingId(null)
     setName('')
     setNotes('')
     setSettings({ ...DEFAULT_STRATEGY_SETTINGS })
@@ -93,7 +116,7 @@ export function StrategyLibrary(): React.JSX.Element {
           ) : (
             <button
               className="icon-btn"
-              onClick={() => setComposer(true)}
+              onClick={openCreate}
               title="Create strategy"
               aria-label="Create strategy"
             >
@@ -111,7 +134,7 @@ export function StrategyLibrary(): React.JSX.Element {
           <div className="library-empty">
             <h2>No strategies yet</h2>
             <p>Create a setup, then click the card to open the tester.</p>
-            <button className="primary icon-label" onClick={() => setComposer(true)}>
+            <button className="primary icon-label" onClick={openCreate}>
               <Icon name="plus" />
               Create
             </button>
@@ -128,6 +151,15 @@ export function StrategyLibrary(): React.JSX.Element {
                       STRATEGY_CATALOG.find((c) => c.id === s.settings.strategyId)?.description}
                   </span>
                 </button>
+                <button
+                  type="button"
+                  className="icon-btn strategy-edit"
+                  title="Edit strategy"
+                  aria-label={`Edit ${s.name}`}
+                  onClick={() => openEdit(s)}
+                >
+                  <Icon name="edit" />
+                </button>
                 <ConfirmIconButton
                   className="strategy-delete"
                   icon="trash"
@@ -135,9 +167,17 @@ export function StrategyLibrary(): React.JSX.Element {
                   confirmLabel={`Click again to delete ${s.name}`}
                   onConfirm={() => void deleteSavedStrategy(s.id)}
                 />
+                <button
+                  type="button"
+                  className="primary icon-label strategy-start"
+                  onClick={() => void openStrategy(s.id)}
+                >
+                  <Icon name="play" />
+                  Start
+                </button>
               </article>
             ))}
-            <button type="button" className="strategy-card-add" onClick={() => setComposer(true)}>
+            <button type="button" className="strategy-card-add" onClick={openCreate}>
               <Icon name="plus" />
               <span>New strategy</span>
             </button>
@@ -153,7 +193,10 @@ export function StrategyLibrary(): React.JSX.Element {
           aria-modal="true"
           aria-labelledby="new-strategy-title"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setComposer(false)
+            if (event.target === event.currentTarget) {
+              setComposer(false)
+              setEditingId(null)
+            }
           }}
         >
           <form
@@ -166,12 +209,15 @@ export function StrategyLibrary(): React.JSX.Element {
             <header>
               <div>
                 <span className="stamp">Library</span>
-                <h2 id="new-strategy-title">New strategy</h2>
+                <h2 id="new-strategy-title">{editingId ? 'Edit strategy' : 'New strategy'}</h2>
               </div>
               <button
                 type="button"
                 className="icon-btn"
-                onClick={() => setComposer(false)}
+                onClick={() => {
+                  setComposer(false)
+                  setEditingId(null)
+                }}
                 title="Close"
                 aria-label="Close"
               >
@@ -209,12 +255,19 @@ export function StrategyLibrary(): React.JSX.Element {
               />
             </label>
             <div className="composer-actions">
-              <button type="button" className="ghost" onClick={() => setComposer(false)}>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setComposer(false)
+                  setEditingId(null)
+                }}
+              >
                 Cancel
               </button>
               <button className="primary icon-label" type="submit">
-                <Icon name="plus" />
-                Create
+                <Icon name={editingId ? 'check' : 'plus'} />
+                {editingId ? 'Save' : 'Create'}
               </button>
             </div>
           </form>
