@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { CandleBuffer } from '../shared/candleBuffer'
 import type {
-  AiSettings,
+  AiProviderProfile,
   BacktestSession,
   DatasetInfo,
   DeskPrefs,
@@ -80,14 +80,25 @@ const api = {
       ipcRenderer.invoke(IPC.EA_SCRIPTS_DELETE, id) as Promise<EaScript[]>
   },
   ai: {
-    getSettings: () => ipcRenderer.invoke(IPC.AI_GET_SETTINGS) as Promise<AiSettings>,
-    saveSettings: (patch: { provider: AiSettings['provider']; model: string; baseUrl: string | null }) =>
-      ipcRenderer.invoke(IPC.AI_SAVE_SETTINGS, patch) as Promise<AiSettings>,
-    setApiKey: (key: string) =>
-      ipcRenderer.invoke(IPC.AI_SET_API_KEY, key) as Promise<{ ok: boolean; error?: string }>,
-    clearApiKey: () => ipcRenderer.invoke(IPC.AI_CLEAR_API_KEY) as Promise<void>,
-    testConnection: () =>
-      ipcRenderer.invoke(IPC.AI_TEST_CONNECTION) as Promise<{ ok: boolean; message: string }>
+    listProviders: () => ipcRenderer.invoke(IPC.AI_LIST_PROVIDERS) as Promise<AiProviderProfile[]>,
+    saveProvider: (profile: {
+      id: string
+      name: string
+      provider: AiProviderProfile['provider']
+      model: string
+      baseUrl: string | null
+    }) => ipcRenderer.invoke(IPC.AI_SAVE_PROVIDER, profile) as Promise<AiProviderProfile[]>,
+    setProviderApiKey: (id: string, key: string) =>
+      ipcRenderer.invoke(IPC.AI_SET_PROVIDER_API_KEY, id, key) as Promise<{
+        ok: boolean
+        error?: string
+      }>,
+    clearProviderApiKey: (id: string) =>
+      ipcRenderer.invoke(IPC.AI_CLEAR_PROVIDER_API_KEY, id) as Promise<void>,
+    deleteProvider: (id: string) =>
+      ipcRenderer.invoke(IPC.AI_DELETE_PROVIDER, id) as Promise<AiProviderProfile[]>,
+    testConnection: (id: string) =>
+      ipcRenderer.invoke(IPC.AI_TEST_CONNECTION, id) as Promise<{ ok: boolean; message: string }>
   },
   prefs: {
     load: () => ipcRenderer.invoke(IPC.PREFS_LOAD) as Promise<DeskPrefs>,
