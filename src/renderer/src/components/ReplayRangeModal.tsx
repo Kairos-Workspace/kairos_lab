@@ -1,9 +1,15 @@
 import { useState } from 'react'
-import { fromReplayInput, toReplayInput } from '../lib/replayRange'
+import { formatRange, fromReplayInput, toReplayInput } from '../lib/replayRange'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 
-export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JSX.Element {
+export function ReplayRangeModal({
+  onClose,
+  onStarted
+}: {
+  onClose: () => void
+  onStarted?: () => void
+}): React.JSX.Element {
   const replayFromTs = useAppStore((s) => s.replayFromTs)
   const replayToTs = useAppStore((s) => s.replayToTs)
   const datasetId = useAppStore((s) => s.datasetId)
@@ -16,6 +22,9 @@ export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JS
   const [from, setFrom] = useState(() => toReplayInput(replayFromTs ?? dataset?.startTs))
   const [to, setTo] = useState(() => toReplayInput(replayToTs ?? dataset?.endTs))
 
+  const minInput = dataset ? toReplayInput(dataset.startTs) : undefined
+  const maxInput = dataset ? toReplayInput(dataset.endTs) : undefined
+
   function handleStart(): void {
     const fromTs = fromReplayInput(from)
     const toTs = fromReplayInput(to)
@@ -25,6 +34,7 @@ export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JS
       await loadReplayRange(fromTs, toTs)
       setReplayRange(fromTs, toTs)
       startReplay({ fromTs, toTs })
+      onStarted?.()
     })()
   }
 
@@ -55,6 +65,10 @@ export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JS
           </button>
         </header>
 
+        {dataset ? (
+          <p className="composer-hint">Data available: {formatRange(dataset.startTs, dataset.endTs)}</p>
+        ) : null}
+
         <div className="row">
           <label className="field">
             From
@@ -62,6 +76,8 @@ export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JS
               type="datetime-local"
               value={from}
               required
+              min={minInput}
+              max={maxInput}
               onChange={(e) => setFrom(e.target.value)}
               aria-label="Replay from"
             />
@@ -72,6 +88,8 @@ export function ReplayRangeModal({ onClose }: { onClose: () => void }): React.JS
               type="datetime-local"
               value={to}
               required
+              min={minInput}
+              max={maxInput}
               onChange={(e) => setTo(e.target.value)}
               aria-label="Replay to"
             />

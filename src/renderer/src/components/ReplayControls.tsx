@@ -1,20 +1,24 @@
 import { useEffect, useState } from 'react'
 import { fromReplayInput, toReplayInput } from '../lib/replayRange'
 import { Icon } from './Icon'
+import { ReplayRangeModal } from './ReplayRangeModal'
 import { useAppStore } from '../store/useAppStore'
 
 export function ReplayControls(): React.JSX.Element {
   const togglePlay = useAppStore((s) => s.togglePlay)
+  const play = useAppStore((s) => s.play)
   const step = useAppStore((s) => s.manualStep)
   const resetReplay = useAppStore((s) => s.resetReplay)
   const startReplay = useAppStore((s) => s.startReplay)
   const setReplayRange = useAppStore((s) => s.setReplayRange)
   const isPlaying = useAppStore((s) => s.isPlaying)
+  const mode = useAppStore((s) => s.mode)
   const replayFromTs = useAppStore((s) => s.replayFromTs)
   const replayToTs = useAppStore((s) => s.replayToTs)
   const candles = useAppStore((s) => s.displayCandles)
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+  const [showRangeModal, setShowRangeModal] = useState(false)
 
   useEffect(() => {
     setFrom(toReplayInput(replayFromTs ?? candles[0]?.timestamp))
@@ -37,7 +41,10 @@ export function ReplayControls(): React.JSX.Element {
         <button
           className="icon-btn"
           data-active={isPlaying}
-          onClick={togglePlay}
+          onClick={() => {
+            if (!isPlaying && mode !== 'replay') setShowRangeModal(true)
+            else togglePlay()
+          }}
           title="Play / Pause"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
@@ -93,6 +100,10 @@ export function ReplayControls(): React.JSX.Element {
           Apply
         </button>
       </form>
+
+      {showRangeModal ? (
+        <ReplayRangeModal onClose={() => setShowRangeModal(false)} onStarted={play} />
+      ) : null}
     </div>
   )
 }
