@@ -1418,7 +1418,7 @@ button:focus-visible {
 .quantify-toast {
   background: var(--plate) !important;
   border: 1px solid var(--rule);
-  color: var(--parchment);
+  color: var(--parchment) !important;
   min-height: 56px;
   font-size: 13px;
   letter-spacing: 0.01em;
