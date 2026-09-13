@@ -197,7 +197,8 @@ button:focus-visible {
 
 .app[data-frame='full'],
 .app[data-frame='library'],
-.app[data-frame='ea-lab'] {
+.app[data-frame='ea-lab'],
+.app[data-frame='ai-settings'] {
   grid-template-rows: 60px minmax(0, 1fr);
 }
 
@@ -1325,6 +1326,21 @@ button:focus-visible {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.composer-hint[data-ok='true'] {
+  color: var(--bull);
+}
+
+.composer-hint[data-ok='false'] {
+  color: var(--bear);
+}
+
+.ai-settings-body {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  min-height: 0;
 }
 
 .composer-metrics {
