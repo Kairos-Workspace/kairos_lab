@@ -6,6 +6,7 @@ import type {
   DatasetInfo,
   DeskPrefs,
   Drawing,
+  EaScript,
   SavedStrategy,
   Timeframe,
   Trade
@@ -69,6 +70,13 @@ const api = {
       ipcRenderer.invoke(IPC.STRATEGIES_SAVE, strategy) as Promise<SavedStrategy[]>,
     delete: (id: string) =>
       ipcRenderer.invoke(IPC.STRATEGIES_DELETE, id) as Promise<SavedStrategy[]>
+  },
+  eaScripts: {
+    list: () => ipcRenderer.invoke(IPC.EA_SCRIPTS_LIST) as Promise<EaScript[]>,
+    save: (script: EaScript) =>
+      ipcRenderer.invoke(IPC.EA_SCRIPTS_SAVE, script) as Promise<EaScript[]>,
+    delete: (id: string) =>
+      ipcRenderer.invoke(IPC.EA_SCRIPTS_DELETE, id) as Promise<EaScript[]>
   },
   prefs: {
     load: () => ipcRenderer.invoke(IPC.PREFS_LOAD) as Promise<DeskPrefs>,
