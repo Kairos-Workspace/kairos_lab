@@ -252,7 +252,7 @@ button:focus-visible {
   color: var(--parchment);
 }
 
-.welcome-lab-card > span {
+.welcome-lab-card > span:not(.welcome-lab-soon) {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
