@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { applyDeskTheme } from '@core/desk/theme'
+import { EaLab } from './components/EaLab'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { StrategyLibrary } from './components/StrategyLibrary'
 import { ToastHost } from './components/ToastHost'
@@ -28,6 +29,8 @@ export function App(): React.JSX.Element {
         <Workspace />
       ) : screen === 'welcome' ? (
         <Welcome />
+      ) : screen === 'ea-lab' ? (
+        <EaLab />
       ) : (
         <StrategyLibrary />
       )}
