@@ -486,7 +486,6 @@ export function ChartPanel(): React.JSX.Element {
           </button>
         </div>
       ) : null}
-      <DrawingToolbar />
       <div className="chart" data-drawing-active={useAppStore((s) => s.activeTool) !== null} ref={hostRef}>
         {hasTape ? null : (
           <div className="chart-empty">
@@ -494,6 +493,7 @@ export function ChartPanel(): React.JSX.Element {
             <p>Choose a symbol in the top bar. The chart loads from the local database.</p>
           </div>
         )}
+        <DrawingToolbar />
         <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
         <DrawingLayer chart={chartApi} series={seriesApi} host={hostRef.current} />
       </div>

@@ -16,8 +16,13 @@ function createWindow(): void {
   const window = new BrowserWindow({
     width: 1600,
     height: 1000,
-    minWidth: 1200,
-    minHeight: 760,
+    // Kept just under the CSS stacked-layout breakpoint (980x700 in global.css)
+    // so any window size the user can reach lands cleanly in one layout or the
+    // other, instead of a dead zone between "too narrow for the desk layout"
+    // and "not narrow enough to trigger stacking". Also lets the app fit on
+    // common small laptop screens (e.g. 1366x768 minus OS taskbar/dock chrome).
+    minWidth: 960,
+    minHeight: 680,
     show: false,
     backgroundColor: '#050507',
     title: `${PRODUCT_NAME} — Strategy Tester`,
