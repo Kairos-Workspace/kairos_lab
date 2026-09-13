@@ -15,7 +15,7 @@ const PROVIDER_OPTIONS: { value: AiSettingsType['provider']; label: string }[] =
 ]
 
 export function AiSettings(): React.JSX.Element {
-  const leaveAiSettings = useAppStore((s) => s.leaveAiSettings)
+  const leaveSettings = useAppStore((s) => s.leaveSettings)
   const settings = useAiSettingsStore((s) => s.settings)
   const loadSettings = useAiSettingsStore((s) => s.loadSettings)
   const saveSettings = useAiSettingsStore((s) => s.saveSettings)
@@ -55,7 +55,7 @@ export function AiSettings(): React.JSX.Element {
           <button
             type="button"
             className="icon-btn"
-            onClick={leaveAiSettings}
+            onClick={leaveSettings}
             title="Back to EA Lab"
             aria-label="Back to EA Lab"
           >

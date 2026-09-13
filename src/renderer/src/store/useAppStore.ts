@@ -44,7 +44,7 @@ import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strategyVault'
 import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 
-export type AppScreen = 'welcome' | 'library' | 'workspace' | 'ea-lab' | 'ai-settings'
+export type AppScreen = 'welcome' | 'library' | 'workspace' | 'ea-lab' | 'settings'
 export type RightTab = 'strategy' | 'trade' | 'costs'
 export type HistoryFilter = 'ALL' | 'WIN' | 'LOSS' | 'BUY' | 'SELL'
 
@@ -115,8 +115,8 @@ interface AppState {
   leaveWorkspace: () => void
   enterLibrary: () => void
   enterEaLab: () => void
-  enterAiSettings: () => void
-  leaveAiSettings: () => void
+  enterSettings: () => void
+  leaveSettings: () => void
   goHome: () => void
   createStrategy: (input: { name: string; notes?: string; settings?: Partial<StrategySettings> }) => Promise<string>
   updateSavedStrategy: (id: string, patch: { name: string; notes?: string; settings: StrategySettings }) => Promise<void>
@@ -599,11 +599,11 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ screen: 'ea-lab' })
   },
 
-  enterAiSettings: () => {
-    set({ screen: 'ai-settings' })
+  enterSettings: () => {
+    set({ screen: 'settings' })
   },
 
-  leaveAiSettings: () => {
+  leaveSettings: () => {
     set({ screen: 'ea-lab' })
   },
 

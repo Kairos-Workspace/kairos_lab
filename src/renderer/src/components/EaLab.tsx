@@ -10,7 +10,7 @@ import { useEaLabStore } from '../store/useEaLabStore'
 
 export function EaLab(): React.JSX.Element {
   const goHome = useAppStore((s) => s.goHome)
-  const enterAiSettings = useAppStore((s) => s.enterAiSettings)
+  const enterSettings = useAppStore((s) => s.enterSettings)
   const theme = useAppStore((s) => s.theme)
   const scripts = useEaLabStore((s) => s.scripts)
   const activeScriptId = useEaLabStore((s) => s.activeScriptId)
@@ -69,9 +69,9 @@ export function EaLab(): React.JSX.Element {
           <button
             type="button"
             className="icon-btn"
-            onClick={enterAiSettings}
-            title="AI settings"
-            aria-label="AI settings"
+            onClick={enterSettings}
+            title="Settings"
+            aria-label="Settings"
           >
             <Icon name="settings" />
           </button>

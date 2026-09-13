@@ -32,7 +32,7 @@ export function App(): React.JSX.Element {
         <Welcome />
       ) : screen === 'ea-lab' ? (
         <EaLab />
-      ) : screen === 'ai-settings' ? (
+      ) : screen === 'settings' ? (
         <AiSettings />
       ) : (
         <StrategyLibrary />
