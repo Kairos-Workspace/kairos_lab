@@ -6,7 +6,6 @@ import { parseCandleCsv } from '@core/csv/parse'
 import { IPC } from '@shared/ipc'
 import { toCandleBuffer } from '@shared/candleBuffer'
 import type {
-  AiSettings,
   BacktestSession,
   Candle,
   DeskPrefs,
@@ -45,12 +44,13 @@ import { latestWindow } from '@core/market/catalog'
 import { csvCandles, deleteCsvTape, isCsvDataset, refreshCsvDatasets } from './data/csvTape'
 import { estimateDownload, fetchMarketCandles } from './data/fetchMarket'
 import {
-  clearAiApiKey,
-  getAiSettings,
+  clearProviderApiKey,
+  deleteProvider,
   getDecryptedApiKey,
-  saveAiSettings,
-  setAiApiKey
-} from './ai/aiSettingsRepository'
+  listProviders,
+  saveProvider,
+  setProviderApiKey
+} from './ai/aiProvidersRepository'
 import { testConnection } from './ai/providers'
 
 function handle(
@@ -252,24 +252,35 @@ export function registerIpc(): void {
     return listEaScripts()
   })
 
-  handle(IPC.AI_GET_SETTINGS, () => getAiSettings())
+  handle(IPC.AI_LIST_PROVIDERS, () => listProviders())
 
   handle(
-    IPC.AI_SAVE_SETTINGS,
-    (_e, patch: { provider: AiSettings['provider']; model: string; baseUrl: string | null }) =>
-      saveAiSettings(patch)
+    IPC.AI_SAVE_PROVIDER,
+    (
+      _e,
+      profile: {
+        id: string
+        name: string
+        provider: 'openai' | 'anthropic' | 'gemini' | 'custom'
+        model: string
+        baseUrl: string | null
+      }
+    ) => saveProvider(profile)
   )
 
-  handle(IPC.AI_SET_API_KEY, (_e, key: string) => setAiApiKey(key))
+  handle(IPC.AI_SET_PROVIDER_API_KEY, (_e, id: string, key: string) => setProviderApiKey(id, key))
 
-  handle(IPC.AI_CLEAR_API_KEY, () => {
-    clearAiApiKey()
+  handle(IPC.AI_CLEAR_PROVIDER_API_KEY, (_e, id: string) => {
+    clearProviderApiKey(id)
   })
 
-  handle(IPC.AI_TEST_CONNECTION, async () => {
-    const settings = getAiSettings()
-    const apiKey = getDecryptedApiKey()
-    return testConnection(settings, apiKey)
+  handle(IPC.AI_DELETE_PROVIDER, (_e, id: string) => deleteProvider(id))
+
+  handle(IPC.AI_TEST_CONNECTION, async (_e, id: string) => {
+    const profile = listProviders().find((p) => p.id === id)
+    if (!profile) return { ok: false, message: 'Profile not found' }
+    const apiKey = getDecryptedApiKey(id)
+    return testConnection(profile, apiKey)
   })
 
   handle(IPC.PREFS_LOAD, () => loadDeskPrefs())
