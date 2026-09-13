@@ -80,6 +80,7 @@ export function EaLab(): React.JSX.Element {
                     <input
                       autoFocus
                       className="ea-lab-rename-input"
+                      aria-label={`Rename ${s.name}`}
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
                       onBlur={() => commitRename(s.id)}
