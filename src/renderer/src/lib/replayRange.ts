@@ -1,3 +1,10 @@
+export function formatRange(startTs: number, endTs: number): string {
+  if (!startTs || !endTs) return 'Range pending'
+  const from = new Date(startTs).toISOString().slice(0, 10)
+  const to = new Date(endTs).toISOString().slice(0, 10)
+  return `${from} → ${to}`
+}
+
 export function toReplayInput(ts: number | null | undefined): string {
   if (ts == null) return ''
   const date = new Date(ts)
