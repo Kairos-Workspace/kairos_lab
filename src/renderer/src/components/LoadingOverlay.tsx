@@ -3,7 +3,9 @@ import { useAppStore } from '../store/useAppStore'
 export function LoadingOverlay(): React.JSX.Element | null {
   const busy = useAppStore((s) => s.busy)
   const status = useAppStore((s) => s.status)
-  if (!busy) return null
+  const downloadProgress = useAppStore((s) => s.downloadProgress)
+  // The download wizard shows its own progress UI for this operation — don't cover it with the generic veil.
+  if (!busy || downloadProgress) return null
 
   return (
     <div className="load-veil" role="status" aria-live="polite" aria-busy="true">

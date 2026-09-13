@@ -4,42 +4,29 @@ import {
   findMarketInstrument,
 } from '@core/market/catalog'
 import { PRODUCT_NAME } from '@shared/constants'
-import { TIMEFRAMES, type DatasetInfo, type Timeframe } from '@shared/types'
+import type { DatasetInfo } from '@shared/types'
 import { ConfirmIconButton } from './ConfirmIconButton'
+import { DownloadWizard } from './DownloadWizard'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
+import { formatRange } from '../lib/replayRange'
 
 type MarketView = 'data' | 'add'
-
-function formatRange(startTs: number, endTs: number): string {
-  if (!startTs || !endTs) return 'Range pending'
-  const from = new Date(startTs).toISOString().slice(0, 10)
-  const to = new Date(endTs).toISOString().slice(0, 10)
-  return `${from} → ${to}`
-}
 
 export function MarketDesk(): React.JSX.Element {
   const datasets = useAppStore((s) => s.datasets)
   const busy = useAppStore((s) => s.busy)
   const status = useAppStore((s) => s.status)
-  const downloadPair = useAppStore((s) => s.downloadPair)
   const refreshTapes = useAppStore((s) => s.refreshTapes)
   const removeTapes = useAppStore((s) => s.removeTapes)
-  
+
   const [view, setView] = useState<MarketView>('data')
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState('')
-  
-  // Modal state
+
+  // Download wizard state
   const [selectedPair, setSelectedPair] = useState<string | null>(null)
-  const [timeframes, setTimeframes] = useState<Timeframe[]>(['1H'])
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date()
-    d.setFullYear(d.getFullYear() - 2)
-    return d.toISOString().slice(0, 10)
-  })
-  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   const rows = useMemo(() => {
     return datasets
@@ -59,20 +46,6 @@ export function MarketDesk(): React.JSX.Element {
   }, [rows])
 
   const pairCount = groups.length
-
-  async function addPair(): Promise<void> {
-    if (timeframes.length === 0 || !selectedPair) return
-    try {
-      const startTs = new Date(fromDate).getTime()
-      const endTs = new Date(toDate).getTime()
-      for (const tf of timeframes) {
-        await downloadPair({ symbol: selectedPair, timeframe: tf, startTs, endTs })
-      }
-      setSelectedPair(null)
-    } catch {
-      // Store already toasts the failure.
-    }
-  }
 
   async function updateLatest(ids: number[]): Promise<void> {
     try {
@@ -206,10 +179,6 @@ export function MarketDesk(): React.JSX.Element {
       ) : (
         <section className="market-section" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
           <header className="market-section-header" style={{ marginBottom: '24px' }}>
-            <div>
-              <span className="stamp">Free tape</span>
-              <h2>Add a pair</h2>
-            </div>
             <div className="search-bar">
               <input
                 type="text"
@@ -218,6 +187,10 @@ export function MarketDesk(): React.JSX.Element {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
               />
+            </div>
+            <div>
+              <span className="stamp">Free tape</span>
+              <h2>Add a pair</h2>
             </div>
           </header>
           
@@ -246,91 +219,9 @@ export function MarketDesk(): React.JSX.Element {
         </section>
       )}
 
-      {/* Modal Overlay for downloading */}
-      {selectedPair && (
-        <div
-          className="modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSelectedPair(null)
-          }}
-        >
-          <form
-            className="composer"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void addPair()
-            }}
-          >
-            <header>
-              <div>
-                <span className="stamp">Download Data</span>
-                <h2>{selectedPair}</h2>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setSelectedPair(null)}
-                title="Close"
-              >
-                <Icon name="close" />
-              </button>
-            </header>
-            
-            <div className="field field-group">
-              <span style={{ display: 'block', marginBottom: '8px' }}>Timeframes</span>
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                {TIMEFRAMES.map((tf) => (
-                  <label key={tf} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '14px' }}>
-                    <input
-                      type="checkbox"
-                      checked={timeframes.includes(tf)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setTimeframes([...timeframes, tf])
-                        } else {
-                          setTimeframes(timeframes.filter((t) => t !== tf))
-                        }
-                      }}
-                    />
-                    {tf}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="row composer-metrics" style={{ marginTop: '16px' }}>
-              <label className="field">
-                From Date
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  max={toDate}
-                />
-              </label>
-              <label className="field">
-                To Date
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  min={fromDate}
-                  max={new Date().toISOString().slice(0, 10)}
-                />
-              </label>
-            </div>
-
-            <div className="composer-actions">
-              <button className="primary icon-label" type="submit" disabled={busy || timeframes.length === 0}>
-                <Icon name="download" />
-                {busy ? 'Working…' : 'Download'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {selectedPair ? (
+        <DownloadWizard key={selectedPair} symbol={selectedPair} onClose={() => setSelectedPair(null)} />
+      ) : null}
     </section>
   )
 }
