@@ -41,6 +41,7 @@ export type IconName =
   | 'redo'
   | 'edit'
   | 'home'
+  | 'settings'
 
 const PATHS: Record<IconName, string> = {
   play: 'M8 5v14l11-7z',
@@ -85,7 +86,9 @@ const PATHS: Record<IconName, string> = {
   undo: 'M7 10H3V6M3 10a8 8 0 1 1 2.3 6.7',
   redo: 'M17 10h4V6M21 10a8 8 0 1 0-2.3 6.7',
   edit: 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z',
-  home: 'M4 11l8-7 8 7M6 10v10h5v-6h2v6h5V10'
+  home: 'M4 11l8-7 8 7M6 10v10h5v-6h2v6h5V10',
+  settings:
+    'M4 6h16M6.5 6a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M4 12h16M12.5 12a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M4 18h16M8.5 18a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0'
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {
