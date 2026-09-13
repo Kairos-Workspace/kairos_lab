@@ -1436,6 +1436,77 @@ button:focus-visible {
   background: linear-gradient(135deg, #f4f5f7 0%, #ffffff 100%);
 }
 
+.provider-empty {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 24px 8px;
+}
+
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--bar-from) 0%, var(--bar-to) 100%);
+}
+
+.provider-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.provider-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.provider-row-title strong {
+  font-size: 13px;
+  color: var(--parchment);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.provider-row-info span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.provider-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+.provider-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .composer-metrics {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
