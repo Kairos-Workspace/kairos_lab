@@ -29,7 +29,7 @@ export function Welcome(): React.JSX.Element {
             <strong>Strategy Lab</strong>
             <span>Backtest and manage strategies</span>
           </button>
-          <div className="welcome-lab-card" data-disabled="true" aria-disabled="true">
+          <div className="welcome-lab-card" data-disabled="true">
             <strong>EA Development Lab</strong>
             <span>Build automated trading bots</span>
             <span className="welcome-lab-soon">Coming soon</span>
