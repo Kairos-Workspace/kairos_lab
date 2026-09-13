@@ -112,4 +112,13 @@ CREATE TABLE IF NOT EXISTS drawings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_drawings_symbol ON drawings(symbol);
+
+CREATE TABLE IF NOT EXISTS ai_settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  provider TEXT NOT NULL DEFAULT 'openai',
+  model TEXT NOT NULL DEFAULT '',
+  base_url TEXT,
+  encrypted_api_key TEXT,
+  updated_at INTEGER NOT NULL
+);
 `
