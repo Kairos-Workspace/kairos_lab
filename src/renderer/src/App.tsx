@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { applyDeskTheme } from '@core/desk/theme'
-import { AiSettings } from './components/AiSettings'
 import { EaLab } from './components/EaLab'
 import { LoadingOverlay } from './components/LoadingOverlay'
+import { SettingsScreen } from './components/SettingsScreen'
 import { StrategyLibrary } from './components/StrategyLibrary'
 import { ToastHost } from './components/ToastHost'
 import { Welcome } from './components/Welcome'
@@ -33,7 +33,7 @@ export function App(): React.JSX.Element {
       ) : screen === 'ea-lab' ? (
         <EaLab />
       ) : screen === 'settings' ? (
-        <AiSettings />
+        <SettingsScreen />
       ) : (
         <StrategyLibrary />
       )}
