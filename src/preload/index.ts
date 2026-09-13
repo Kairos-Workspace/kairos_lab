@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC } from '../shared/ipc'
 import type { CandleBuffer } from '../shared/candleBuffer'
 import type {
+  AiSettings,
   BacktestSession,
   DatasetInfo,
   DeskPrefs,
@@ -77,6 +78,16 @@ const api = {
       ipcRenderer.invoke(IPC.EA_SCRIPTS_SAVE, script) as Promise<EaScript[]>,
     delete: (id: string) =>
       ipcRenderer.invoke(IPC.EA_SCRIPTS_DELETE, id) as Promise<EaScript[]>
+  },
+  ai: {
+    getSettings: () => ipcRenderer.invoke(IPC.AI_GET_SETTINGS) as Promise<AiSettings>,
+    saveSettings: (patch: { provider: AiSettings['provider']; model: string; baseUrl: string | null }) =>
+      ipcRenderer.invoke(IPC.AI_SAVE_SETTINGS, patch) as Promise<AiSettings>,
+    setApiKey: (key: string) =>
+      ipcRenderer.invoke(IPC.AI_SET_API_KEY, key) as Promise<{ ok: boolean; error?: string }>,
+    clearApiKey: () => ipcRenderer.invoke(IPC.AI_CLEAR_API_KEY) as Promise<void>,
+    testConnection: () =>
+      ipcRenderer.invoke(IPC.AI_TEST_CONNECTION) as Promise<{ ok: boolean; message: string }>
   },
   prefs: {
     load: () => ipcRenderer.invoke(IPC.PREFS_LOAD) as Promise<DeskPrefs>,
