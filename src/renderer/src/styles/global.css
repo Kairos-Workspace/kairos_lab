@@ -200,6 +200,31 @@ button:focus-visible {
   grid-template-rows: 60px minmax(0, 1fr);
 }
 
+.app[data-frame='welcome'] {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.welcome-screen {
+  position: relative;
+  height: 100%;
+  display: grid;
+  place-content: center;
+  place-items: center;
+  text-align: center;
+  gap: 18px;
+}
+
+.welcome-theme-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.welcome-stats {
+  display: flex;
+  gap: 10px;
+}
+
 .topbar {
   display: grid;
   grid-template-columns: minmax(280px, 320px) 1fr auto;
