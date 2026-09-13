@@ -198,7 +198,7 @@ button:focus-visible {
 .app[data-frame='full'],
 .app[data-frame='library'],
 .app[data-frame='ea-lab'],
-.app[data-frame='ai-settings'] {
+.app[data-frame='settings'] {
   grid-template-rows: 60px minmax(0, 1fr);
 }
 
@@ -1336,11 +1336,104 @@ button:focus-visible {
   color: var(--bear);
 }
 
-.ai-settings-body {
+.settings-body {
   display: grid;
-  place-items: center;
-  padding: 24px;
+  grid-template-columns: 200px minmax(0, 1fr);
   min-height: 0;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 0;
+  border-right: 1px solid var(--rule);
+  background: var(--vault);
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 16px;
+  border: none;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-nav-item::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+
+.settings-nav-item[data-active='true'] {
+  color: var(--parchment);
+  background: var(--steel);
+  border-left-color: var(--gold);
+}
+
+.settings-nav-item[data-active='true']::before {
+  background: var(--gold);
+}
+
+.settings-panel {
+  padding: 24px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.appearance-options {
+  display: flex;
+  gap: 12px;
+}
+
+.appearance-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 150px;
+  padding: 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--bar-from) 0%, var(--bar-to) 100%);
+  color: var(--parchment);
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.appearance-card:hover {
+  border-color: var(--gold-dim);
+}
+
+.appearance-card[data-active='true'] {
+  border-color: var(--gold);
+}
+
+.appearance-swatch {
+  width: 100%;
+  height: 56px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--rule);
+}
+
+.appearance-swatch[data-theme='dark'] {
+  background: linear-gradient(135deg, #101317 0%, #1b2128 100%);
+}
+
+.appearance-swatch[data-theme='light'] {
+  background: linear-gradient(135deg, #f4f5f7 0%, #ffffff 100%);
 }
 
 .composer-metrics {
