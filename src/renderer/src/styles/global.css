@@ -206,12 +206,14 @@ button:focus-visible {
 
 .welcome-screen {
   position: relative;
+  z-index: 0;
   height: 100%;
   display: grid;
   place-content: center;
   place-items: center;
   text-align: center;
   gap: 18px;
+  overflow: hidden;
 }
 
 .welcome-theme-toggle {
@@ -220,9 +222,33 @@ button:focus-visible {
   left: 4px;
 }
 
-.welcome-stats {
-  display: flex;
-  gap: 10px;
+.welcome-chart-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.welcome-chart-bg g {
+  opacity: 0.16;
+}
+
+.welcome-chart-bg line {
+  stroke-width: 2;
+}
+
+.welcome-candle-bull rect,
+.welcome-candle-bull line {
+  fill: var(--bull);
+  stroke: var(--bull);
+}
+
+.welcome-candle-bear rect,
+.welcome-candle-bear line {
+  fill: var(--bear);
+  stroke: var(--bear);
 }
 
 .welcome-labs {
