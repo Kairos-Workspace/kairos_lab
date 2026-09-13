@@ -44,7 +44,7 @@ import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strategyVault'
 import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 
-export type AppScreen = 'library' | 'workspace'
+export type AppScreen = 'welcome' | 'library' | 'workspace'
 export type RightTab = 'strategy' | 'trade' | 'costs'
 export type HistoryFilter = 'ALL' | 'WIN' | 'LOSS' | 'BUY' | 'SELL'
 
@@ -378,7 +378,7 @@ export const useAppStore = create<AppState>((set, get) => {
   drawingUndoStack: [],
   drawingRedoStack: [],
   chartFull: false,
-  screen: 'library',
+  screen: 'welcome',
   strategies: [],
   activeStrategyId: null,
   theme: 'dark',
