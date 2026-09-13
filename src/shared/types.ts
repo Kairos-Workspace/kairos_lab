@@ -173,6 +173,14 @@ export interface SavedStrategy {
   updatedAt: number
 }
 
+export interface EaScript {
+  id: string
+  name: string
+  code: string
+  createdAt: number
+  updatedAt: number
+}
+
 export const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 5, 10, 20] as const
 export type PlaybackSpeed = (typeof SPEED_OPTIONS)[number]
 export const DESK_THEMES = ['dark', 'light'] as const
