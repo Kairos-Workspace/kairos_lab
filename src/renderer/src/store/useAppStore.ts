@@ -113,6 +113,8 @@ interface AppState {
   openStrategy: (id: string) => Promise<void>
   autosaveProgress: () => void
   leaveWorkspace: () => void
+  enterLibrary: () => void
+  goHome: () => void
   createStrategy: (input: { name: string; notes?: string; settings?: Partial<StrategySettings> }) => Promise<string>
   updateSavedStrategy: (id: string, patch: { name: string; notes?: string; settings: StrategySettings }) => Promise<void>
   persistActiveStrategy: () => void
@@ -584,6 +586,14 @@ export const useAppStore = create<AppState>((set, get) => {
       chartFull: false,
       status: 'Strategy library'
     })
+  },
+
+  enterLibrary: () => {
+    set({ screen: 'library' })
+  },
+
+  goHome: () => {
+    set({ screen: 'welcome' })
   },
 
   createStrategy: async (input) => {
