@@ -118,14 +118,6 @@ export function TradeTicket(): React.JSX.Element | null {
           onChange={(e) => updateDraft({ riskPercent: e.target.value })}
         />
       </label>
-      <dl className="trade-ticket-stats">
-        <dt>Position</dt>
-        <dd>{sized.positionSize.toFixed(2)} lot</dd>
-        <dt>Risk USD</dt>
-        <dd>${sized.riskAmount.toFixed(2)}</dd>
-        <dt>Risk/Reward</dt>
-        <dd>1 : {Number.isFinite(rr) ? rr.toFixed(2) : '—'}</dd>
-      </dl>
       <div className="ticket-actions">
         <button type="button" className="primary" onClick={confirmTrade}>
           Confirm
@@ -134,6 +126,14 @@ export function TradeTicket(): React.JSX.Element | null {
           Cancel
         </button>
       </div>
+      <dl className="trade-ticket-stats">
+        <dt>Position</dt>
+        <dd>{sized.positionSize.toFixed(2)} lot</dd>
+        <dt>Risk USD</dt>
+        <dd>${sized.riskAmount.toFixed(2)}</dd>
+        <dt>Risk/Reward</dt>
+        <dd>1 : {Number.isFinite(rr) ? rr.toFixed(2) : '—'}</dd>
+      </dl>
     </div>
   )
 }
