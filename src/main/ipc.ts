@@ -10,6 +10,7 @@ import type {
   Candle,
   DeskPrefs,
   Drawing,
+  EaScript,
   SavedStrategy,
   Timeframe,
   Trade
@@ -19,6 +20,7 @@ import {
   clearDrawings,
   deleteDataset,
   deleteDrawing,
+  deleteEaScript,
   deleteSession,
   deleteStrategy,
   getCandles,
@@ -27,12 +29,14 @@ import {
   insertDataset,
   listDatasets,
   listDrawings,
+  listEaScripts,
   listStrategies,
   loadDeskPrefs,
   loadSession,
   replaceTape,
   saveDeskPrefs,
   saveDrawing,
+  saveEaScript,
   saveSession,
   saveStrategy
 } from './database/repositories'
@@ -225,6 +229,18 @@ export function registerIpc(): void {
   handle(IPC.STRATEGIES_DELETE, (_e, id: string) => {
     deleteStrategy(id)
     return listStrategies()
+  })
+
+  handle(IPC.EA_SCRIPTS_LIST, () => listEaScripts())
+
+  handle(IPC.EA_SCRIPTS_SAVE, (_e, script: EaScript) => {
+    saveEaScript(script)
+    return listEaScripts()
+  })
+
+  handle(IPC.EA_SCRIPTS_DELETE, (_e, id: string) => {
+    deleteEaScript(id)
+    return listEaScripts()
   })
 
   handle(IPC.PREFS_LOAD, () => loadDeskPrefs())
