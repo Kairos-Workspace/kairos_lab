@@ -81,6 +81,14 @@ CREATE TABLE IF NOT EXISTS strategies (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ea_scripts (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  code TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS annotations (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
