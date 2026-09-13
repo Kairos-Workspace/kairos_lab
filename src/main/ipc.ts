@@ -6,6 +6,7 @@ import { parseCandleCsv } from '@core/csv/parse'
 import { IPC } from '@shared/ipc'
 import { toCandleBuffer } from '@shared/candleBuffer'
 import type {
+  AiSettings,
   BacktestSession,
   Candle,
   DeskPrefs,
@@ -43,6 +44,14 @@ import {
 import { latestWindow } from '@core/market/catalog'
 import { csvCandles, deleteCsvTape, isCsvDataset, refreshCsvDatasets } from './data/csvTape'
 import { estimateDownload, fetchMarketCandles } from './data/fetchMarket'
+import {
+  clearAiApiKey,
+  getAiSettings,
+  getDecryptedApiKey,
+  saveAiSettings,
+  setAiApiKey
+} from './ai/aiSettingsRepository'
+import { testConnection } from './ai/providers'
 
 function handle(
   channel: string,
@@ -241,6 +250,26 @@ export function registerIpc(): void {
   handle(IPC.EA_SCRIPTS_DELETE, (_e, id: string) => {
     deleteEaScript(id)
     return listEaScripts()
+  })
+
+  handle(IPC.AI_GET_SETTINGS, () => getAiSettings())
+
+  handle(
+    IPC.AI_SAVE_SETTINGS,
+    (_e, patch: { provider: AiSettings['provider']; model: string; baseUrl: string | null }) =>
+      saveAiSettings(patch)
+  )
+
+  handle(IPC.AI_SET_API_KEY, (_e, key: string) => setAiApiKey(key))
+
+  handle(IPC.AI_CLEAR_API_KEY, () => {
+    clearAiApiKey()
+  })
+
+  handle(IPC.AI_TEST_CONNECTION, async () => {
+    const settings = getAiSettings()
+    const apiKey = getDecryptedApiKey()
+    return testConnection(settings, apiKey)
   })
 
   handle(IPC.PREFS_LOAD, () => loadDeskPrefs())
