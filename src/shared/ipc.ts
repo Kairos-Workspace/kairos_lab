@@ -26,5 +26,10 @@ export const IPC = {
   DRAWINGS_SAVE: 'drawings:save',
   DRAWINGS_DELETE: 'drawings:delete',
   DRAWINGS_CLEAR: 'drawings:clear',
+  AI_GET_SETTINGS: 'ai:get-settings',
+  AI_SAVE_SETTINGS: 'ai:save-settings',
+  AI_SET_API_KEY: 'ai:set-api-key',
+  AI_CLEAR_API_KEY: 'ai:clear-api-key',
+  AI_TEST_CONNECTION: 'ai:test-connection',
   DB_PATH: 'db:path'
 } as const
