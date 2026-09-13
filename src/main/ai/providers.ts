@@ -1,4 +1,4 @@
-import type { AiSettings } from '@shared/types'
+import type { AiProviderProfile } from '@shared/types'
 
 export interface TestConnectionResult {
   ok: boolean
@@ -42,7 +42,7 @@ async function testGemini(apiKey: string): Promise<TestConnectionResult> {
 }
 
 export async function testConnection(
-  settings: Pick<AiSettings, 'provider' | 'baseUrl'>,
+  settings: Pick<AiProviderProfile, 'provider' | 'baseUrl'>,
   apiKey: string | null
 ): Promise<TestConnectionResult> {
   if (!apiKey) return { ok: false, message: 'No API key configured' }
