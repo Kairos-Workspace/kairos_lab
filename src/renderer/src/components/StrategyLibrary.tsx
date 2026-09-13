@@ -24,6 +24,7 @@ export function StrategyLibrary(): React.JSX.Element {
   const updateSavedStrategy = useAppStore((s) => s.updateSavedStrategy)
   const deleteSavedStrategy = useAppStore((s) => s.deleteSavedStrategy)
   const purgeSeededStrategies = useAppStore((s) => s.purgeSeededStrategies)
+  const goHome = useAppStore((s) => s.goHome)
   const [desk, setDesk] = useState<LibraryDesk>('strategies')
   const [composer, setComposer] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -103,6 +104,15 @@ export function StrategyLibrary(): React.JSX.Element {
           <span className="chip">{desk === 'market' ? `${tapeCount} pairs` : `${strategies.length} saved`}</span>
         </div>
         <div className="session-chip">
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={goHome}
+            title="Home"
+            aria-label="Home"
+          >
+            <Icon name="home" />
+          </button>
           <ThemeToggle />
           {desk === 'market' ? (
             <button
