@@ -18,9 +18,11 @@
     "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "better-sqlite3": "^12.4.1",
     "dukascopy-node": "^1.50.0",
     "lightweight-charts": "^5.0.8",
+    "monaco-editor": "^0.56.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-toastify": "^11.1.0",
