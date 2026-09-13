@@ -8,6 +8,7 @@ import type {
   DatasetInfo,
   DeskPrefs,
   Drawing,
+  EaScript,
   SavedStrategy,
   StrategySettings,
   Timeframe,
@@ -407,6 +408,61 @@ export function saveStrategy(strategy: SavedStrategy): SavedStrategy {
 
 export function deleteStrategy(id: string): void {
   getDb().prepare('DELETE FROM strategies WHERE id = ?').run(id)
+}
+
+interface EaScriptRow {
+  id: string
+  name: string
+  code: string
+  created_at: number
+  updated_at: number
+}
+
+function mapEaScript(row: EaScriptRow): EaScript {
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+}
+
+export function listEaScripts(): EaScript[] {
+  const rows = getDb()
+    .prepare('SELECT * FROM ea_scripts ORDER BY updated_at DESC')
+    .all() as EaScriptRow[]
+  return rows.map(mapEaScript)
+}
+
+export function saveEaScript(script: EaScript): EaScript {
+  const now = Date.now()
+  const row = {
+    ...script,
+    updatedAt: now,
+    createdAt: script.createdAt || now
+  }
+  getDb()
+    .prepare(
+      `INSERT INTO ea_scripts (id, name, code, created_at, updated_at)
+       VALUES (@id, @name, @code, @created, @updated)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         code = excluded.code,
+         updated_at = excluded.updated_at`
+    )
+    .run({
+      id: row.id,
+      name: row.name.trim() || 'Untitled EA',
+      code: row.code,
+      created: row.createdAt,
+      updated: row.updatedAt
+    })
+  return { ...row, name: row.name.trim() || 'Untitled EA' }
+}
+
+export function deleteEaScript(id: string): void {
+  getDb().prepare('DELETE FROM ea_scripts WHERE id = ?').run(id)
 }
 
 export function loadDeskPrefs(): DeskPrefs {
