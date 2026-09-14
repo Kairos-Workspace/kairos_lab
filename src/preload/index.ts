@@ -7,6 +7,7 @@ import type {
   DatasetInfo,
   DeskPrefs,
   Drawing,
+  EaChatMessage,
   EaScript,
   SavedStrategy,
   Timeframe,
@@ -98,7 +99,20 @@ const api = {
     deleteProvider: (id: string) =>
       ipcRenderer.invoke(IPC.AI_DELETE_PROVIDER, id) as Promise<AiProviderProfile[]>,
     testConnection: (id: string) =>
-      ipcRenderer.invoke(IPC.AI_TEST_CONNECTION, id) as Promise<{ ok: boolean; message: string }>
+      ipcRenderer.invoke(IPC.AI_TEST_CONNECTION, id) as Promise<{ ok: boolean; message: string }>,
+    listChatMessages: (scriptId: string) =>
+      ipcRenderer.invoke(IPC.AI_LIST_CHAT_MESSAGES, scriptId) as Promise<EaChatMessage[]>,
+    sendChatMessage: (payload: {
+      scriptId: string
+      providerId: string
+      currentCode: string
+      message: string
+    }) =>
+      ipcRenderer.invoke(IPC.AI_SEND_CHAT_MESSAGE, payload) as Promise<
+        { ok: true; messages: EaChatMessage[] } | { ok: false; message: string }
+      >,
+    clearChat: (scriptId: string) =>
+      ipcRenderer.invoke(IPC.AI_CLEAR_CHAT, scriptId) as Promise<EaChatMessage[]>
   },
   prefs: {
     load: () => ipcRenderer.invoke(IPC.PREFS_LOAD) as Promise<DeskPrefs>,
