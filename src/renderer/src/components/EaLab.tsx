@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { BrandMark } from './BrandMark'
 import { ConfirmIconButton } from './ConfirmIconButton'
+import { EaChatPanel } from './EaChatPanel'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { registerMql5Language } from '../lib/mql5Language'
@@ -26,6 +27,7 @@ export function EaLab(): React.JSX.Element {
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [showChat, setShowChat] = useState(false)
 
   useEffect(() => {
     void loadScripts()
@@ -69,6 +71,16 @@ export function EaLab(): React.JSX.Element {
           <button
             type="button"
             className="icon-btn"
+            data-active={showChat}
+            onClick={() => setShowChat((v) => !v)}
+            title="AI chat"
+            aria-label="AI chat"
+          >
+            <Icon name="chat" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
             onClick={enterSettings}
             title="Settings"
             aria-label="Settings"
@@ -78,7 +90,7 @@ export function EaLab(): React.JSX.Element {
         </div>
       </header>
 
-      <section className="ea-lab-body">
+      <section className="ea-lab-body" data-chat-open={showChat}>
         <aside className="ea-lab-sidebar">
           {scripts.length === 0 ? (
             <p className="ea-lab-empty">No EA scripts yet. Create one to get started.</p>
@@ -164,6 +176,8 @@ export function EaLab(): React.JSX.Element {
             )}
           </div>
         </div>
+
+        {showChat ? <EaChatPanel /> : null}
       </section>
     </div>
   )
