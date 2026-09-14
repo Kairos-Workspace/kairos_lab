@@ -121,17 +121,24 @@ CREATE TABLE IF NOT EXISTS ea_chat_messages (
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   provider_id TEXT,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (script_id) REFERENCES ea_scripts(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_ea_chat_messages_script ON ea_chat_messages(script_id);
 `
 ```
 
-No foreign key / cascade to `ea_scripts` — this codebase's other tables
-don't enforce FKs either (e.g. `drawings.symbol` isn't a FK to anything),
-and deleting a script leaving orphaned chat rows is an accepted tradeoff
-here, same as the existing `ea_scripts`/`strategies` relationship.
+`script_id` uses a real `FOREIGN KEY ... ON DELETE CASCADE` to
+`ea_scripts(id)` — this schema already enforces FKs (`PRAGMA foreign_keys
+= ON` in `db.ts`) and already cascades for the exact same shape of
+relationship elsewhere (`trades.session_id`/`annotations.session_id` →
+`sessions(id)`, `candles.dataset_id`/`data_gaps.dataset_id` →
+`datasets(id)`) — a chat message has no independent meaning without its
+script, same as those rows without their parent. `provider_id` has no FK:
+it references a swappable config profile, not an owning parent, matching
+`sessions.strategy_id`'s precedent — a dangling `provider_id` after a
+profile is deleted is harmless.
 
 - [ ] **Step 2: Typecheck**
 
@@ -146,10 +153,13 @@ git commit -m "$(cat <<'EOF'
 Add ea_chat_messages table
 
 One row per chat turn, indexed by script_id since every query filters
-on it. The script's own code is never stored here — every chat
-request builds its context fresh from whatever's currently in the
-editor (Task 6), so this table only grows with the human-readable
-conversation, not duplicated script content.
+on it. script_id cascades on delete from ea_scripts, matching how
+trades/annotations already cascade from sessions — a chat message
+has no independent meaning without its script. The script's own code
+is never stored here — every chat request builds its context fresh
+from whatever's currently in the editor (Task 6), so this table only
+grows with the human-readable conversation, not duplicated script
+content.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -1630,12 +1640,22 @@ app: no component-test harness, and this environment can't drive or
 screenshot the actual GUI. Write a throwaway script (in a scratch
 directory, not committed) that runs under the real Electron binary (no
 `ELECTRON_RUN_AS_NODE`, no window created) against a temp SQLite DB,
-importing `chatRepository.ts` and `providers.ts` directly. Confirm:
+importing `chatRepository.ts`, `providers.ts`, and `saveEaScript`/
+`deleteEaScript` from `database/repositories.ts` directly. Because
+`ea_chat_messages.script_id` is now a real, enforced FK (`PRAGMA
+foreign_keys = ON`, Task 2), the test must first create real `ea_scripts`
+rows via `saveEaScript` before inserting chat messages against their ids —
+inserting a chat message for a script id with no matching row will fail
+the FK constraint, which is itself worth confirming (see below). Confirm:
 
 - `saveChatMessage` + `listChatMessages` round-trip correctly and stay
-  ordered by `created_at`.
+  ordered by `created_at`, for two real scripts created via `saveEaScript`.
 - `clearChat` removes only the target script's messages, leaving a second
   script's messages untouched.
+- Deleting one script via `deleteEaScript` cascades and removes exactly
+  that script's `ea_chat_messages` rows, leaving a second script's
+  messages fully intact — confirms the `ON DELETE CASCADE` FK actually
+  fires, not just that the SQL parses.
 - `sendChatMessage` called with a deliberately invalid key against at
   least the OpenAI and Anthropic adapters returns `{ ok: false }` with a
   real error message (not a crash) — mirroring how `testConnection` was
