@@ -69,7 +69,8 @@ CREATE TABLE IF NOT EXISTS ea_chat_messages (
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   provider_id TEXT,
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (script_id) REFERENCES ea_scripts(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_ea_chat_messages_script ON ea_chat_messages(script_id);
@@ -78,12 +79,20 @@ CREATE INDEX IF NOT EXISTS idx_ea_chat_messages_script ON ea_chat_messages(scrip
 `role` is `'user'` or `'assistant'`. `provider_id` records which saved
 profile answered an assistant message (`NULL` for user messages) — not
 surfaced prominently in v1 UI, but worth capturing now rather than needing a
-migration later if a multi-profile conversation view is wanted. No foreign
-key enforcement (this codebase's other tables don't use them either, e.g.
-`drawings.symbol` isn't a FK to anything) and no `ON DELETE CASCADE` from
-`ea_scripts` — deleting a script leaves orphaned chat rows, exactly the same
-tradeoff `ea_scripts` itself already accepts for its own relationship to
-`strategies`/`sessions`. Cleaning that up is out of scope here.
+migration later if a multi-profile conversation view is wanted.
+
+`script_id` **does** use a real `FOREIGN KEY ... ON DELETE CASCADE` to
+`ea_scripts(id)` — this codebase already enforces FKs (`PRAGMA foreign_keys
+= ON` in `db.ts`) and already uses exactly this pattern for the same shape
+of relationship: `trades.session_id`/`annotations.session_id` →
+`sessions(id)` and `candles.dataset_id`/`data_gaps.dataset_id` →
+`datasets(id)` all cascade, because those rows have no independent meaning
+without their parent — same as a chat message without its script.
+`provider_id`, by contrast, deliberately has **no** FK — it's a reference
+to a swappable config profile, not an owning parent, so a dangling
+`provider_id` after a provider is deleted is harmless and matches the
+existing `sessions.strategy_id` precedent (a reference to reusable config,
+not an owned child row).
 
 The script's *code* is never stored in this table. Every request builds a
 fresh system message from whatever's currently in the Monaco editor (see
@@ -252,9 +261,10 @@ returns exactly one.
   `.composer-hint[data-ok='false']` styling used elsewhere in this app), the
   typed message stays in the input box for the user to retry, and nothing
   is written to `ea_chat_messages`.
-- **Deleting a script that has chat history** — the `ea_chat_messages` rows
-  become orphaned (no cascade), consistent with how this codebase already
-  handles the equivalent relationship for `ea_scripts`/`strategies`.
+- **Deleting a script that has chat history** — the `ON DELETE CASCADE` FK
+  removes its `ea_chat_messages` rows automatically, the same way deleting a
+  session already cascades to its `trades`/`annotations`. No manual cleanup
+  needed in `deleteEaScript`.
 
 ## Verification
 
