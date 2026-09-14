@@ -866,7 +866,7 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
   },
 
   setSelectedProviderId: (id) => {
-    set({ selectedProviderId: id })
+    set({ selectedProviderId: id, error: null })
   },
 
   sendMessage: async (scriptId, currentCode, text) => {
@@ -883,7 +883,16 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
       message: text
     })
     if (!result || !result.ok) {
-      set({ sending: false, error: result?.message ?? 'Not running in Electron' })
+      const stillExists = useAiProvidersStore
+        .getState()
+        .providers.some((p) => p.id === providerId)
+      set({
+        sending: false,
+        error: result?.message ?? 'Not running in Electron',
+        selectedProviderId: stillExists
+          ? providerId
+          : (useAiProvidersStore.getState().providers[0]?.id ?? null)
+      })
       return
     }
     set({ sending: false, messages: result.messages, error: null })
@@ -903,6 +912,18 @@ to run (with a clear inline error, not a silent no-op) if no provider is
 selected — this can only happen if the user has zero saved profiles, since
 `loadMessages` always picks one when any exist.
 
+If the selected provider was deleted (in Settings, mid-session) between
+being selected and a send attempt, `sendChatMessage`'s IPC call fails with
+`{ok: false, message: 'Profile not found'}` — `sendMessage`'s failure
+branch checks whether `selectedProviderId` still exists in
+`useAiProvidersStore`'s current list, and if not, falls back to the first
+remaining provider (or `null` if none are left) instead of leaving the
+store permanently pointed at a provider that no longer exists, which would
+otherwise repeat the same failure on every subsequent send with no way
+back to a working state. `setSelectedProviderId` also clears `error`, so
+picking a different provider after a failure doesn't leave a stale error
+message on screen for a provider that's no longer selected.
+
 - [ ] **Step 2: Typecheck**
 
 Run: `npm run typecheck`
@@ -918,6 +939,9 @@ Add the EA chat store
 messages/sending/error/selectedProviderId over the new chat IPC
 bridge. Defaults the selected provider to whichever profile answered
 this script's last message, falling back to the first saved profile.
+Self-heals if the selected provider is deleted mid-session (falls
+back to another provider instead of repeating "Profile not found"
+forever), and setSelectedProviderId clears any stale error.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
