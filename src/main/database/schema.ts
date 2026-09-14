@@ -126,9 +126,18 @@ CREATE TABLE IF NOT EXISTS ai_providers (
   updated_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ea_chat_threads (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  script_id TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ea_chat_messages (
   id TEXT PRIMARY KEY,
   script_id TEXT NOT NULL,
+  thread_id TEXT,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
   provider_id TEXT,

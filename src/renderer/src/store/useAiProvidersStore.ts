@@ -15,6 +15,9 @@ interface AiProvidersState {
   providers: AiProviderProfile[]
   testing: boolean
   testResult: TestResult | null
+  modelsById: Record<string, string[]>
+  modelsError: string | null
+  loadingModels: boolean
   loadProviders: () => Promise<void>
   saveProvider: (
     profile: {
@@ -26,6 +29,8 @@ interface AiProvidersState {
     },
     apiKey: string
   ) => Promise<void>
+  setProviderModel: (id: string, model: string) => Promise<void>
+  loadModels: (id: string) => Promise<void>
   deleteProvider: (id: string) => Promise<void>
   testConnection: (id: string) => Promise<void>
   clearTestResult: () => void
@@ -35,6 +40,9 @@ export const useAiProvidersStore = create<AiProvidersState>((set, get) => ({
   providers: [],
   testing: false,
   testResult: null,
+  modelsById: {},
+  modelsError: null,
+  loadingModels: false,
 
   loadProviders: async () => {
     const providers = (await aiBridge()?.listProviders()) ?? []
@@ -52,6 +60,34 @@ export const useAiProvidersStore = create<AiProvidersState>((set, get) => ({
     set({
       providers,
       testResult: keyError ? { ok: false, message: keyError } : null
+    })
+    if (!keyError) await get().loadModels(profile.id)
+  },
+
+  setProviderModel: async (id, model) => {
+    const profile = get().providers.find((p) => p.id === id)
+    if (!profile) return
+    const providers = (await aiBridge()?.saveProvider({
+      id: profile.id,
+      name: profile.name,
+      provider: profile.provider,
+      model,
+      baseUrl: profile.baseUrl
+    })) ?? get().providers.map((p) => (p.id === id ? { ...p, model } : p))
+    set({ providers })
+  },
+
+  loadModels: async (id) => {
+    set({ loadingModels: true, modelsError: null })
+    const result = await aiBridge()?.listModels(id)
+    if (!result) {
+      set({ loadingModels: false, modelsError: 'Not running in Electron' })
+      return
+    }
+    set({
+      loadingModels: false,
+      modelsById: { ...get().modelsById, [id]: result.models },
+      modelsError: result.ok ? null : (result.message ?? 'Could not load models')
     })
   },
 

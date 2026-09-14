@@ -7,7 +7,9 @@ import type {
   DatasetInfo,
   DeskPrefs,
   Drawing,
+  EaChatAttachedFile,
   EaChatMessage,
+  EaChatThread,
   EaScript,
   SavedStrategy,
   Timeframe,
@@ -100,19 +102,50 @@ const api = {
       ipcRenderer.invoke(IPC.AI_DELETE_PROVIDER, id) as Promise<AiProviderProfile[]>,
     testConnection: (id: string) =>
       ipcRenderer.invoke(IPC.AI_TEST_CONNECTION, id) as Promise<{ ok: boolean; message: string }>,
-    listChatMessages: (scriptId: string) =>
-      ipcRenderer.invoke(IPC.AI_LIST_CHAT_MESSAGES, scriptId) as Promise<EaChatMessage[]>,
+    listModels: (id: string) =>
+      ipcRenderer.invoke(IPC.AI_LIST_MODELS, id) as Promise<{
+        ok: boolean
+        models: string[]
+        message?: string
+      }>,
+    listChatThreads: () =>
+      ipcRenderer.invoke(IPC.AI_LIST_CHAT_THREADS) as Promise<EaChatThread[]>,
+    listChatMessages: (threadId: string) =>
+      ipcRenderer.invoke(IPC.AI_LIST_CHAT_MESSAGES, threadId) as Promise<EaChatMessage[]>,
     sendChatMessage: (payload: {
       scriptId: string
+      threadId: string | null
       providerId: string
-      currentCode: string
+      files: EaChatAttachedFile[]
       message: string
+      requestId: string
     }) =>
       ipcRenderer.invoke(IPC.AI_SEND_CHAT_MESSAGE, payload) as Promise<
-        { ok: true; messages: EaChatMessage[] } | { ok: false; message: string }
+        | { ok: true; thread: EaChatThread; messages: EaChatMessage[]; threads: EaChatThread[] }
+        | {
+            ok: false
+            message: string
+            thread?: EaChatThread
+            messages?: EaChatMessage[]
+            threads?: EaChatThread[]
+          }
       >,
-    clearChat: (scriptId: string) =>
-      ipcRenderer.invoke(IPC.AI_CLEAR_CHAT, scriptId) as Promise<EaChatMessage[]>
+    onChatChunk: (
+      cb: (payload: { requestId: string; text?: string; thinking?: string }) => void
+    ) => {
+      const listener = (
+        _event: unknown,
+        payload: { requestId: string; text?: string; thinking?: string }
+      ): void => {
+        cb(payload)
+      }
+      ipcRenderer.on(IPC.AI_CHAT_CHUNK, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC.AI_CHAT_CHUNK, listener)
+      }
+    },
+    deleteChatThread: (threadId: string) =>
+      ipcRenderer.invoke(IPC.AI_DELETE_CHAT_THREAD, threadId) as Promise<EaChatThread[]>
   },
   prefs: {
     load: () => ipcRenderer.invoke(IPC.PREFS_LOAD) as Promise<DeskPrefs>,

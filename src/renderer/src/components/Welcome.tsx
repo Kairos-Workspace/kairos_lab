@@ -19,10 +19,12 @@ export function Welcome(): React.JSX.Element {
         </div>
         <div className="welcome-labs">
           <button type="button" className="welcome-lab-card" onClick={enterLibrary}>
+            <span className="stamp">Desk</span>
             <strong>Strategy Lab</strong>
             <span>Backtest and manage strategies</span>
           </button>
           <button type="button" className="welcome-lab-card" onClick={enterEaLab}>
+            <span className="stamp">Editor</span>
             <strong>EA Development Lab</strong>
             <span>Build automated trading bots</span>
           </button>

@@ -32,8 +32,11 @@ export const IPC = {
   AI_CLEAR_PROVIDER_API_KEY: 'ai:clear-provider-api-key',
   AI_DELETE_PROVIDER: 'ai:delete-provider',
   AI_TEST_CONNECTION: 'ai:test-connection',
+  AI_LIST_MODELS: 'ai:list-models',
+  AI_LIST_CHAT_THREADS: 'ai:list-chat-threads',
   AI_LIST_CHAT_MESSAGES: 'ai:list-chat-messages',
   AI_SEND_CHAT_MESSAGE: 'ai:send-chat-message',
-  AI_CLEAR_CHAT: 'ai:clear-chat',
+  AI_CHAT_CHUNK: 'ai:chat-chunk',
+  AI_DELETE_CHAT_THREAD: 'ai:delete-chat-thread',
   DB_PATH: 'db:path'
 } as const

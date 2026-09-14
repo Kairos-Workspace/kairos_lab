@@ -181,18 +181,49 @@ export interface EaScript {
   updatedAt: number
 }
 
+export type AiProviderKind = 'openai' | 'anthropic' | 'gemini' | 'sealion' | 'custom'
+
+export const SEALION_BASE_URL = 'https://api.sea-lion.ai/v1'
+export const SEALION_DEFAULT_MODEL = 'aisingapore/Qwen-SEA-LION-v4.5-27B-IT'
+export const SEALION_SEED_ID = 'seed-sealion'
+
 export interface AiProviderProfile {
   id: string
   name: string
-  provider: 'openai' | 'anthropic' | 'gemini' | 'custom'
+  provider: AiProviderKind
   model: string
   baseUrl: string | null
   hasApiKey: boolean
 }
 
+export interface EaChatAttachedFile {
+  name: string
+  code: string
+  current: boolean
+}
+
+export const CHAT_THINKING_MARK = '<!--ql-thinking-->\n'
+
+export function isThinkingChatContent(content: string): boolean {
+  return content.startsWith(CHAT_THINKING_MARK)
+}
+
+export function visibleChatContent(content: string): string {
+  return isThinkingChatContent(content) ? content.slice(CHAT_THINKING_MARK.length) : content
+}
+
+export interface EaChatThread {
+  id: string
+  title: string
+  scriptId: string | null
+  createdAt: number
+  updatedAt: number
+}
+
 export interface EaChatMessage {
   id: string
   scriptId: string
+  threadId: string | null
   role: 'user' | 'assistant'
   content: string
   providerId: string | null

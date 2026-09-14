@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { PRODUCT_NAME } from '@shared/constants'
+import { loadLocalEnv } from './env'
 import { closeDb } from './database/db'
 import { registerIpc } from './ipc'
 
@@ -56,6 +57,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  loadLocalEnv()
   electronApp.setAppUserModelId('com.quantify.strategy-tester')
   // BrowserWindow's `icon` option is ignored on macOS — the Dock icon
   // needs to be set explicitly, but only matters in dev; a packaged app

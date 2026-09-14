@@ -5,15 +5,19 @@ import { validateCandles, dedupeCandles } from '@core/candles/validate'
 import { parseCandleCsv } from '@core/csv/parse'
 import { IPC } from '@shared/ipc'
 import { toCandleBuffer } from '@shared/candleBuffer'
-import type {
-  BacktestSession,
-  Candle,
-  DeskPrefs,
-  Drawing,
-  EaScript,
-  SavedStrategy,
-  Timeframe,
-  Trade
+import {
+  CHAT_THINKING_MARK,
+  visibleChatContent,
+  type AiProviderKind,
+  type BacktestSession,
+  type Candle,
+  type DeskPrefs,
+  type Drawing,
+  type EaChatAttachedFile,
+  type EaScript,
+  type SavedStrategy,
+  type Timeframe,
+  type Trade
 } from '@shared/types'
 import { dbPath, getDb } from './database/db'
 import {
@@ -51,8 +55,14 @@ import {
   saveProvider,
   setProviderApiKey
 } from './ai/aiProvidersRepository'
-import { clearChat, listChatMessages, saveChatMessage } from './ai/chatRepository'
-import { sendChatMessage, testConnection } from './ai/providers'
+import {
+  deleteChatThread,
+  ensureChatThread,
+  listChatMessages,
+  listChatThreads,
+  saveChatMessage
+} from './ai/chatRepository'
+import { listModels, sendChatMessage, testConnection } from './ai/providers'
 
 function handle(
   channel: string,
@@ -262,7 +272,7 @@ export function registerIpc(): void {
       profile: {
         id: string
         name: string
-        provider: 'openai' | 'anthropic' | 'gemini' | 'custom'
+        provider: AiProviderKind
         model: string
         baseUrl: string | null
       }
@@ -284,53 +294,43 @@ export function registerIpc(): void {
     return testConnection(profile, apiKey)
   })
 
-  handle(IPC.AI_LIST_CHAT_MESSAGES, (_e, scriptId: string) => listChatMessages(scriptId))
+  handle(IPC.AI_LIST_MODELS, async (_e, id: string) => {
+    const profile = listProviders().find((p) => p.id === id)
+    if (!profile) return { ok: false, models: [] as string[], message: 'Profile not found' }
+    const apiKey = getDecryptedApiKey(id)
+    return listModels(profile, apiKey)
+  })
+
+  handle(IPC.AI_LIST_CHAT_THREADS, () => listChatThreads())
+
+  handle(IPC.AI_LIST_CHAT_MESSAGES, (_e, threadId: string) => listChatMessages(threadId))
 
   handle(
     IPC.AI_SEND_CHAT_MESSAGE,
     async (
-      _e,
-      payload: { scriptId: string; providerId: string; currentCode: string; message: string }
+      event,
+      payload: {
+        scriptId: string
+        threadId?: string | null
+        providerId: string
+        currentCode?: string
+        files?: EaChatAttachedFile[]
+        message: string
+        requestId: string
+      }
     ) => {
       const profile = listProviders().find((p) => p.id === payload.providerId)
       if (!profile) return { ok: false, message: 'Profile not found' }
       const apiKey = getDecryptedApiKey(payload.providerId)
-      const history = listChatMessages(payload.scriptId).map((m) => ({
-        role: m.role,
-        content: m.content
-      }))
-      const fence = '```'
-      const systemPrompt = [
-        'You are helping the user write an MQL5 Expert Advisor script for MetaTrader.',
-        '',
-        'Current script content:',
-        '',
-        fence,
-        payload.currentCode,
-        fence,
-        '',
-        'When you provide a full updated version of the script, respond with the',
-        'complete file in a single fenced code block.'
-      ].join('\n')
-      const result = await sendChatMessage(profile, apiKey, systemPrompt, [
-        ...history,
-        { role: 'user', content: payload.message }
-      ])
-      if (!result.ok || !result.reply) {
-        return { ok: false, message: result.message ?? 'No reply from the AI' }
-      }
+      let thread
       try {
+        thread = ensureChatThread(payload.threadId, payload.scriptId, payload.message)
         saveChatMessage({
           scriptId: payload.scriptId,
+          threadId: thread.id,
           role: 'user',
           content: payload.message,
           providerId: null
-        })
-        saveChatMessage({
-          scriptId: payload.scriptId,
-          role: 'assistant',
-          content: result.reply,
-          providerId: payload.providerId
         })
       } catch {
         return {
@@ -338,13 +338,96 @@ export function registerIpc(): void {
           message: 'This script no longer exists — the reply could not be saved.'
         }
       }
-      return { ok: true, messages: listChatMessages(payload.scriptId) }
+      const history = listChatMessages(thread.id).map((m) => ({
+        role: m.role,
+        content: visibleChatContent(m.content)
+      }))
+      const fence = '```'
+      const attached =
+        payload.files && payload.files.length > 0
+          ? payload.files
+          : payload.currentCode != null
+            ? [{ name: 'current script', code: payload.currentCode, current: true }]
+            : []
+      const fileBlocks = attached.flatMap((file) => {
+        const label = file.current ? `${file.name} (currently editing)` : file.name
+        return [`### ${label}`, fence, file.code, fence, '']
+      })
+      const systemPrompt = [
+        'You are helping the user write an MQL5 Expert Advisor script for MetaTrader.',
+        '',
+        attached.length > 0
+          ? 'The user attached these files. Edit the one marked currently editing unless they ask otherwise.'
+          : 'No file is attached. Ask which script to work on if you need one.',
+        '',
+        ...fileBlocks,
+        'The open editor applies your fenced code live as you generate it.',
+        'When you change a script, output the complete file in one fence.',
+        'Put the script name in the fence header, for example: ```mql5 Grid Martingale',
+        'Also output this on its own line before the fence: <!--ql-file: Grid Martingale-->',
+        'Rename when the open file is still Untitled EA, the user asks, or a clearer name is obvious.',
+        'Use a short Title Case name with no path or extension.',
+        'Put a short explanation before that fence. Do not ask the user to copy or apply.',
+        'If several files are attached, edit the one marked currently editing.',
+        '',
+        'Format every reply in Markdown so it is easy to scan:',
+        '- Start with a short heading for the main point.',
+        '- Use bullet or numbered lists for steps, options, and findings.',
+        '- Use **bold** for key terms and `inline code` for identifiers.',
+        '- Keep prose concise. Do not wrap the whole reply in a code fence.',
+        'Never use emoji, emoticons, or decorative unicode symbols in replies or code comments.'
+      ].join('\n')
+      const result = await sendChatMessage(
+        profile,
+        apiKey,
+        systemPrompt,
+        history,
+        (chunk) => {
+          try {
+            event.sender.send(IPC.AI_CHAT_CHUNK, { requestId: payload.requestId, ...chunk })
+          } catch {
+            /* renderer window closed */
+          }
+        }
+      )
+      if (!result.ok || !result.reply) {
+        return {
+          ok: false,
+          message: result.message ?? 'No reply from the AI',
+          thread,
+          messages: listChatMessages(thread.id),
+          threads: listChatThreads()
+        }
+      }
+      try {
+        saveChatMessage({
+          scriptId: payload.scriptId,
+          threadId: thread.id,
+          role: 'assistant',
+          content: result.thinkingOnly ? `${CHAT_THINKING_MARK}${result.reply}` : result.reply,
+          providerId: payload.providerId
+        })
+      } catch {
+        return {
+          ok: false,
+          message: 'This script no longer exists — the reply could not be saved.',
+          thread,
+          messages: listChatMessages(thread.id),
+          threads: listChatThreads()
+        }
+      }
+      return {
+        ok: true,
+        thread,
+        messages: listChatMessages(thread.id),
+        threads: listChatThreads()
+      }
     }
   )
 
-  handle(IPC.AI_CLEAR_CHAT, (_e, scriptId: string) => {
-    clearChat(scriptId)
-    return listChatMessages(scriptId)
+  handle(IPC.AI_DELETE_CHAT_THREAD, (_e, threadId: string) => {
+    deleteChatThread(threadId)
+    return listChatThreads()
   })
 
   handle(IPC.PREFS_LOAD, () => loadDeskPrefs())

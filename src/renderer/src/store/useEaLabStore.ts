@@ -27,9 +27,10 @@ interface EaLabState {
   dirty: boolean
   loadScripts: () => Promise<void>
   createScript: () => Promise<void>
-  selectScript: (id: string) => void
+  selectScript: (id: string) => Promise<void>
   updateDraftCode: (code: string) => void
-  saveActiveScript: () => Promise<void>
+  applyCodeToScript: (id: string, code: string, opts?: { quiet?: boolean }) => void
+  saveActiveScript: (opts?: { quiet?: boolean }) => Promise<void>
   renameScript: (id: string, name: string) => Promise<void>
   deleteScript: (id: string) => Promise<void>
 }
@@ -41,11 +42,21 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
   dirty: false,
 
   loadScripts: async () => {
-    const scripts = (await eaScriptBridge()?.list()) ?? []
-    set({ scripts })
-    if (!get().activeScriptId && scripts.length > 0) {
-      get().selectScript(scripts[0].id)
+    const listed = await eaScriptBridge()?.list()
+    if (!listed) return
+    const currentId = get().activeScriptId
+    const stillThere = currentId !== null && listed.some((s) => s.id === currentId)
+    if (stillThere) {
+      set({ scripts: listed })
+      return
     }
+    const next = listed[0]
+    set({
+      scripts: listed,
+      activeScriptId: next?.id ?? null,
+      draftCode: next?.code ?? '',
+      dirty: false
+    })
   },
 
   createScript: async () => {
@@ -61,7 +72,12 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
     set({ scripts, activeScriptId: script.id, draftCode: script.code, dirty: false })
   },
 
-  selectScript: (id) => {
+  selectScript: async (id) => {
+    const { activeScriptId, dirty } = get()
+    if (id === activeScriptId) return
+    if (activeScriptId && dirty) {
+      await get().saveActiveScript({ quiet: true })
+    }
     const script = get().scripts.find((s) => s.id === id)
     if (!script) return
     set({ activeScriptId: id, draftCode: script.code, dirty: false })
@@ -71,7 +87,24 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
     set({ draftCode: code, dirty: true })
   },
 
-  saveActiveScript: async () => {
+  applyCodeToScript: (id, code, opts) => {
+    const { activeScriptId, scripts } = get()
+    if (id === activeScriptId) {
+      set({ draftCode: code, dirty: true })
+      return
+    }
+    const existing = scripts.find((s) => s.id === id)
+    if (!existing) {
+      set({ draftCode: code, dirty: true })
+      return
+    }
+    const next = { ...existing, code, updatedAt: Date.now() }
+    void eaScriptBridge()?.save(next)
+    set({ scripts: scripts.map((s) => (s.id === id ? next : s)) })
+    if (!opts?.quiet) notifySuccess(`Applied to ${next.name}`)
+  },
+
+  saveActiveScript: async (opts) => {
     const { activeScriptId, scripts, draftCode } = get()
     const existing = scripts.find((s) => s.id === activeScriptId)
     if (!existing) return
@@ -81,18 +114,22 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
       ...scripts.filter((s) => s.id !== next.id)
     ]
     set({ scripts: updated, dirty: false })
-    notifySuccess(`${next.name} saved`)
+    if (!opts?.quiet) notifySuccess(`${next.name} saved`)
   },
 
   renameScript: async (id, name) => {
-    const existing = get().scripts.find((s) => s.id === id)
+    const { scripts, activeScriptId, draftCode } = get()
+    const existing = scripts.find((s) => s.id === id)
     if (!existing) return
-    const next = { ...existing, name: name.trim() || 'Untitled EA', updatedAt: Date.now() }
-    const scripts = (await eaScriptBridge()?.save(next)) ?? [
+    const nextName = name.trim() || 'Untitled EA'
+    const code = id === activeScriptId ? draftCode : existing.code
+    if (existing.name === nextName && existing.code === code) return
+    const next = { ...existing, name: nextName, code, updatedAt: Date.now() }
+    const listed = (await eaScriptBridge()?.save(next)) ?? [
       next,
-      ...get().scripts.filter((s) => s.id !== id)
+      ...scripts.filter((s) => s.id !== id)
     ]
-    set({ scripts })
+    set({ scripts: listed })
   },
 
   deleteScript: async (id) => {

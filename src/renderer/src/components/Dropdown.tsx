@@ -10,16 +10,27 @@ export function Dropdown<T extends string | number>({
   value,
   onChange,
   options,
-  ariaLabel
+  ariaLabel,
+  className,
+  placement = 'bottom',
+  menuMinWidth
 }: {
   value: T
   onChange: (value: T) => void
   options: DropdownOption<T>[]
   ariaLabel?: string
+  className?: string
+  placement?: 'top' | 'bottom'
+  menuMinWidth?: number
 }): React.JSX.Element {
   const listboxId = useId()
   const [open, setOpen] = useState(false)
-  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [rect, setRect] = useState<{
+    top?: number
+    bottom?: number
+    left: number
+    width: number
+  } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const selectedIndex = Math.max(0, options.findIndex((o) => o.value === value))
@@ -29,7 +40,17 @@ export function Dropdown<T extends string | number>({
     const el = triggerRef.current
     if (!el) return
     const box = el.getBoundingClientRect()
-    setRect({ top: box.bottom + 4, left: box.left, width: box.width })
+    const width = Math.max(box.width, menuMinWidth ?? box.width)
+    const left = Math.min(box.left, Math.max(8, window.innerWidth - width - 8))
+    if (placement === 'top') {
+      setRect({
+        bottom: window.innerHeight - box.top + 4,
+        left,
+        width
+      })
+    } else {
+      setRect({ top: box.bottom + 4, left, width })
+    }
     setActiveIndex(selectedIndex)
     setOpen(true)
   }
@@ -106,7 +127,7 @@ export function Dropdown<T extends string | number>({
       <button
         type="button"
         ref={triggerRef}
-        className="dropdown-trigger"
+        className={className ? `dropdown-trigger ${className}` : 'dropdown-trigger'}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
@@ -125,7 +146,12 @@ export function Dropdown<T extends string | number>({
               className="dropdown-menu"
               role="listbox"
               aria-label={ariaLabel}
-              style={{ top: rect.top, left: rect.left, width: rect.width }}
+              style={{
+                top: rect.top,
+                bottom: rect.bottom,
+                left: rect.left,
+                width: rect.width
+              }}
             >
               {options.map((option, index) => (
                 <li

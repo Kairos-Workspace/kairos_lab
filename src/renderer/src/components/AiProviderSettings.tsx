@@ -9,6 +9,7 @@ const PROVIDER_BADGE_LABELS: Record<AiProviderProfile['provider'], string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic',
   gemini: 'Gemini',
+  sealion: 'SEA-LION',
   custom: 'Custom'
 }
 
