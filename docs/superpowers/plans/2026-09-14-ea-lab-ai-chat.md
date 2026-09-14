@@ -1030,6 +1030,9 @@ export interface ChatContentSegment {
 
 export function extractCodeBlocks(content: string): ChatContentSegment[] {
   const segments: ChatContentSegment[] = []
+  // Requires a closing fence — an unclosed one (e.g. a reply truncated by the
+  // provider's token limit) intentionally falls back to a single plain-text
+  // segment (stray backticks and all) rather than guessing at the boundary.
   const fence = /```[^\n]*\n([\s\S]*?)```/g
   let lastIndex = 0
   let match: RegExpExecArray | null
@@ -1170,7 +1173,7 @@ export function EaChatPanel(): React.JSX.Element {
                 className={m.role === 'user' ? 'ea-chat-msg-user' : 'ea-chat-msg-assistant'}
               >
                 {extractCodeBlocks(m.content).map((segment, i) =>
-                  segment.type === 'code' ? (
+                  segment.type === 'code' && segment.content.trim() ? (
                     <div key={i} className="ea-chat-code-block">
                       <pre>{segment.content}</pre>
                       <div className="ea-chat-code-actions">
@@ -1189,7 +1192,7 @@ export function EaChatPanel(): React.JSX.Element {
                         </button>
                       </div>
                     </div>
-                  ) : segment.content.trim() ? (
+                  ) : segment.type === 'text' && segment.content.trim() ? (
                     <p key={i}>{segment.content}</p>
                   ) : null
                 )}
@@ -1241,6 +1244,14 @@ confirmation — it only clears the conversation, not the script's actual
 code, so it doesn't need the same "click twice" safeguard `ConfirmIconButton`
 gives destructive script/profile deletion elsewhere in this app.
 
+The `segment.content.trim()` guard applies to **both** branches, not just
+the text one — an empty code segment (e.g. an AI reply with `` ``` ``
+immediately followed by `` ``` ``, nothing between) would otherwise render
+a live "Apply to editor" button that calls `updateDraftCode('')`, silently
+blanking the user's script. Guarding it out entirely (rather than, say,
+disabling the button) means a genuinely empty code block just doesn't
+render anything, which is also correct — there's nothing useful to show.
+
 - [ ] **Step 2: Typecheck**
 
 Run: `npm run typecheck`
@@ -1257,7 +1268,9 @@ Provider dropdown, message list with Copy/Apply on code blocks,
 input row. Not wired into EaLab yet — that's the next task. Apply
 updates draftCode (same action typing does) rather than saving
 directly, so AI-generated code goes through the normal Save step
-like any other edit.
+like any other edit. Empty code segments are skipped entirely (not
+just empty text ones) so a blank fenced block can't render a live
+Apply button that would blank out the script.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
