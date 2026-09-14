@@ -51,7 +51,8 @@ import {
   saveProvider,
   setProviderApiKey
 } from './ai/aiProvidersRepository'
-import { testConnection } from './ai/providers'
+import { clearChat, listChatMessages, saveChatMessage } from './ai/chatRepository'
+import { sendChatMessage, testConnection } from './ai/providers'
 
 function handle(
   channel: string,
@@ -281,6 +282,69 @@ export function registerIpc(): void {
     if (!profile) return { ok: false, message: 'Profile not found' }
     const apiKey = getDecryptedApiKey(id)
     return testConnection(profile, apiKey)
+  })
+
+  handle(IPC.AI_LIST_CHAT_MESSAGES, (_e, scriptId: string) => listChatMessages(scriptId))
+
+  handle(
+    IPC.AI_SEND_CHAT_MESSAGE,
+    async (
+      _e,
+      payload: { scriptId: string; providerId: string; currentCode: string; message: string }
+    ) => {
+      const profile = listProviders().find((p) => p.id === payload.providerId)
+      if (!profile) return { ok: false, message: 'Profile not found' }
+      const apiKey = getDecryptedApiKey(payload.providerId)
+      const history = listChatMessages(payload.scriptId).map((m) => ({
+        role: m.role,
+        content: m.content
+      }))
+      const fence = '```'
+      const systemPrompt = [
+        'You are helping the user write an MQL5 Expert Advisor script for MetaTrader.',
+        '',
+        'Current script content:',
+        '',
+        fence,
+        payload.currentCode,
+        fence,
+        '',
+        'When you provide a full updated version of the script, respond with the',
+        'complete file in a single fenced code block.'
+      ].join('\n')
+      const result = await sendChatMessage(profile, apiKey, systemPrompt, [
+        ...history,
+        { role: 'user', content: payload.message }
+      ])
+      if (!result.ok || !result.reply) {
+        return { ok: false, message: result.message ?? 'No reply from the AI' }
+      }
+      try {
+        saveChatMessage({
+          scriptId: payload.scriptId,
+          role: 'user',
+          content: payload.message,
+          providerId: null
+        })
+        saveChatMessage({
+          scriptId: payload.scriptId,
+          role: 'assistant',
+          content: result.reply,
+          providerId: payload.providerId
+        })
+      } catch {
+        return {
+          ok: false,
+          message: 'This script no longer exists — the reply could not be saved.'
+        }
+      }
+      return { ok: true, messages: listChatMessages(payload.scriptId) }
+    }
+  )
+
+  handle(IPC.AI_CLEAR_CHAT, (_e, scriptId: string) => {
+    clearChat(scriptId)
+    return listChatMessages(scriptId)
   })
 
   handle(IPC.PREFS_LOAD, () => loadDeskPrefs())
