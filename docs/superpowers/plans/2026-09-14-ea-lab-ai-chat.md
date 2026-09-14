@@ -650,18 +650,25 @@ Replace with:
       if (!result.ok || !result.reply) {
         return { ok: false, message: result.message ?? 'No reply from the AI' }
       }
-      saveChatMessage({
-        scriptId: payload.scriptId,
-        role: 'user',
-        content: payload.message,
-        providerId: null
-      })
-      saveChatMessage({
-        scriptId: payload.scriptId,
-        role: 'assistant',
-        content: result.reply,
-        providerId: payload.providerId
-      })
+      try {
+        saveChatMessage({
+          scriptId: payload.scriptId,
+          role: 'user',
+          content: payload.message,
+          providerId: null
+        })
+        saveChatMessage({
+          scriptId: payload.scriptId,
+          role: 'assistant',
+          content: result.reply,
+          providerId: payload.providerId
+        })
+      } catch {
+        return {
+          ok: false,
+          message: 'This script no longer exists — the reply could not be saved.'
+        }
+      }
       return { ok: true, messages: listChatMessages(payload.scriptId) }
     }
   )
@@ -680,6 +687,18 @@ content in the system prompt — a single-quoted JS string doesn't need its
 interior backticks escaped, and pulling it into one named constant avoids
 writing the same three-backtick literal out twice inline.
 
+The two `saveChatMessage` calls are wrapped in a `try`/`catch` because
+`script_id` is a real, enforced FK to `ea_scripts(id)` (Task 2) — between
+this handler's earlier read and this point, an `await sendChatMessage(...)`
+network round-trip has elapsed, which is real time for the script to have
+been deleted elsewhere (another window, a race). Every other failure path
+in this handler already returns a friendly `{ ok: false, message }` instead
+of letting an error propagate raw to the renderer; this closes the one gap
+that didn't, and it's the one handler in this codebase with a meaningfully
+wide async gap between an FK's implicit existence check and its write —
+without this, a user could pay for a real API call whose reply then
+silently vanishes if their script was deleted in the meantime.
+
 - [ ] **Step 3: Typecheck**
 
 Run: `npm run typecheck`
@@ -695,7 +714,11 @@ Add EA chat IPC handlers
 list-chat-messages, send-chat-message (builds a system prompt from
 whatever's currently in the editor, sends it plus history to the
 selected provider, persists both the user message and the reply on
-success, persists nothing on failure), and clear-chat.
+success, persists nothing on failure), and clear-chat. Wraps the
+save step in try/catch: script_id is a real FK to ea_scripts, and a
+network round-trip elapses beforehand, so a script deleted mid-flight
+would otherwise throw an uncaught FK error after a real API call
+already succeeded.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
