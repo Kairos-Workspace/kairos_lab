@@ -125,4 +125,16 @@ CREATE TABLE IF NOT EXISTS ai_providers (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS ea_chat_messages (
+  id TEXT PRIMARY KEY,
+  script_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  provider_id TEXT,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (script_id) REFERENCES ea_scripts(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_ea_chat_messages_script ON ea_chat_messages(script_id);
 `
