@@ -846,6 +846,7 @@ interface EaChatState {
   sending: boolean
   error: string | null
   selectedProviderId: string | null
+  currentScriptId: string | null
   loadMessages: (scriptId: string) => Promise<void>
   setSelectedProviderId: (id: string) => void
   sendMessage: (scriptId: string, currentCode: string, text: string) => Promise<void>
@@ -857,9 +858,12 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
   sending: false,
   error: null,
   selectedProviderId: null,
+  currentScriptId: null,
 
   loadMessages: async (scriptId) => {
+    set({ currentScriptId: scriptId })
     const messages = (await aiBridge()?.listChatMessages(scriptId)) ?? []
+    if (get().currentScriptId !== scriptId) return
     const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
     const fallback = useAiProvidersStore.getState().providers[0]?.id ?? null
     set({ messages, error: null, selectedProviderId: lastAssistant?.providerId ?? fallback })
@@ -882,6 +886,10 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
       currentCode,
       message: text
     })
+    if (get().currentScriptId !== scriptId) {
+      set({ sending: false })
+      return
+    }
     if (!result || !result.ok) {
       const stillExists = useAiProvidersStore
         .getState()
@@ -900,6 +908,7 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
 
   clearChat: async (scriptId) => {
     const messages = (await aiBridge()?.clearChat(scriptId)) ?? []
+    if (get().currentScriptId !== scriptId) return
     set({ messages, error: null })
   }
 }))
@@ -924,6 +933,23 @@ back to a working state. `setSelectedProviderId` also clears `error`, so
 picking a different provider after a failure doesn't leave a stale error
 message on screen for a provider that's no longer selected.
 
+`currentScriptId` guards against a cross-script race: `EaChatPanel` (Task
+11) calls `loadMessages`/`sendMessage`/`clearChat` with whatever script is
+currently open, but if the user switches scripts while one of these is
+still in flight (e.g. a slow `sendChatMessage` network round-trip), the
+in-flight call's result would otherwise land after the fact and overwrite
+`messages` with the *previous* script's data — and since `EaChatPanel`'s
+"Apply to editor" always writes into whichever script is *now* active via
+`updateDraftCode`, a stale code block from script A could silently blank
+or overwrite script B's draft. `loadMessages` stamps `currentScriptId`
+with the script it was called for *before* awaiting; `sendMessage` and
+`clearChat` check that `currentScriptId` still matches the script they
+were called for *after* awaiting, and discard their result (without
+touching `messages`) if a newer `loadMessages` call has since moved it —
+i.e., only the most recently requested script's data ever gets applied,
+regardless of which request resolves last. `sendMessage`'s stale branch
+still resets `sending: false`, since nothing else would.
+
 - [ ] **Step 2: Typecheck**
 
 Run: `npm run typecheck`
@@ -941,7 +967,10 @@ bridge. Defaults the selected provider to whichever profile answered
 this script's last message, falling back to the first saved profile.
 Self-heals if the selected provider is deleted mid-session (falls
 back to another provider instead of repeating "Profile not found"
-forever), and setSelectedProviderId clears any stale error.
+forever), and setSelectedProviderId clears any stale error. Tracks
+currentScriptId so an in-flight request for a script the user has
+since navigated away from can't overwrite messages (and, via Apply
+to editor, another script's draft code) after the fact.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -1127,6 +1156,12 @@ export function EaChatPanel(): React.JSX.Element {
   }, [activeScriptId, loadMessages])
 
   useEffect(() => {
+    if (!selectedProviderId && providers.length > 0) {
+      setSelectedProviderId(providers[0].id)
+    }
+  }, [providers, selectedProviderId, setSelectedProviderId])
+
+  useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight })
   }, [messages])
 
@@ -1156,6 +1191,7 @@ export function EaChatPanel(): React.JSX.Element {
           className="icon-btn"
           title="New chat"
           aria-label="New chat"
+          disabled={!activeScriptId}
           onClick={() => activeScriptId && void clearChat(activeScriptId)}
         >
           <Icon name="reset" />
@@ -1252,6 +1288,24 @@ blanking the user's script. Guarding it out entirely (rather than, say,
 disabling the button) means a genuinely empty code block just doesn't
 render anything, which is also correct — there's nothing useful to show.
 
+The `useEffect` reconciling `selectedProviderId` against `providers` exists
+because `loadProviders()` and `loadMessages(activeScriptId)` are two
+independent, unsequenced IPC round-trips fired from separate effects — if
+`loadMessages`'s response happens to arrive before `loadProviders`'s does,
+its own fallback-to-first-provider logic (in the store, Task 8) reads an
+empty `providers` array and leaves `selectedProviderId` at `null`, even
+though providers exist and are about to load. Without this effect, the
+Dropdown's `value={selectedProviderId ?? providers[0].id}` fallback would
+visually show a provider selected while the store's actual
+`selectedProviderId` stays `null` — so clicking Send would fail with "Add
+an AI provider in Settings first" despite a provider appearing to be
+chosen. This effect makes `selectedProviderId` self-correct the moment
+`providers` becomes non-empty, so that visual/state mismatch can't persist.
+
+The "New chat" button is now `disabled={!activeScriptId}`, matching how
+the input and Send button already handle the no-active-script case,
+instead of silently no-op'ing on click while still looking clickable.
+
 - [ ] **Step 2: Typecheck**
 
 Run: `npm run typecheck`
@@ -1270,7 +1324,11 @@ updates draftCode (same action typing does) rather than saving
 directly, so AI-generated code goes through the normal Save step
 like any other edit. Empty code segments are skipped entirely (not
 just empty text ones) so a blank fenced block can't render a live
-Apply button that would blank out the script.
+Apply button that would blank out the script. Reconciles
+selectedProviderId against the loaded provider list so an unlucky
+IPC resolution order can't leave the dropdown showing a provider
+that isn't actually selected in the store. New chat button now
+disables when there's no active script instead of silently no-op'ing.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
