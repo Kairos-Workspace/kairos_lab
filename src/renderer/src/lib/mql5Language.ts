@@ -1,11 +1,26 @@
 import { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import type { Monaco } from '@monaco-editor/react'
+import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 
 // @monaco-editor/react defaults to fetching Monaco from a CDN at runtime,
 // which this app's CSP blocks outright. Pointing it at the locally
 // installed package is required for the editor to load at all.
 loader.config({ monaco })
+
+// Without this, Monaco falls back to its own built-in worker resolution
+// (a relative `new URL(..., import.meta.url)` baked into its compiled
+// output), which doesn't survive Vite's dev-server module transforms and
+// fails with "Failed to fetch dynamically imported module". Vite's `?worker`
+// suffix is a static import it can reliably bundle for both dev and build,
+// sidestepping Monaco's own resolution entirely. This app only registers a
+// custom Monarch language (mql5), so the generic editor worker is the only
+// one ever requested — no per-language workers (json/ts/css/html) needed.
+self.MonacoEnvironment = {
+  getWorker() {
+    return new EditorWorker()
+  }
+}
 
 const KEYWORDS = [
   'if',
