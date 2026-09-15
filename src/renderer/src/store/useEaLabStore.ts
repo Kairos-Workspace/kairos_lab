@@ -2,16 +2,19 @@ import { create } from 'zustand'
 import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { compileEaScript } from '@core/ea/compile'
 import type { Diagnostic } from '@core/ea/types'
-import type { EaScript, ScriptKind, ScriptLanguage } from '@shared/types'
-import {
-  defaultScriptName,
-  labCopy,
-  scriptLanguage,
-  starterTemplate
-} from '@shared/scriptLab'
+import type { EaScript } from '@shared/types'
 import { desktop } from '../lib/desktop'
 import { useAppStore } from './useAppStore'
 import { useEaChatStore } from './useEaChatStore'
+
+const EA_STARTER = `void OnInit()
+{
+}
+
+void OnTick()
+{
+}
+`
 
 function eaScriptBridge() {
   return desktop()?.eaScripts
@@ -28,7 +31,6 @@ const resetCompileState = {
 }
 
 interface EaLabState {
-  kind: ScriptKind
   scripts: EaScript[]
   activeScriptId: string | null
   draftCode: string
@@ -36,9 +38,8 @@ interface EaLabState {
   diagnostics: Diagnostic[]
   compileStatus: 'idle' | 'ok' | 'error'
   lastCompiledAt: number | null
-  setKind: (kind: ScriptKind) => void
   loadScripts: () => Promise<void>
-  createScript: (language?: ScriptLanguage) => Promise<void>
+  createScript: () => Promise<void>
   selectScript: (id: string) => Promise<void>
   updateDraftCode: (code: string) => void
   applyCodeToScript: (id: string, code: string, opts?: { quiet?: boolean }) => void
@@ -50,28 +51,14 @@ interface EaLabState {
 }
 
 export const useEaLabStore = create<EaLabState>((set, get) => ({
-  kind: 'ea',
   scripts: [],
   activeScriptId: null,
   draftCode: '',
   dirty: false,
   ...resetCompileState,
 
-  setKind: (kind) => {
-    if (get().kind === kind) return
-    set({
-      kind,
-      scripts: [],
-      activeScriptId: null,
-      draftCode: '',
-      dirty: false,
-      ...resetCompileState
-    })
-    useEaChatStore.getState().setLabKind(kind)
-  },
-
   loadScripts: async () => {
-    const listed = await eaScriptBridge()?.list(get().kind)
+    const listed = await eaScriptBridge()?.list()
     if (!listed) return
     const currentId = get().activeScriptId
     const stillThere = currentId !== null && listed.some((s) => s.id === currentId)
@@ -89,16 +76,12 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
     })
   },
 
-  createScript: async (language) => {
+  createScript: async () => {
     const now = Date.now()
-    const kind = get().kind
-    const resolved = scriptLanguage(kind, language)
     const script: EaScript = {
       id: newId(),
-      name: defaultScriptName(kind),
-      kind,
-      language: resolved,
-      code: starterTemplate(kind, resolved),
+      name: 'Untitled EA',
+      code: EA_STARTER,
       createdAt: now,
       updatedAt: now
     }
@@ -177,10 +160,10 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
   },
 
   renameScript: async (id, name) => {
-    const { scripts, activeScriptId, draftCode, kind } = get()
+    const { scripts, activeScriptId, draftCode } = get()
     const existing = scripts.find((s) => s.id === id)
     if (!existing) return
-    const nextName = name.trim() || defaultScriptName(kind)
+    const nextName = name.trim() || 'Untitled EA'
     const code = id === activeScriptId ? draftCode : existing.code
     if (existing.name === nextName && existing.code === code) return
     const next = { ...existing, name: nextName, code, updatedAt: Date.now() }
@@ -192,9 +175,8 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
   },
 
   deleteScript: async (id) => {
-    const kind = get().kind
     const scripts =
-      (await eaScriptBridge()?.delete(id, kind)) ?? get().scripts.filter((s) => s.id !== id)
+      (await eaScriptBridge()?.delete(id)) ?? get().scripts.filter((s) => s.id !== id)
     const { activeScriptId } = get()
     if (activeScriptId === id) {
       const next = scripts[0]
@@ -208,12 +190,12 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
     } else {
       set({ scripts })
     }
-    notifyInfo(labCopy(kind).removed)
+    notifyInfo('EA script removed')
   },
 
   compileActive: () => {
-    const { kind, draftCode, activeScriptId, scripts } = get()
-    if (kind !== 'ea' || !activeScriptId) {
+    const { draftCode, activeScriptId, scripts } = get()
+    if (!activeScriptId) {
       set(resetCompileState)
       return false
     }
@@ -237,8 +219,8 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
   },
 
   runBacktest: async () => {
-    const { kind, dirty, activeScriptId, draftCode, scripts } = get()
-    if (kind !== 'ea' || !activeScriptId) return false
+    const { dirty, activeScriptId, draftCode, scripts } = get()
+    if (!activeScriptId) return false
     if (dirty) {
       await get().saveActiveScript({ quiet: true })
       if (get().dirty) {

@@ -638,12 +638,10 @@ export const useAppStore = create<AppState>((set, get) => {
   },
 
   enterEaLab: () => {
-    useEaLabStore.getState().setKind('ea')
     set({ screen: 'ea-lab' })
   },
 
   enterIndicatorLab: () => {
-    useEaLabStore.getState().setKind('indicator')
     set({ screen: 'indicator-lab' })
   },
 
