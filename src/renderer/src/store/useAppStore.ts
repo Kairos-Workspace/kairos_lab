@@ -43,7 +43,6 @@ import { desktop, desktopMissingMessage, loadDeskPrefs, requireDesktop } from '@
 import { applyDeskTheme } from '@core/desk/theme'
 import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strategyVault'
-import { useEaLabStore } from './useEaLabStore'
 import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 
 export type AppScreen = 'welcome' | 'library' | 'workspace' | 'ea-lab' | 'indicator-lab' | 'settings'
