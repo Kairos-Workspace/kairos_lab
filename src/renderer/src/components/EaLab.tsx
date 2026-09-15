@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
+import * as monaco from 'monaco-editor'
 import type { editor as MonacoEditor } from 'monaco-editor'
 import { BrandMark } from './BrandMark'
 import { EaChatPanel } from './EaChatPanel'
@@ -36,6 +37,10 @@ export function EaLab(): React.JSX.Element {
   const saveActiveScript = useEaLabStore((s) => s.saveActiveScript)
   const renameScript = useEaLabStore((s) => s.renameScript)
   const deleteScript = useEaLabStore((s) => s.deleteScript)
+  const diagnostics = useEaLabStore((s) => s.diagnostics)
+  const compileStatus = useEaLabStore((s) => s.compileStatus)
+  const compileActive = useEaLabStore((s) => s.compileActive)
+  const runBacktest = useEaLabStore((s) => s.runBacktest)
   const sending = useEaChatStore((s) => s.sending)
   const streamBlock = useEaChatStore((s) => s.streamBlock)
 
@@ -43,8 +48,10 @@ export function EaLab(): React.JSX.Element {
   const [renameValue, setRenameValue] = useState('')
   const [showChat, setShowChat] = useState(false)
   const [cursor, setCursor] = useState({ line: 1, column: 1 })
+  const [editorEpoch, setEditorEpoch] = useState(0)
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null)
+  const monacoRef = useRef<typeof monaco | null>(null)
   const decoRef = useRef<string[]>([])
   const writing = sending && Boolean(streamBlock && shouldLiveApplyBlock(streamBlock.content))
 
@@ -59,6 +66,28 @@ export function EaLab(): React.JSX.Element {
     }, 800)
     return () => window.clearTimeout(timer)
   }, [draftCode, dirty, activeScriptId, sending, saveActiveScript])
+
+  useEffect(() => {
+    const model = editorRef.current?.getModel()
+    const monacoApi = monacoRef.current
+    if (!model || !monacoApi) return
+    monacoApi.editor.setModelMarkers(
+      model,
+      'ea-dsl',
+      diagnostics.map((row) => ({
+        startLineNumber: row.line,
+        startColumn: Math.max(1, row.column),
+        endLineNumber: row.line,
+        endColumn: Math.max(row.column + (row.length ?? 1), row.column + 1),
+        message: row.message,
+        severity:
+          row.severity === 'error'
+            ? monacoApi.MarkerSeverity.Error
+            : monacoApi.MarkerSeverity.Warning
+      }))
+    )
+    return () => monacoApi.editor.setModelMarkers(model, 'ea-dsl', [])
+  }, [diagnostics, activeScriptId, editorEpoch])
 
   useEffect(() => {
     if (!pendingDelete) return
@@ -117,6 +146,13 @@ export function EaLab(): React.JSX.Element {
   }
 
   const activeScript = scripts.find((s) => s.id === activeScriptId)
+  const errorCount = diagnostics.filter((row) => row.severity === 'error').length
+  const compileLabel =
+    compileStatus === 'idle'
+      ? null
+      : compileStatus === 'ok'
+        ? 'Compiled · ready to backtest'
+        : `${errorCount} error${errorCount === 1 ? '' : 's'}`
   const monacoTheme = theme === 'dark' ? 'quantify-dark' : 'quantify-light'
   const editorOptions = useMemo<MonacoEditor.IStandaloneEditorConstructionOptions>(
     () => ({
@@ -281,6 +317,30 @@ export function EaLab(): React.JSX.Element {
             </div>
             <div className="ea-lab-editor-actions">
               {writing ? <span className="ea-lab-writing-stamp">Writing</span> : null}
+              {activeScriptId ? (
+                <>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Compile"
+                    aria-label="Compile"
+                    disabled={sending}
+                    onClick={() => void compileActive()}
+                  >
+                    <Icon name="check" />
+                  </button>
+                  <button
+                    type="button"
+                    className="primary icon-label"
+                    title="Run backtest"
+                    disabled={sending}
+                    onClick={() => void runBacktest()}
+                  >
+                    <Icon name="play" />
+                    Run backtest
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
           <div className="ea-lab-editor-body">
@@ -298,6 +358,8 @@ export function EaLab(): React.JSX.Element {
                 onMount={(instance, monacoApi) => {
                   registerMql5Language(monacoApi)
                   editorRef.current = instance
+                  monacoRef.current = monacoApi
+                  setEditorEpoch((value) => value + 1)
                   instance.addCommand(monacoApi.KeyMod.CtrlCmd | monacoApi.KeyCode.KeyS, () => {
                     const state = useEaLabStore.getState()
                     if (!state.activeScriptId || !state.dirty || useEaChatStore.getState().sending) {
@@ -305,6 +367,13 @@ export function EaLab(): React.JSX.Element {
                     }
                     void state.saveActiveScript({ quiet: true })
                   })
+                  instance.addCommand(
+                    monacoApi.KeyMod.CtrlCmd | monacoApi.KeyCode.Enter,
+                    () => {
+                      if (useEaChatStore.getState().sending) return
+                      void useEaLabStore.getState().runBacktest()
+                    }
+                  )
                   instance.onDidChangeCursorPosition((event) => {
                     setCursor({
                       line: event.position.lineNumber,
@@ -324,12 +393,47 @@ export function EaLab(): React.JSX.Element {
               </div>
             )}
           </div>
+          {diagnostics.length > 0 ? (
+            <div className="ea-lab-problems" role="list">
+              {diagnostics.map((row, index) => (
+                <button
+                  key={`${row.line}:${row.column}:${index}`}
+                  type="button"
+                  className="ea-lab-problem"
+                  data-severity={row.severity}
+                  role="listitem"
+                  onClick={() => {
+                    const instance = editorRef.current
+                    if (!instance) return
+                    const column = Math.max(1, row.column)
+                    instance.setPosition({ lineNumber: row.line, column })
+                    instance.revealLineInCenter(row.line)
+                    instance.focus()
+                    setCursor({ line: row.line, column })
+                  }}
+                >
+                  <strong>
+                    Ln {row.line}:{row.column}
+                  </strong>
+                  <span>{row.message}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="ea-lab-status">
             <span>
               Ln {cursor.line}, Col {cursor.column}
             </span>
             <span>MQL5</span>
             <span>UTF-8</span>
+            {compileLabel ? (
+              <span
+                className="ea-lab-diag"
+                data-kind={compileStatus === 'error' ? 'error' : 'ok'}
+              >
+                {compileLabel}
+              </span>
+            ) : null}
             <span className="ea-lab-status-end">{dirty ? 'Unsaved' : 'Saved'}</span>
           </div>
         </div>

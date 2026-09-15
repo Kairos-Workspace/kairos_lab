@@ -567,6 +567,50 @@ button:focus-visible {
   margin-left: auto;
 }
 
+.ea-lab-diag[data-kind='ok'] {
+  color: var(--bull);
+}
+
+.ea-lab-diag[data-kind='error'] {
+  color: var(--bear);
+}
+
+.ea-lab-problems {
+  border-top: 1px solid var(--rule);
+  max-height: 140px;
+  overflow: auto;
+  background: var(--vault);
+}
+
+.ea-lab-problem {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--parchment);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ea-lab-problem:hover {
+  background: var(--steel);
+}
+
+.ea-lab-problem strong {
+  flex: 0 0 auto;
+}
+
+.ea-lab-problem[data-severity='error'] strong {
+  color: var(--bear);
+}
+
+.ea-lab-problem[data-severity='warning'] strong {
+  color: var(--warn);
+}
+
 .topbar {
   display: grid;
   grid-template-columns: minmax(280px, 320px) 1fr auto;
