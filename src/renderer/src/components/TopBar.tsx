@@ -21,8 +21,15 @@ export function TopBar(): React.JSX.Element {
   const datasets = useAppStore((s) => s.datasets)
   const leaveWorkspace = useAppStore((s) => s.leaveWorkspace)
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
+  const activeEaScriptId = useAppStore((s) => s.activeEaScriptId)
+  const sessionName = useAppStore((s) => s.sessionName)
   const strategies = useAppStore((s) => s.strategies)
   const activeName = strategies.find((s) => s.id === activeStrategyId)?.name
+  const subtitle = activeEaScriptId
+    ? `${sessionName.replace(/ · EA$/, '')} · EA · tester`
+    : activeName
+      ? `${activeName} · tester`
+      : 'Strategy tester'
   const clock = candle ? formatReplayClock(candle.timestamp) : null
   const session = candle ? sessionAt(candle.timestamp) : '—'
   const stored = localSymbols(datasets)
@@ -41,7 +48,7 @@ export function TopBar(): React.JSX.Element {
         >
           <Icon name="back" />
         </button>
-        <BrandMark subtitle={activeName ? `${activeName} · tester` : 'Strategy tester'} />
+        <BrandMark subtitle={subtitle} />
       </div>
       <div className="top-controls">
         <div className="control-group">
