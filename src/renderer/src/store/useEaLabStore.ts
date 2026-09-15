@@ -239,7 +239,13 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
   runBacktest: async () => {
     const { kind, dirty, activeScriptId, draftCode, scripts } = get()
     if (kind !== 'ea' || !activeScriptId) return false
-    if (dirty) await get().saveActiveScript({ quiet: true })
+    if (dirty) {
+      await get().saveActiveScript({ quiet: true })
+      if (get().dirty) {
+        notifyError('Could not save before backtest')
+        return false
+      }
+    }
 
     const name = scripts.find((script) => script.id === activeScriptId)?.name ?? 'EA'
     const result = compileEaScript(draftCode, { id: activeScriptId, name })

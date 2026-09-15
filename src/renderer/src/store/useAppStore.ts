@@ -746,8 +746,14 @@ export const useAppStore = create<AppState>((set, get) => {
   },
   setSettings: (patch) => {
     const settings = { ...get().settings, ...patch }
-    strategy = createStrategy(settings)
-    strategy.initialize()
+    // EA backtests install a compiled Strategy outside the catalog — do not
+    // replace it when the user tweaks desk settings (autoEntry, lookback, …).
+    if (get().activeEaScriptId) {
+      strategy.initialize()
+    } else {
+      strategy = createStrategy(settings)
+      strategy.initialize()
+    }
     set({ settings })
     get().persistActiveStrategy()
   },
@@ -1024,8 +1030,12 @@ export const useAppStore = create<AppState>((set, get) => {
         ? get().displayTimeframe
         : dataset.timeframe
     const displayCandles = rebuildDisplay(sourceCandles, dataset.timeframe, displayTimeframe)
-    strategy = createStrategy(get().settings)
-    strategy.initialize()
+    if (get().activeEaScriptId) {
+      strategy.initialize()
+    } else {
+      strategy = createStrategy(get().settings)
+      strategy.initialize()
+    }
     set({
       datasetId: id,
       symbol: dataset.symbol,
@@ -1140,8 +1150,14 @@ export const useAppStore = create<AppState>((set, get) => {
       notifyError('Load a dataset first.')
       return
     }
-    strategy = createStrategy(s.settings)
-    strategy.initialize()
+    // Keep the compiled EA strategy when running an EA backtest; recreating
+    // from catalog settings would silently drop the Signal DSL script.
+    if (s.activeEaScriptId) {
+      strategy.initialize()
+    } else {
+      strategy = createStrategy(s.settings)
+      strategy.initialize()
+    }
     const engine = new ReplayEngine(s.displayCandles, { warmup: WARMUP_BARS })
     const fromTs = opts?.fromTs ?? opts?.timestamp ?? s.replayFromTs
     const toTs = opts?.toTs ?? s.replayToTs
