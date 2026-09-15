@@ -20,6 +20,16 @@ export function sma(bars: Candle[], period: number): number | null {
   return smaField(bars, period, 'close')
 }
 
+export function ema(bars: Candle[], period: number): number | null {
+  if (period < 1 || bars.length < period) return null
+  const k = 2 / (period + 1)
+  let value = bars.slice(0, period).reduce((sum, bar) => sum + bar.close, 0) / period
+  for (let i = period; i < bars.length; i++) {
+    value = bars[i].close * k + value * (1 - k)
+  }
+  return value
+}
+
 export function bollinger(bars: Candle[], period: number, k: number): Bands | null {
   if (bars.length < period) return null
   const slice = bars.slice(-period)
