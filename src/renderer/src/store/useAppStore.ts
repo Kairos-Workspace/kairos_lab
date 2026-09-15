@@ -33,6 +33,7 @@ import type {
   DrawingStyle,
   DrawingTool,
   SavedStrategy,
+  Strategy,
   StrategySettings,
   StrategySignal,
   Timeframe,
@@ -42,9 +43,10 @@ import { desktop, desktopMissingMessage, loadDeskPrefs, requireDesktop } from '@
 import { applyDeskTheme } from '@core/desk/theme'
 import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strategyVault'
+import { useEaLabStore } from './useEaLabStore'
 import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 
-export type AppScreen = 'welcome' | 'library' | 'workspace' | 'ea-lab' | 'settings'
+export type AppScreen = 'welcome' | 'library' | 'workspace' | 'ea-lab' | 'indicator-lab' | 'settings'
 export type RightTab = 'strategy' | 'trade' | 'costs'
 export type HistoryFilter = 'ALL' | 'WIN' | 'LOSS' | 'BUY' | 'SELL'
 
@@ -105,16 +107,24 @@ interface AppState {
   drawingRedoStack: Drawing[][]
   chartFull: boolean
   screen: AppScreen
+  settingsReturnScreen: AppScreen
   strategies: SavedStrategy[]
   activeStrategyId: string | null
+  activeEaScriptId: string | null
   theme: DeskTheme
 
   bootstrap: () => Promise<void>
   openStrategy: (id: string) => Promise<void>
+  openEaBacktest: (input: {
+    scriptId: string
+    scriptName: string
+    strategy: Strategy
+  }) => Promise<void>
   autosaveProgress: () => void
   leaveWorkspace: () => void
   enterLibrary: () => void
   enterEaLab: () => void
+  enterIndicatorLab: () => void
   enterSettings: () => void
   leaveSettings: () => void
   goHome: () => void
@@ -384,8 +394,10 @@ export const useAppStore = create<AppState>((set, get) => {
   drawingRedoStack: [],
   chartFull: false,
   screen: 'welcome',
+  settingsReturnScreen: 'ea-lab',
   strategies: [],
   activeStrategyId: null,
+  activeEaScriptId: null,
   theme: 'dark',
 
   currentCandle: () => {
@@ -476,6 +488,7 @@ export const useAppStore = create<AppState>((set, get) => {
       set({
         screen: 'workspace',
         activeStrategyId: saved.id,
+        activeEaScriptId: null,
         settings: resumedSettings,
         sessionName: saved.name,
         sessionId: resumed.session.id,
@@ -527,6 +540,7 @@ export const useAppStore = create<AppState>((set, get) => {
     set({
       screen: 'workspace',
       activeStrategyId: saved.id,
+      activeEaScriptId: null,
       settings,
       sessionName: saved.name,
       sessionId: newId(),
@@ -546,6 +560,34 @@ export const useAppStore = create<AppState>((set, get) => {
     // whatever symbol happened to be loaded before, which is often nothing
     // — leaving the chart on an empty "pick a pair" state. Default to
     // XAUUSD so the chart always has something to show right away.
+    if (get().displayCandles.length === 0) await get().selectSymbol(DEFAULT_SYMBOL)
+    persistDesk()
+  },
+
+  openEaBacktest: async ({ scriptId, scriptName, strategy: eaStrategy }) => {
+    clearTimer()
+    strategy = eaStrategy
+    strategy.initialize()
+    const settings = { ...get().settings, autoEntry: true }
+    set({
+      screen: 'workspace',
+      activeStrategyId: null,
+      activeEaScriptId: scriptId,
+      settings,
+      sessionName: `${scriptName} · EA`,
+      sessionId: newId(),
+      rightTab: 'strategy',
+      mode: 'view',
+      isPlaying: false,
+      pendingSetup: null,
+      draft: null,
+      activeTrade: null,
+      trades: [],
+      skipped: [],
+      selectedTradeId: null,
+      chartFull: false,
+      status: `${scriptName} · EA ready to backtest`
+    })
     if (get().displayCandles.length === 0) await get().selectSymbol(DEFAULT_SYMBOL)
     persistDesk()
   },
@@ -596,15 +638,22 @@ export const useAppStore = create<AppState>((set, get) => {
   },
 
   enterEaLab: () => {
+    useEaLabStore.getState().setKind('ea')
     set({ screen: 'ea-lab' })
+  },
+
+  enterIndicatorLab: () => {
+    useEaLabStore.getState().setKind('indicator')
+    set({ screen: 'indicator-lab' })
   },
 
   enterSettings: () => {
-    set({ screen: 'settings' })
+    set({ settingsReturnScreen: get().screen, screen: 'settings' })
   },
 
   leaveSettings: () => {
-    set({ screen: 'ea-lab' })
+    const next = get().settingsReturnScreen
+    set({ screen: next === 'settings' ? 'ea-lab' : next })
   },
 
   goHome: () => {
