@@ -1,9 +1,5 @@
 import { safeStorage } from 'electron'
-import {
-  SEALION_DEFAULT_MODEL,
-  SEALION_SEED_ID,
-  type AiProviderProfile
-} from '@shared/types'
+import type { AiProviderProfile } from '@shared/types'
 import { envApiKeyForProvider, loadLocalEnv } from '../env'
 import { getDb } from '../database/db'
 
@@ -25,40 +21,17 @@ function toProfile(row: AiProviderRow): AiProviderProfile {
     provider: row.provider as AiProviderProfile['provider'],
     model: row.model,
     baseUrl: row.base_url,
-    hasApiKey: !!row.encrypted_api_key
+    // A provider can also be usable via an env-sourced key (see
+    // getDecryptedApiKey) with nothing ever stored in encrypted_api_key —
+    // most persistently when safeStorage isn't available on this system, so
+    // that env key never gets written back. Without this, a provider that
+    // works fine for chat would still show no model list in Settings.
+    hasApiKey: !!row.encrypted_api_key || !!envApiKeyForProvider(row.provider)
   }
 }
 
-let didSeedSealion = false
-
-function seedSealionBrother(): void {
-  if (didSeedSealion) return
-  didSeedSealion = true
-  const existing = getDb()
-    .prepare(
-      `SELECT id FROM ai_providers
-       WHERE id = @id OR provider = 'sealion' OR lower(name) = 'sea-lion'
-       LIMIT 1`
-    )
-    .get({ id: SEALION_SEED_ID }) as { id: string } | undefined
-  if (existing) return
-  const now = Date.now()
-  getDb()
-    .prepare(
-      `INSERT OR IGNORE INTO ai_providers (id, name, provider, model, base_url, encrypted_api_key, created_at, updated_at)
-       VALUES (@id, @name, @provider, @model, NULL, NULL, @now, @now)`
-    )
-    .run({
-      id: SEALION_SEED_ID,
-      name: 'SEA-LION',
-      provider: 'sealion',
-      model: SEALION_DEFAULT_MODEL,
-      now
-    })
-}
-
 export function listProviders(): AiProviderProfile[] {
-  seedSealionBrother()
+  loadLocalEnv()
   const rows = getDb()
     .prepare('SELECT * FROM ai_providers ORDER BY updated_at DESC')
     .all() as AiProviderRow[]
@@ -135,7 +108,6 @@ export function getDecryptedApiKey(id: string): string | null {
 
 function decryptStoredKey(row: AiProviderRow | undefined): string | null {
   if (!row?.encrypted_api_key) return null
-  if (row.encrypted_api_key.startsWith('sk-')) return row.encrypted_api_key
   if (!safeStorage.isEncryptionAvailable()) return null
   try {
     return safeStorage.decryptString(Buffer.from(row.encrypted_api_key, 'base64'))

@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS ea_chat_messages (
   content TEXT NOT NULL,
   provider_id TEXT,
   created_at INTEGER NOT NULL,
+  thinking_only INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (script_id) REFERENCES ea_scripts(id) ON DELETE CASCADE
 );
 

@@ -5,7 +5,7 @@ import { BrandMark } from './BrandMark'
 import { EaChatPanel } from './EaChatPanel'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
-import { latestCodeBlock } from '../lib/extractCodeBlocks'
+import { shouldLiveApplyBlock } from '../lib/extractCodeBlocks'
 import { registerMql5Language } from '../lib/mql5Language'
 import { useAppStore } from '../store/useAppStore'
 import { useEaChatStore } from '../store/useEaChatStore'
@@ -37,7 +37,7 @@ export function EaLab(): React.JSX.Element {
   const renameScript = useEaLabStore((s) => s.renameScript)
   const deleteScript = useEaLabStore((s) => s.deleteScript)
   const sending = useEaChatStore((s) => s.sending)
-  const streamText = useEaChatStore((s) => s.streamText)
+  const streamBlock = useEaChatStore((s) => s.streamBlock)
 
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -46,7 +46,7 @@ export function EaLab(): React.JSX.Element {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null)
   const decoRef = useRef<string[]>([])
-  const writing = sending && Boolean(latestCodeBlock(streamText, { allowOpenFence: true })?.content.trim())
+  const writing = sending && Boolean(streamBlock && shouldLiveApplyBlock(streamBlock.content))
 
   useEffect(() => {
     void loadScripts()
@@ -72,7 +72,9 @@ export function EaLab(): React.JSX.Element {
   useEffect(() => {
     return () => {
       const state = useEaLabStore.getState()
-      if (state.dirty && state.activeScriptId) {
+      // Don't persist a half-streamed AI draft just because the user
+      // navigated away from EA Lab while a reply was still writing to it.
+      if (state.dirty && state.activeScriptId && !useEaChatStore.getState().sending) {
         void state.saveActiveScript({ quiet: true })
       }
     }

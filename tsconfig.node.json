@@ -24,6 +24,8 @@
     "src/preload/**/*.ts",
     "src/shared/**/*.ts",
     "src/core/**/*.ts",
-    "tests/**/*.ts"
+    "tests/providers.test.ts",
+    "tests/chatTitle.test.ts",
+    "tests/env.test.ts"
   ]
 }

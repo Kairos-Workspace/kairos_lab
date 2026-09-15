@@ -32,23 +32,26 @@ export function sanitizeScriptName(raw: string): string | null {
   return name || null
 }
 
-export function extractScriptName(content: string): string | null {
+export function extractScriptName(
+  content: string,
+  precomputedBlock?: ChatContentSegment | null
+): string | null {
   const mark = content.match(/<!--ql-file:\s*([^>]+?)-->/i)
   if (mark) return sanitizeScriptName(mark[1])
   const line = content.match(/^(?:Rename|File(?:name)?|Script):\s*(.+)$/im)
   if (line) return sanitizeScriptName(line[1])
-  const block = latestCodeBlock(content, { allowOpenFence: true })
+  const block =
+    precomputedBlock !== undefined ? precomputedBlock : latestCodeBlock(content, { allowOpenFence: true })
   if (block?.filename) return sanitizeScriptName(block.filename)
   return null
 }
 
-export function stripScriptDirectives(content: string): string {
-  return content
-    .replace(/<!--ql-file:\s*[^>]+?-->\s*/gi, '')
-    .replace(/^(?:Rename|File(?:name)?|Script):\s*.+\n?/gim, '')
-}
 
-function codeSegment(rawFence: string, content: string): ChatContentSegment {
+// An empty or whitespace-only fence carries nothing worth treating as code —
+// returning null here (instead of a hollow segment) means every consumer
+// that only wants real code doesn't need its own `.content.trim()` guard.
+function codeSegment(rawFence: string, content: string): ChatContentSegment | null {
+  if (!content.trim()) return null
   const meta = parseFenceMeta(rawFence)
   return {
     type: 'code',
@@ -74,7 +77,8 @@ export function extractCodeBlocks(
     if (match.index > lastIndex) {
       segments.push({ type: 'text', content: content.slice(lastIndex, match.index) })
     }
-    segments.push(codeSegment(match[1], match[2].trimEnd()))
+    const segment = codeSegment(match[1], match[2].trimEnd())
+    if (segment) segments.push(segment)
     lastIndex = fence.lastIndex
   }
 
@@ -90,7 +94,8 @@ export function extractCodeBlocks(
         }
         const header = open.match(/^```([^\n]*)\n([\s\S]*)$/)
         if (header) {
-          segments.push(codeSegment(header[1], header[2].trimEnd()))
+          const segment = codeSegment(header[1], header[2].trimEnd())
+          if (segment) segments.push(segment)
           return segments
         }
       }
@@ -104,12 +109,31 @@ export function latestCodeBlock(
   content: string,
   opts?: { allowOpenFence?: boolean }
 ): ChatContentSegment | null {
-  const blocks = extractCodeBlocks(content, opts).filter(
-    (segment) => segment.type === 'code' && segment.content.trim()
-  )
+  const blocks = extractCodeBlocks(content, opts).filter((segment) => segment.type === 'code')
   return blocks[blocks.length - 1] ?? null
 }
 
+// The canonical list of top-level MQL5 program entry points (across Expert
+// Advisors, indicators, and scripts) — shared with mql5Language.ts's syntax
+// highlighter so the two don't silently drift on which functions count.
+export const MQL5_LIFECYCLE_FUNCTIONS = [
+  'OnInit',
+  'OnDeinit',
+  'OnTick',
+  'OnTimer',
+  'OnStart',
+  'OnCalculate'
+] as const
+
+const MQL5_ENTRY_POINT_RE = new RegExp(`\\b(${MQL5_LIFECYCLE_FUNCTIONS.join('|')})\\s*\\(`)
+
 export function isFullMql5Script(code: string): boolean {
-  return /\b(OnTick|OnInit|OnDeinit|OnStart|OnCalculate)\s*\(/.test(code)
+  return MQL5_ENTRY_POINT_RE.test(code)
+}
+
+// Gates whether a still-streaming code block should be live-written into the
+// editor: a short conversational snippet (no MQL5 entry point) must never
+// overwrite the draft, only an actual EA rewrite should stream live.
+export function shouldLiveApplyBlock(content: string): boolean {
+  return Boolean(content.trim()) && isFullMql5Script(content)
 }

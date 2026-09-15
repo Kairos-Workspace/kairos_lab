@@ -6,8 +6,6 @@ import { parseCandleCsv } from '@core/csv/parse'
 import { IPC } from '@shared/ipc'
 import { toCandleBuffer } from '@shared/candleBuffer'
 import {
-  CHAT_THINKING_MARK,
-  visibleChatContent,
   type AiProviderKind,
   type BacktestSession,
   type Candle,
@@ -19,6 +17,7 @@ import {
   type Timeframe,
   type Trade
 } from '@shared/types'
+import { stripScriptDirectives } from '@shared/chatDirectives'
 import { dbPath, getDb } from './database/db'
 import {
   clearDrawings,
@@ -60,7 +59,7 @@ import {
   ensureChatThread,
   listChatMessages,
   listChatThreads,
-  saveChatMessage
+  saveChatExchange
 } from './ai/chatRepository'
 import { listModels, sendChatMessage, testConnection } from './ai/providers'
 
@@ -320,28 +319,34 @@ export function registerIpc(): void {
       }
     ) => {
       const profile = listProviders().find((p) => p.id === payload.providerId)
-      if (!profile) return { ok: false, message: 'Profile not found' }
+      if (!profile) {
+        return {
+          ok: false,
+          message: 'Profile not found',
+          messages: payload.threadId ? listChatMessages(payload.threadId) : [],
+          threads: listChatThreads()
+        }
+      }
       const apiKey = getDecryptedApiKey(payload.providerId)
       let thread
       try {
         thread = ensureChatThread(payload.threadId, payload.scriptId, payload.message)
-        saveChatMessage({
-          scriptId: payload.scriptId,
-          threadId: thread.id,
-          role: 'user',
-          content: payload.message,
-          providerId: null
-        })
       } catch {
         return {
           ok: false,
-          message: 'This script no longer exists — the reply could not be saved.'
+          message: 'This script no longer exists — the reply could not be saved.',
+          messages: payload.threadId ? listChatMessages(payload.threadId) : [],
+          threads: listChatThreads()
         }
       }
-      const history = listChatMessages(thread.id).map((m) => ({
-        role: m.role,
-        content: visibleChatContent(m.content)
-      }))
+      // The user's message is only persisted once the AI has actually replied
+      // (further down, alongside the assistant's message) — not here — so a
+      // failed send followed by a retry with the same text can't insert two
+      // copies of the same question into the saved history.
+      const history = [
+        ...listChatMessages(thread.id).map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user' as const, content: payload.message }
+      ]
       const fence = '```'
       const attached =
         payload.files && payload.files.length > 0
@@ -400,13 +405,19 @@ export function registerIpc(): void {
         }
       }
       try {
-        saveChatMessage({
-          scriptId: payload.scriptId,
-          threadId: thread.id,
-          role: 'assistant',
-          content: result.thinkingOnly ? `${CHAT_THINKING_MARK}${result.reply}` : result.reply,
-          providerId: payload.providerId
-        })
+        saveChatExchange(
+          { scriptId: payload.scriptId, threadId: thread.id, content: payload.message },
+          {
+            scriptId: payload.scriptId,
+            threadId: thread.id,
+            // The rename directive is only useful to the client while it's
+            // live-streaming; strip it before persisting so history — and
+            // what gets resent to the model as context — stays clean prose.
+            content: stripScriptDirectives(result.reply),
+            providerId: payload.providerId,
+            thinkingOnly: Boolean(result.thinkingOnly)
+          }
+        )
       } catch {
         return {
           ok: false,

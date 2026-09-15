@@ -16,8 +16,8 @@ interface AiProvidersState {
   testing: boolean
   testResult: TestResult | null
   modelsById: Record<string, string[]>
-  modelsError: string | null
-  loadingModels: boolean
+  modelsError: Record<string, string | null>
+  loadingModels: Record<string, boolean>
   loadProviders: () => Promise<void>
   saveProvider: (
     profile: {
@@ -41,8 +41,8 @@ export const useAiProvidersStore = create<AiProvidersState>((set, get) => ({
   testing: false,
   testResult: null,
   modelsById: {},
-  modelsError: null,
-  loadingModels: false,
+  modelsError: {},
+  loadingModels: {},
 
   loadProviders: async () => {
     const providers = (await aiBridge()?.listProviders()) ?? []
@@ -78,16 +78,22 @@ export const useAiProvidersStore = create<AiProvidersState>((set, get) => ({
   },
 
   loadModels: async (id) => {
-    set({ loadingModels: true, modelsError: null })
+    set({
+      loadingModels: { ...get().loadingModels, [id]: true },
+      modelsError: { ...get().modelsError, [id]: null }
+    })
     const result = await aiBridge()?.listModels(id)
     if (!result) {
-      set({ loadingModels: false, modelsError: 'Not running in Electron' })
+      set({
+        loadingModels: { ...get().loadingModels, [id]: false },
+        modelsError: { ...get().modelsError, [id]: 'Not running in Electron' }
+      })
       return
     }
     set({
-      loadingModels: false,
+      loadingModels: { ...get().loadingModels, [id]: false },
       modelsById: { ...get().modelsById, [id]: result.models },
-      modelsError: result.ok ? null : (result.message ?? 'Could not load models')
+      modelsError: { ...get().modelsError, [id]: result.ok ? null : (result.message ?? 'Could not load models') }
     })
   },
 

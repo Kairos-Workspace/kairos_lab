@@ -5,6 +5,18 @@ export interface TestConnectionResult {
   message: string
 }
 
+// Shared by testConnection/listModels/sendChatMessage, the three places that
+// otherwise each re-derive which base URL an OpenAI-compatible provider
+// (openai/sealion/custom) talks to.
+export function openAiCompatibleBaseUrl(
+  provider: 'openai' | 'sealion' | 'custom',
+  baseUrl: string | null
+): string | null {
+  if (provider === 'openai') return 'https://api.openai.com/v1'
+  if (provider === 'sealion') return SEALION_BASE_URL
+  return baseUrl ? baseUrl.replace(/\/$/, '') : null
+}
+
 async function testOpenAiCompatible(baseUrl: string, apiKey: string): Promise<TestConnectionResult> {
   try {
     const res = await fetch(`${baseUrl}/models`, {
@@ -48,16 +60,16 @@ export async function testConnection(
   if (!apiKey) return { ok: false, message: 'No API key configured' }
   switch (settings.provider) {
     case 'openai':
-      return testOpenAiCompatible('https://api.openai.com/v1', apiKey)
+    case 'sealion':
+    case 'custom': {
+      const base = openAiCompatibleBaseUrl(settings.provider, settings.baseUrl)
+      if (!base) return { ok: false, message: 'No base URL configured' }
+      return testOpenAiCompatible(base, apiKey)
+    }
     case 'anthropic':
       return testAnthropic(apiKey)
     case 'gemini':
       return testGemini(apiKey)
-    case 'sealion':
-      return testOpenAiCompatible(SEALION_BASE_URL, apiKey)
-    case 'custom':
-      if (!settings.baseUrl) return { ok: false, message: 'No base URL configured' }
-      return testOpenAiCompatible(settings.baseUrl.replace(/\/$/, ''), apiKey)
     default:
       return { ok: false, message: 'Unknown provider' }
   }
@@ -96,12 +108,7 @@ export async function listModels(
       case 'openai':
       case 'sealion':
       case 'custom': {
-        const base =
-          settings.provider === 'openai'
-            ? 'https://api.openai.com/v1'
-            : settings.provider === 'sealion'
-              ? SEALION_BASE_URL
-              : settings.baseUrl?.replace(/\/$/, '')
+        const base = openAiCompatibleBaseUrl(settings.provider, settings.baseUrl)
         if (!base) return { ok: false, models: [], message: 'No base URL configured' }
         const res = await fetch(`${base}/models`, {
           headers: { Authorization: `Bearer ${apiKey}` }
@@ -270,12 +277,20 @@ function consumeSseLine(
   }
 }
 
-function parseJsonCompletion(raw: string): ChatChunk {
+function parseJsonCompletion(raw: string, pickDelta: (data: unknown) => ChatChunk): ChatChunk {
   try {
-    return openAiDelta(JSON.parse(raw) as unknown)
+    return pickDelta(JSON.parse(raw) as unknown)
   } catch {
     return {}
   }
+}
+
+function chatResultFromChunk(chunk: ChatChunk, onChunk?: ChatChunkHandler): ChatResult {
+  if (chunk.thinking) onChunk?.({ thinking: chunk.thinking })
+  if (chunk.text) onChunk?.({ text: chunk.text })
+  const reply = chunk.text || chunk.thinking
+  if (!reply) return { ok: false, message: 'No reply in response' }
+  return { ok: true, reply, thinkingOnly: !chunk.text && !!chunk.thinking }
 }
 
 async function readSseStream(
@@ -303,20 +318,12 @@ async function readSseStream(
   raw += tail
   buffer += tail
   if (buffer.trim()) consumeSseLine(buffer, pickDelta, onChunk, acc)
-  if (!acc.reply && !acc.thinking) {
-    const fallback = parseJsonCompletion(raw)
-    if (fallback.thinking) {
-      acc.thinking = fallback.thinking
-      onChunk?.({ thinking: fallback.thinking })
-    }
-    if (fallback.text) {
-      acc.reply = fallback.text
-      onChunk?.({ text: fallback.text })
-    }
+  if (acc.reply || acc.thinking) {
+    return { ok: true, reply: acc.reply || acc.thinking, thinkingOnly: !acc.reply && !!acc.thinking }
   }
-  const reply = acc.reply || acc.thinking
-  if (!reply) return { ok: false, message: 'No reply in response' }
-  return { ok: true, reply, thinkingOnly: !acc.reply && !!acc.thinking }
+  // Nothing arrived as SSE — the server may have ignored `stream: true` and
+  // returned one plain JSON completion body instead.
+  return chatResultFromChunk(parseJsonCompletion(raw, pickDelta), onChunk)
 }
 
 async function sendOpenAiCompatibleChat(
@@ -343,8 +350,30 @@ async function sendOpenAiCompatibleChat(
         messages: [{ role: 'system', content: systemPrompt }, ...history]
       })
     })
-    if (!res.ok) return httpError(res)
-    return readSseStream(res, openAiDelta, onChunk)
+    if (res.ok) return readSseStream(res, openAiDelta, onChunk)
+    // A user-configured "custom" OpenAI-compatible endpoint may reject the
+    // stream/max_tokens parameters outright (400/422) instead of ignoring
+    // them (unlike OpenAI/SEA-LION, which are known to support both) — retry
+    // once as a plain, non-streaming request before giving up. Other statuses
+    // (auth, rate limit, server error) would fail the retry the same way, so
+    // don't spend an extra round-trip on those.
+    if (res.status !== 400 && res.status !== 422) return httpError(res)
+    const retryRes = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'system', content: systemPrompt }, ...history]
+      })
+    })
+    // The retry uses the request shape we actually expect the server to
+    // accept, so if it still fails, its own error is the one worth
+    // surfacing — not the streaming attempt's, which can be pure noise.
+    if (!retryRes.ok) return httpError(retryRes)
+    return chatResultFromChunk(parseJsonCompletion(await retryRes.text(), openAiDelta), onChunk)
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'Network error' }
   }
@@ -419,37 +448,16 @@ export async function sendChatMessage(
   if (!apiKey) return { ok: false, message: 'No API key configured' }
   switch (profile.provider) {
     case 'openai':
-      return sendOpenAiCompatibleChat(
-        'https://api.openai.com/v1',
-        apiKey,
-        profile.model,
-        systemPrompt,
-        history,
-        onChunk
-      )
+    case 'sealion':
+    case 'custom': {
+      const base = openAiCompatibleBaseUrl(profile.provider, profile.baseUrl)
+      if (!base) return { ok: false, message: 'No base URL configured' }
+      return sendOpenAiCompatibleChat(base, apiKey, profile.model, systemPrompt, history, onChunk)
+    }
     case 'anthropic':
       return sendAnthropicChat(apiKey, profile.model, systemPrompt, history, onChunk)
     case 'gemini':
       return sendGeminiChat(apiKey, profile.model, systemPrompt, history, onChunk)
-    case 'sealion':
-      return sendOpenAiCompatibleChat(
-        SEALION_BASE_URL,
-        apiKey,
-        profile.model,
-        systemPrompt,
-        history,
-        onChunk
-      )
-    case 'custom':
-      if (!profile.baseUrl) return { ok: false, message: 'No base URL configured' }
-      return sendOpenAiCompatibleChat(
-        profile.baseUrl.replace(/\/$/, ''),
-        apiKey,
-        profile.model,
-        systemPrompt,
-        history,
-        onChunk
-      )
     default:
       return { ok: false, message: 'Unknown provider' }
   }

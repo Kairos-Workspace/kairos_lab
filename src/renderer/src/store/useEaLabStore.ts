@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import { notifyInfo, notifySuccess } from '@/lib/notify'
+import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import type { EaScript } from '@shared/types'
 import { desktop } from '../lib/desktop'
+import { useEaChatStore } from './useEaChatStore'
 
 function eaScriptBridge() {
   return desktop()?.eaScripts
@@ -75,7 +76,10 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
   selectScript: async (id) => {
     const { activeScriptId, dirty } = get()
     if (id === activeScriptId) return
-    if (activeScriptId && dirty) {
+    // Never autosave a half-streamed AI draft: switching scripts while the
+    // chat is still writing into the active one would otherwise persist a
+    // truncated script as if the user had finished and saved it.
+    if (activeScriptId && dirty && !useEaChatStore.getState().sending) {
       await get().saveActiveScript({ quiet: true })
     }
     const script = get().scripts.find((s) => s.id === id)
@@ -95,11 +99,16 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
     }
     const existing = scripts.find((s) => s.id === id)
     if (!existing) {
-      set({ draftCode: code, dirty: true })
+      // `id` isn't the active script and no longer exists (e.g. deleted
+      // while the AI was mid-stream writing to it) — there is nothing left
+      // to apply this code to, so do nothing rather than dumping it into
+      // whatever unrelated script happens to be open right now.
       return
     }
     const next = { ...existing, code, updatedAt: Date.now() }
-    void eaScriptBridge()?.save(next)
+    eaScriptBridge()
+      ?.save(next)
+      ?.catch((err) => notifyError(`Failed to save ${next.name}`, err))
     set({ scripts: scripts.map((s) => (s.id === id ? next : s)) })
     if (!opts?.quiet) notifySuccess(`Applied to ${next.name}`)
   },
@@ -109,10 +118,16 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
     const existing = scripts.find((s) => s.id === activeScriptId)
     if (!existing) return
     const next = { ...existing, code: draftCode, updatedAt: Date.now() }
-    const updated = (await eaScriptBridge()?.save(next)) ?? [
-      next,
-      ...scripts.filter((s) => s.id !== next.id)
-    ]
+    // Every call site fires this without awaiting the result (the debounced
+    // autosave, the unmount cleanup, the Ctrl+S handler), so a rejected save
+    // must be caught here rather than relying on each caller to remember to.
+    let updated: EaScript[]
+    try {
+      updated = (await eaScriptBridge()?.save(next)) ?? [next, ...scripts.filter((s) => s.id !== next.id)]
+    } catch (err) {
+      notifyError(`Failed to save ${next.name}`, err)
+      return
+    }
     set({ scripts: updated, dirty: false })
     if (!opts?.quiet) notifySuccess(`${next.name} saved`)
   },

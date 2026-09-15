@@ -3,16 +3,9 @@ import { join } from 'node:path'
 
 let loaded = false
 
-function applyLine(raw: string): void {
+export function applyLine(raw: string): void {
   const line = raw.trim()
-  if (!line) return
-  if (line.startsWith('#')) {
-    const uncommented = line.slice(1).trim()
-    if (uncommented.startsWith('sk-') && !process.env.SEA_LION_API_KEY) {
-      process.env.SEA_LION_API_KEY = uncommented
-    }
-    return
-  }
+  if (!line || line.startsWith('#')) return
   const eq = line.indexOf('=')
   if (eq === -1) {
     if (line.startsWith('sk-') && !process.env.SEA_LION_API_KEY) {

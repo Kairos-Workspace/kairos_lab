@@ -1,15 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import {
-  isThinkingChatContent,
-  visibleChatContent,
-  type EaChatAttachedFile,
-  type EaChatMessage,
-  type EaScript
-} from '@shared/types'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { EaChatAttachedFile, EaChatMessage, EaScript } from '@shared/types'
+import { stripScriptDirectives } from '@shared/chatDirectives'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
+import { modelLabel, pickValidProviderId } from '../lib/aiProviders'
 import { MarkdownBlocks } from '../lib/chatMarkdown'
-import { extractCodeBlocks, extractScriptName, isFullMql5Script, latestCodeBlock, sanitizeScriptName, stripScriptDirectives } from '../lib/extractCodeBlocks'
+import { extractCodeBlocks, extractScriptName, isFullMql5Script, latestCodeBlock, sanitizeScriptName, shouldLiveApplyBlock } from '../lib/extractCodeBlocks'
 import { notifySuccess } from '../lib/notify'
 import { useAiProvidersStore } from '../store/useAiProvidersStore'
 import { useEaChatStore } from '../store/useEaChatStore'
@@ -22,7 +18,9 @@ function mentionAt(value: string, caret: number): { start: number; query: string
   return { start: before.length - match[2].length - 1, query: match[2] }
 }
 
-function AssistantBody({
+// Memoized so a finished historical message doesn't re-parse its markdown and
+// code fences on every streaming tick of an unrelated, still-in-flight reply.
+const AssistantBody = memo(function AssistantBody({
   content,
   targetName,
   showCaret
@@ -34,7 +32,7 @@ function AssistantBody({
   return (
     <div className="ea-chat-md">
       {extractCodeBlocks(content, { allowOpenFence: Boolean(showCaret) }).map((segment, i) =>
-        segment.type === 'code' && segment.content.trim() ? (
+        segment.type === 'code' ? (
           <CodeWriteCard
             key={i}
             code={segment.content}
@@ -49,7 +47,7 @@ function AssistantBody({
       {showCaret ? <span className="ea-chat-caret" aria-hidden="true" /> : null}
     </div>
   )
-}
+})
 
 function CodeWriteCard({
   code,
@@ -90,11 +88,6 @@ function UserBubble({ message }: { message: EaChatMessage }): React.JSX.Element 
   )
 }
 
-function modelLabel(id: string): string {
-  const slash = id.lastIndexOf('/')
-  return slash >= 0 ? id.slice(slash + 1) : id
-}
-
 export function EaChatPanel(): React.JSX.Element {
   const scripts = useEaLabStore((s) => s.scripts)
   const activeScriptId = useEaLabStore((s) => s.activeScriptId)
@@ -116,6 +109,7 @@ export function EaChatPanel(): React.JSX.Element {
   const sending = useEaChatStore((s) => s.sending)
   const thinking = useEaChatStore((s) => s.thinking)
   const streamText = useEaChatStore((s) => s.streamText)
+  const streamBlock = useEaChatStore((s) => s.streamBlock)
   const streamThinking = useEaChatStore((s) => s.streamThinking)
   const error = useEaChatStore((s) => s.error)
   const selectedProviderId = useEaChatStore((s) => s.selectedProviderId)
@@ -148,6 +142,16 @@ export function EaChatPanel(): React.JSX.Element {
     void loadHistory()
   }, [loadProviders, loadHistory])
 
+  // Cancels any pending live-apply/finalize for whatever script an abandoned
+  // request was writing to. Called from the navigation actions below (not
+  // keyed off `currentThreadId`, since a brand-new chat's first reply also
+  // sets `currentThreadId` as part of its own legitimate completion, and
+  // that case must still finalize normally).
+  function cancelPendingWrite(): void {
+    writeTargetId.current = null
+    wasSending.current = false
+  }
+
   useEffect(() => {
     setCurrentScriptId(activeScriptId)
   }, [activeScriptId, setCurrentScriptId])
@@ -162,9 +166,8 @@ export function EaChatPanel(): React.JSX.Element {
 
   useEffect(() => {
     if (providers.length === 0) return
-    const stillValid =
-      selectedProviderId !== null && providers.some((p) => p.id === selectedProviderId)
-    if (!stillValid) setSelectedProviderId(providers[0].id)
+    const validId = pickValidProviderId(selectedProviderId, providers)
+    if (validId !== null && validId !== selectedProviderId) setSelectedProviderId(validId)
   }, [providers, selectedProviderId, setSelectedProviderId])
 
   useEffect(() => {
@@ -187,11 +190,15 @@ export function EaChatPanel(): React.JSX.Element {
     const target = writeTargetId.current
     if (!target) return
     const frame = requestAnimationFrame(() => {
-      const block = latestCodeBlock(streamText, { allowOpenFence: true })
-      if (block?.content.trim() && useEaLabStore.getState().activeScriptId === target) {
+      // Reuses the block already parsed once per chunk in the store instead
+      // of re-scanning the whole accumulated reply here, and only live-writes
+      // once it's an actual EA rewrite — a short conversational snippet must
+      // never overwrite the script that's open in the editor.
+      const block = streamBlock
+      if (block && shouldLiveApplyBlock(block.content) && useEaLabStore.getState().activeScriptId === target) {
         applyCodeToScript(target, block.content)
       }
-      const nextName = extractScriptName(streamText)
+      const nextName = extractScriptName(streamText, block)
       if (!nextName || lastRenamed.current === nextName) return
       const currentName = useEaLabStore.getState().scripts.find((s) => s.id === target)?.name
       if (currentName === nextName) {
@@ -202,7 +209,7 @@ export function EaChatPanel(): React.JSX.Element {
       void renameScript(target, nextName)
     })
     return () => cancelAnimationFrame(frame)
-  }, [sending, streamText, applyCodeToScript, renameScript])
+  }, [sending, streamText, streamBlock, applyCodeToScript, renameScript])
 
   useEffect(() => {
     if (sending) {
@@ -373,6 +380,7 @@ export function EaChatPanel(): React.JSX.Element {
           aria-label="New chat"
           onClick={() => {
             setShowHistory(false)
+            cancelPendingWrite()
             newChat()
           }}
         >
@@ -396,6 +404,7 @@ export function EaChatPanel(): React.JSX.Element {
                         type="button"
                         className="ea-chat-history-item"
                         onClick={() => {
+                          cancelPendingWrite()
                           void openThread(thread.id)
                           setShowHistory(false)
                         }}
@@ -419,6 +428,7 @@ export function EaChatPanel(): React.JSX.Element {
               )}
             </div>
           ) : (
+            <>
             <div className="ea-chat-messages" ref={listRef}>
               {messages.length === 0 && !thinking && !streamText && !streamThinking ? (
                 <p className="ea-chat-empty">Start a conversation. Chats are saved automatically.</p>
@@ -426,10 +436,10 @@ export function EaChatPanel(): React.JSX.Element {
             {messages.map((m) =>
               m.role === 'user' ? (
                 <UserBubble key={m.id} message={m} />
-              ) : isThinkingChatContent(m.content) ? (
+              ) : m.thinkingOnly ? (
                 <details key={m.id} className="ea-chat-reasoning" open>
                   <summary>Thinking</summary>
-                  <p>{visibleChatContent(m.content)}</p>
+                  <p>{m.content}</p>
                 </details>
               ) : (
                 <div key={m.id} className="ea-chat-msg-assistant">
@@ -462,10 +472,7 @@ export function EaChatPanel(): React.JSX.Element {
               </div>
             ) : null}
             </div>
-          )}
 
-          {!showHistory ? (
-            <>
           {error ? (
             <p className="composer-hint" data-ok="false">
               {error}
@@ -598,7 +605,7 @@ export function EaChatPanel(): React.JSX.Element {
             </div>
           </form>
             </>
-          ) : null}
+          )}
         </>
       )}
 
@@ -641,6 +648,7 @@ export function EaChatPanel(): React.JSX.Element {
                 onClick={() => {
                   const id = pendingDeleteThread.id
                   setPendingDeleteThread(null)
+                  cancelPendingWrite()
                   void deleteThread(id)
                 }}
               >

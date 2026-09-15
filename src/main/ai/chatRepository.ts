@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { EaChatMessage, EaChatThread } from '@shared/types'
+import { chatTitleFromText } from './chatTitle'
 import { getDb } from '../database/db'
 
 interface EaChatMessageRow {
@@ -10,6 +11,7 @@ interface EaChatMessageRow {
   content: string
   provider_id: string | null
   created_at: number
+  thinking_only: number
 }
 
 interface EaChatThreadRow {
@@ -28,7 +30,8 @@ function toMessage(row: EaChatMessageRow): EaChatMessage {
     role: row.role as EaChatMessage['role'],
     content: row.content,
     providerId: row.provider_id,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    thinkingOnly: !!row.thinking_only
   }
 }
 
@@ -40,13 +43,6 @@ function toThread(row: EaChatThreadRow): EaChatThread {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
-}
-
-export function chatTitleFromText(text: string): string {
-  const one = text.replace(/\s+/g, ' ').trim()
-  if (!one) return 'New chat'
-  if (one.length <= 48) return one
-  return `${one.slice(0, 48).trim()}...`
 }
 
 export function listChatThreads(): EaChatThread[] {
@@ -106,12 +102,13 @@ export function listChatMessages(threadId: string): EaChatMessage[] {
   return rows.map(toMessage)
 }
 
-export function saveChatMessage(message: {
+function insertMessageRow(message: {
   scriptId: string
   threadId: string
   role: EaChatMessage['role']
   content: string
   providerId: string | null
+  thinkingOnly?: boolean
 }): EaChatMessage {
   const row: EaChatMessageRow = {
     id: randomUUID(),
@@ -120,16 +117,39 @@ export function saveChatMessage(message: {
     role: message.role,
     content: message.content,
     provider_id: message.providerId,
-    created_at: Date.now()
+    created_at: Date.now(),
+    thinking_only: message.thinkingOnly ? 1 : 0
   }
   getDb()
     .prepare(
-      `INSERT INTO ea_chat_messages (id, script_id, thread_id, role, content, provider_id, created_at)
-       VALUES (@id, @script_id, @thread_id, @role, @content, @provider_id, @created_at)`
+      `INSERT INTO ea_chat_messages (id, script_id, thread_id, role, content, provider_id, created_at, thinking_only)
+       VALUES (@id, @script_id, @thread_id, @role, @content, @provider_id, @created_at, @thinking_only)`
     )
     .run(row)
-  touchChatThread(message.threadId, message.scriptId)
   return toMessage(row)
+}
+
+// Inserts the user question and the assistant reply together, in one
+// transaction, so a mid-exchange failure (e.g. the script gets deleted
+// between the two writes) can never leave just the user's half persisted —
+// which would otherwise let a retry with the same text insert it twice.
+export function saveChatExchange(
+  userMessage: { scriptId: string; threadId: string; content: string },
+  assistantMessage: {
+    scriptId: string
+    threadId: string
+    content: string
+    providerId: string
+    thinkingOnly: boolean
+  }
+): void {
+  const db = getDb()
+  const run = db.transaction(() => {
+    insertMessageRow({ ...userMessage, role: 'user', providerId: null })
+    insertMessageRow({ ...assistantMessage, role: 'assistant' })
+  })
+  run()
+  touchChatThread(assistantMessage.threadId, assistantMessage.scriptId)
 }
 
 export function deleteChatThread(threadId: string): void {
@@ -138,12 +158,29 @@ export function deleteChatThread(threadId: string): void {
   db.prepare('DELETE FROM ea_chat_threads WHERE id = ?').run(threadId)
 }
 
+// A thread isn't owned by a single script (it can span several attached
+// scripts over its lifetime), so deleting a script can't simply cascade the
+// thread away — but the FK on ea_chat_messages.script_id does cascade-delete
+// that script's messages, which can leave a thread with none left at all.
+// Call this after anything that can delete ea_chat_messages rows so those
+// now-empty threads don't linger in the table forever.
+export function pruneEmptyChatThreads(): void {
+  getDb()
+    .prepare(
+      `DELETE FROM ea_chat_threads
+       WHERE NOT EXISTS (SELECT 1 FROM ea_chat_messages m WHERE m.thread_id = ea_chat_threads.id)`
+    )
+    .run()
+}
+
 export function ensureChatThread(threadId: string | null | undefined, scriptId: string, title: string): EaChatThread {
   if (threadId) {
     const existing = getChatThread(threadId)
     if (existing) {
       touchChatThread(existing.id, scriptId)
-      return existing
+      // Re-fetch rather than returning `existing`, which was read before the
+      // touch above and would otherwise carry a stale updated_at/script_id.
+      return getChatThread(existing.id) ?? existing
     }
   }
   return createChatThread(scriptId, title)

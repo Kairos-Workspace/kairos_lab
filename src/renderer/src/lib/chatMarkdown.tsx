@@ -14,7 +14,11 @@ export type MdBlock =
   | { type: 'quote'; inlines: MdInline[] }
   | { type: 'hr' }
 
-const INLINE_RE = /(\*\*[^*]+?\*\*|`[^`]+`|\*[^*]+?\*)/g
+// The italic alternative requires non-whitespace immediately inside both
+// asterisks (CommonMark's flanking-delimiter rule) so a spaced-out
+// multiplication operator like "lots * pip_value * distance" in prose isn't
+// mistaken for emphasis markup.
+const INLINE_RE = /(\*\*[^*]+?\*\*|`[^`]+`|\*(?:\S(?:[^*]*\S)?)\*)/g
 
 export function parseInlines(text: string): MdInline[] {
   const nodes: MdInline[] = []

@@ -2,6 +2,7 @@ import { loader } from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import type { Monaco } from '@monaco-editor/react'
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
+import { MQL5_LIFECYCLE_FUNCTIONS } from './extractCodeBlocks'
 
 // @monaco-editor/react defaults to fetching Monaco from a CDN at runtime,
 // which this app's CSP blocks outright. Pointing it at the locally
@@ -63,7 +64,7 @@ const TYPE_KEYWORDS = [
   'color'
 ]
 
-const LIFECYCLE_FUNCTIONS = ['OnInit', 'OnTick', 'OnDeinit', 'OnTimer']
+const LIFECYCLE_FUNCTIONS: string[] = [...MQL5_LIFECYCLE_FUNCTIONS]
 
 let registered = false
 

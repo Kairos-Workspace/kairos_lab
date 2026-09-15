@@ -24,6 +24,8 @@
     "src/renderer/**/*.tsx",
     "src/shared/**/*.ts",
     "src/core/**/*.ts",
-    "src/preload/*.d.ts"
-  ]
+    "src/preload/*.d.ts",
+    "tests/**/*.ts"
+  ],
+  "exclude": ["tests/providers.test.ts", "tests/chatTitle.test.ts", "tests/env.test.ts"]
 }

@@ -14,6 +14,7 @@ import type {
   Timeframe,
   Trade
 } from '@shared/types'
+import { pruneEmptyChatThreads } from '../ai/chatRepository'
 import { getDb } from './db'
 
 interface DatasetRow {
@@ -463,6 +464,9 @@ export function saveEaScript(script: EaScript): EaScript {
 
 export function deleteEaScript(id: string): void {
   getDb().prepare('DELETE FROM ea_scripts WHERE id = ?').run(id)
+  // Cascades away that script's ea_chat_messages rows, which can leave a
+  // shared thread with no messages left at all — clean those up too.
+  pruneEmptyChatThreads()
 }
 
 export function loadDeskPrefs(): DeskPrefs {

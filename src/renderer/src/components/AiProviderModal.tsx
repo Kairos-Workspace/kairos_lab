@@ -2,6 +2,7 @@ import { useLayoutEffect, useState } from 'react'
 import { SEALION_DEFAULT_MODEL, type AiProviderKind, type AiProviderProfile } from '@shared/types'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
+import { fetchedModelsFor, modelLabel } from '../lib/aiProviders'
 import { useAiProvidersStore } from '../store/useAiProvidersStore'
 
 const PROVIDER_OPTIONS: { value: AiProviderKind; label: string }[] = [
@@ -18,11 +19,6 @@ const MODEL_PLACEHOLDERS: Record<AiProviderKind, string> = {
   gemini: 'gemini-2.5-flash',
   sealion: SEALION_DEFAULT_MODEL,
   custom: 'model-id'
-}
-
-function modelLabel(id: string): string {
-  const slash = id.lastIndexOf('/')
-  return slash >= 0 ? id.slice(slash + 1) : id
 }
 
 export function AiProviderModal({
@@ -57,7 +53,15 @@ export function AiProviderModal({
     if (profile?.hasApiKey) void loadModels(id)
   }, [id, profile?.hasApiKey, loadModels])
 
-  const fetched = modelsById[id] ?? []
+  // The fetched cache only ever reflects the profile's currently *saved*
+  // provider — switching the dropdown to a different, unsaved provider kind
+  // must not keep showing that stale, mismatched model list.
+  const fetched = fetchedModelsFor({
+    modelsById,
+    id,
+    selectedProvider: provider,
+    savedProvider: profile?.provider ?? null
+  })
   const modelOptions = (model && !fetched.includes(model) ? [model, ...fetched] : fetched).map(
     (value) => ({ value, label: modelLabel(value) })
   )
@@ -150,14 +154,14 @@ export function AiProviderModal({
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder={
-                loadingModels ? 'Loading models…' : MODEL_PLACEHOLDERS[provider]
+                loadingModels[id] ? 'Loading models…' : MODEL_PLACEHOLDERS[provider]
               }
             />
           )}
         </label>
-        {modelsError ? (
+        {modelsError[id] ? (
           <p className="composer-hint" data-ok="false">
-            {modelsError}
+            {modelsError[id]}
           </p>
         ) : null}
 

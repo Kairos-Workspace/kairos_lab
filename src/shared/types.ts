@@ -202,16 +202,6 @@ export interface EaChatAttachedFile {
   current: boolean
 }
 
-export const CHAT_THINKING_MARK = '<!--ql-thinking-->\n'
-
-export function isThinkingChatContent(content: string): boolean {
-  return content.startsWith(CHAT_THINKING_MARK)
-}
-
-export function visibleChatContent(content: string): string {
-  return isThinkingChatContent(content) ? content.slice(CHAT_THINKING_MARK.length) : content
-}
-
 export interface EaChatThread {
   id: string
   title: string
@@ -228,6 +218,10 @@ export interface EaChatMessage {
   content: string
   providerId: string | null
   createdAt: number
+  // True when the model produced only reasoning/thinking output and no
+  // visible reply — rendered as a collapsible "Thinking" block instead of a
+  // normal assistant message.
+  thinkingOnly: boolean
 }
 
 export const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 5, 10, 20] as const
