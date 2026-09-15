@@ -268,6 +268,10 @@ export function runOnTick(
   candles: Candle[],
   candle: Candle
 ): StrategySignal | null {
+  // Snapshot so a mid-tick WarmupError does not leave crossPrev / globals
+  // half-updated (cross memory must come from the previous successful eval).
+  const crossSnapshot = new Map(state.crossPrev)
+  const globalsSnapshot = new Map(state.globals)
   const context: ExecutionContext = {
     state,
     candles,
@@ -279,7 +283,11 @@ export function runOnTick(
     if (state.program.onTick) executeStatements(state.program.onTick.body, context)
     return context.signal
   } catch (error) {
-    if (error instanceof WarmupError) return null
+    if (error instanceof WarmupError) {
+      state.crossPrev = crossSnapshot
+      state.globals = globalsSnapshot
+      return null
+    }
     throw error
   }
 }
