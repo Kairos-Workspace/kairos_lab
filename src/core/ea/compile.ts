@@ -20,11 +20,25 @@ export function compileEaScript(
     type: input.type,
     defaultValue: input.defaultValue
   }))
-  const strategy = new EaSignalStrategy(parsed.program, {
-    id: opts?.id ?? 'ea-signal',
-    name: opts?.name ?? 'EA',
-    inputs
-  })
+  let strategy: EaSignalStrategy
+  try {
+    strategy = new EaSignalStrategy(parsed.program, {
+      id: opts?.id ?? 'ea-signal',
+      name: opts?.name ?? 'EA',
+      inputs
+    })
+    strategy.initialize()
+  } catch (error) {
+    return {
+      ok: false,
+      diagnostics: [{
+        severity: 'error',
+        message: `Initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+        line: parsed.program.onInit?.span.line ?? 1,
+        column: 1
+      }]
+    }
+  }
 
   return {
     ok: true,

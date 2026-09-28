@@ -46,7 +46,7 @@ import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strate
 import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 
 export type AppScreen = 'welcome' | 'library' | 'workspace' | 'ea-lab' | 'indicator-lab' | 'settings'
-export type RightTab = 'strategy' | 'trade' | 'costs'
+export type RightTab = 'strategy' | 'indicators' | 'trade' | 'costs'
 export type HistoryFilter = 'ALL' | 'WIN' | 'LOSS' | 'BUY' | 'SELL'
 
 export interface DraftTrade {
@@ -56,6 +56,13 @@ export interface DraftTrade {
   takeProfit: string
   riskPercent: string
   timestamp: number
+}
+
+export interface PineIndicatorInstance {
+  id: string
+  name: string
+  code: string
+  enabled: boolean
 }
 
 interface AppState {
@@ -111,6 +118,19 @@ interface AppState {
   activeStrategyId: string | null
   activeEaScriptId: string | null
   theme: DeskTheme
+  pineIndicators: PineIndicatorInstance[]
+  activePineIndicatorId: string | null
+  pineIndicatorCode: string
+  pineIndicatorEnabled: boolean
+
+  setPineIndicatorCode: (code: string) => void
+  setPineIndicatorEnabled: (enabled: boolean) => void
+  addPineIndicator: (preset?: { name: string; code: string }) => string
+  removePineIndicator: (id: string) => void
+  updatePineIndicator: (id: string, patch: Partial<PineIndicatorInstance>) => void
+  togglePineIndicator: (id: string) => void
+  duplicatePineIndicator: (id: string) => void
+  setActivePineIndicatorId: (id: string) => void
 
   bootstrap: () => Promise<void>
   openStrategy: (id: string) => Promise<void>
@@ -375,6 +395,27 @@ export const useAppStore = create<AppState>((set, get) => {
   costs: { ...DEFAULT_COSTS },
   ambiguityRule: 'ambiguous',
   rightTab: 'strategy',
+  pineIndicators: [
+    {
+      id: 'pine-default',
+      name: 'Custom EMA',
+      code: `//@version=5
+indicator("Custom EMA", overlay=true)
+
+plot(ta.ema(close, 20), "EMA 20", color=color.yellow, linewidth=2)
+plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
+`,
+      enabled: false
+    }
+  ],
+  activePineIndicatorId: 'pine-default',
+  pineIndicatorCode: `//@version=5
+indicator("Custom EMA", overlay=true)
+
+plot(ta.ema(close, 20), "EMA 20", color=color.yellow, linewidth=2)
+plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
+`,
+  pineIndicatorEnabled: false,
   historyFilter: 'ALL',
   selectedTradeId: null,
   status: 'Opening local market data…',
@@ -727,6 +768,153 @@ export const useAppStore = create<AppState>((set, get) => {
   setChartFull: (chartFull) => set({ chartFull }),
   toggleChartFull: () => set({ chartFull: !get().chartFull }),
   setRightTab: (rightTab) => set({ rightTab }),
+  setPineIndicatorCode: (pineIndicatorCode) => {
+    const { pineIndicators, activePineIndicatorId } = get()
+    if (!activePineIndicatorId || pineIndicators.length === 0) {
+      const newInd: PineIndicatorInstance = {
+        id: newId(),
+        name: 'Custom Indicator',
+        code: pineIndicatorCode,
+        enabled: false
+      }
+      set({
+        pineIndicators: [newInd],
+        activePineIndicatorId: newInd.id,
+        pineIndicatorCode,
+        pineIndicatorEnabled: false
+      })
+      return
+    }
+    const updated = pineIndicators.map((ind) =>
+      ind.id === activePineIndicatorId ? { ...ind, code: pineIndicatorCode } : ind
+    )
+    set({ pineIndicators: updated, pineIndicatorCode })
+  },
+  setPineIndicatorEnabled: (pineIndicatorEnabled) => {
+    const { pineIndicators, activePineIndicatorId } = get()
+    if (!activePineIndicatorId || pineIndicators.length === 0) {
+      const newInd: PineIndicatorInstance = {
+        id: newId(),
+        name: 'Custom Indicator',
+        code: get().pineIndicatorCode || '',
+        enabled: pineIndicatorEnabled
+      }
+      set({
+        pineIndicators: [newInd],
+        activePineIndicatorId: newInd.id,
+        pineIndicatorEnabled
+      })
+      return
+    }
+    const updated = pineIndicators.map((ind) =>
+      ind.id === activePineIndicatorId ? { ...ind, enabled: pineIndicatorEnabled } : ind
+    )
+    set({ pineIndicators: updated, pineIndicatorEnabled })
+  },
+  addPineIndicator: (preset) => {
+    const code = preset?.code ?? `//@version=5\nindicator("New Indicator", overlay=true)\n\nplot(ta.ema(close, 20), "EMA 20", color=color.yellow)\n`
+    const name = preset?.name ?? 'New Indicator'
+    const id = newId()
+    const newIndicator: PineIndicatorInstance = {
+      id,
+      name,
+      code,
+      enabled: false
+    }
+    set((state) => ({
+      pineIndicators: [...state.pineIndicators, newIndicator],
+      activePineIndicatorId: id,
+      pineIndicatorCode: code,
+      pineIndicatorEnabled: false
+    }))
+    return id
+  },
+  removePineIndicator: (id) => {
+    const { pineIndicators, activePineIndicatorId } = get()
+    const remaining = pineIndicators.filter((ind) => ind.id !== id)
+    if (remaining.length === 0) {
+      const fallback: PineIndicatorInstance = {
+        id: newId(),
+        name: 'Custom Indicator',
+        code: `//@version=5\nindicator("Custom Indicator", overlay=true)\n\nplot(ta.ema(close, 20), "EMA 20", color=color.yellow)\n`,
+        enabled: false
+      }
+      set({
+        pineIndicators: [fallback],
+        activePineIndicatorId: fallback.id,
+        pineIndicatorCode: fallback.code,
+        pineIndicatorEnabled: false
+      })
+      return
+    }
+    const nextActiveId =
+      activePineIndicatorId === id
+        ? remaining[0].id
+        : activePineIndicatorId
+    const nextActive = remaining.find((ind) => ind.id === nextActiveId) ?? remaining[0]
+    set({
+      pineIndicators: remaining,
+      activePineIndicatorId: nextActive.id,
+      pineIndicatorCode: nextActive.code,
+      pineIndicatorEnabled: nextActive.enabled
+    })
+  },
+  updatePineIndicator: (id, patch) => {
+    set((state) => {
+      const updated = state.pineIndicators.map((ind) =>
+        ind.id === id ? { ...ind, ...patch } : ind
+      )
+      const isActive = state.activePineIndicatorId === id
+      return {
+        pineIndicators: updated,
+        ...(isActive && patch.code !== undefined ? { pineIndicatorCode: patch.code } : {}),
+        ...(isActive && patch.enabled !== undefined ? { pineIndicatorEnabled: patch.enabled } : {})
+      }
+    })
+  },
+  togglePineIndicator: (id) => {
+    set((state) => {
+      const target = state.pineIndicators.find((ind) => ind.id === id)
+      if (!target) return state
+      const nextEnabled = !target.enabled
+      const updated = state.pineIndicators.map((ind) =>
+        ind.id === id ? { ...ind, enabled: nextEnabled } : ind
+      )
+      const isActive = state.activePineIndicatorId === id
+      return {
+        pineIndicators: updated,
+        ...(isActive ? { pineIndicatorEnabled: nextEnabled } : {})
+      }
+    })
+  },
+  duplicatePineIndicator: (id) => {
+    const { pineIndicators } = get()
+    const target = pineIndicators.find((ind) => ind.id === id)
+    if (!target) return
+    const newIdVal = newId()
+    const duplicated: PineIndicatorInstance = {
+      id: newIdVal,
+      name: `${target.name} (Copy)`,
+      code: target.code,
+      enabled: false
+    }
+    set((state) => ({
+      pineIndicators: [...state.pineIndicators, duplicated],
+      activePineIndicatorId: newIdVal,
+      pineIndicatorCode: duplicated.code,
+      pineIndicatorEnabled: false
+    }))
+  },
+  setActivePineIndicatorId: (id) => {
+    const { pineIndicators } = get()
+    const target = pineIndicators.find((ind) => ind.id === id)
+    if (!target) return
+    set({
+      activePineIndicatorId: id,
+      pineIndicatorCode: target.code,
+      pineIndicatorEnabled: target.enabled
+    })
+  },
   setHistoryFilter: (historyFilter) => set({ historyFilter }),
   setSpeed: (speed) => {
     set({ speed })
@@ -1342,11 +1530,31 @@ export const useAppStore = create<AppState>((set, get) => {
       }
 
       if (direction > 0 && !pending && !active) {
-        pending = strategy.onCandle(candle, {
-          candles: tape.slice(Math.max(0, index - lookback), index + 1),
-          symbol: next.symbol,
-          timeframe: next.displayTimeframe
-        })
+        try {
+          pending = strategy.onCandle(candle, {
+            // EA periods and shifts may be expressions. Preserve all loaded
+            // history (including EMA's seed), but never expose future bars.
+            candles: tape.slice(next.activeEaScriptId ? 0 : Math.max(0, index - lookback), index + 1),
+            symbol: next.symbol,
+            timeframe: next.displayTimeframe
+          })
+        } catch (error) {
+          clearTimer()
+          const detail = error instanceof Error ? error.message : String(error)
+          const status = `${strategy.name} stopped at ${new Date(candle.timestamp).toISOString()}: ${detail}`
+          set({
+            replayIndex: index,
+            isPlaying: false,
+            activeTrade: active,
+            trades,
+            account,
+            pendingSetup: null,
+            draft: null,
+            status
+          })
+          notifyError(status)
+          return
+        }
         if (pending && next.settings.pauseOnSetup) break
         if (pending && next.settings.autoEntry) {
           const dir: Direction = pending.type === 'LONG' ? 'BUY' : 'SELL'

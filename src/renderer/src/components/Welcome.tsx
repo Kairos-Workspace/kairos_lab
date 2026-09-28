@@ -6,6 +6,7 @@ import { useAppStore } from '../store/useAppStore'
 export function Welcome(): React.JSX.Element {
   const enterLibrary = useAppStore((s) => s.enterLibrary)
   const enterEaLab = useAppStore((s) => s.enterEaLab)
+  const enterIndicatorLab = useAppStore((s) => s.enterIndicatorLab)
 
   return (
     <div className="app" data-frame="welcome">
@@ -27,6 +28,11 @@ export function Welcome(): React.JSX.Element {
             <span className="stamp">Editor</span>
             <strong>EA Development Lab</strong>
             <span>Build automated trading bots</span>
+          </button>
+          <button type="button" className="welcome-lab-card" onClick={enterIndicatorLab}>
+            <span className="stamp">Editor</span>
+            <strong>Indicator Development Lab</strong>
+            <span>Build MQL5 and Pine Script indicators</span>
           </button>
         </div>
       </div>

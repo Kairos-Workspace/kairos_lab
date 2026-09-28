@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { STRATEGY_CATALOG } from '@core/strategy/registry'
 import { DEFAULT_STRATEGY_SETTINGS } from '@shared/constants'
 import type { StrategySettings } from '@shared/types'
@@ -8,10 +8,56 @@ import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
+import { Button, FormField, Modal } from './ui'
 import { withoutSeeds } from '../store/strategyVault'
 import { useAppStore } from '../store/useAppStore'
 
 type LibraryDesk = 'strategies' | 'market'
+
+interface StrategyTemplate {
+  name: string
+  notes: string
+  settings: StrategySettings
+}
+
+const STRATEGY_TEMPLATES: StrategyTemplate[] = [
+  {
+    name: 'London Breakout',
+    notes: '20-bar lookback breakout targeting 1:2 R:R during London session.',
+    settings: {
+      strategyId: 'breakout',
+      lookback: 20,
+      defaultRr: 2.0,
+      autoEntry: true,
+      pauseOnSetup: false,
+      volumeMultiplier: 1.5
+    }
+  },
+  {
+    name: 'Golden Cross',
+    notes: 'SMA crossover capturing trend continuation swings.',
+    settings: {
+      strategyId: 'ma-crossover',
+      lookback: 40,
+      defaultRr: 2.5,
+      autoEntry: true,
+      pauseOnSetup: true,
+      volumeMultiplier: 1.0
+    }
+  },
+  {
+    name: 'BBMA Reversal',
+    notes: 'Bollinger Band extreme test with rejection entry toward median.',
+    settings: {
+      strategyId: 'bbma',
+      lookback: 20,
+      defaultRr: 1.5,
+      autoEntry: false,
+      pauseOnSetup: true,
+      volumeMultiplier: 1.0
+    }
+  }
+]
 
 function engineName(id: string): string {
   return STRATEGY_CATALOG.find((s) => s.id === id)?.name ?? id
@@ -28,6 +74,7 @@ export function StrategyLibrary(): React.JSX.Element {
   const [desk, setDesk] = useState<LibraryDesk>('strategies')
   const [composer, setComposer] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [filterQuery, setFilterQuery] = useState('')
   const datasets = useAppStore((s) => s.datasets)
   const tapeCount = new Set(datasets.filter((row) => row.candleCount > 0).map((row) => row.symbol)).size
   const [name, setName] = useState('')
@@ -38,21 +85,18 @@ export function StrategyLibrary(): React.JSX.Element {
     purgeSeededStrategies()
   }, [purgeSeededStrategies])
 
-  useEffect(() => {
-    if (!composer) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setComposer(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [composer])
-
   function openCreate(): void {
     setEditingId(null)
     setName('')
     setNotes('')
     setSettings({ ...DEFAULT_STRATEGY_SETTINGS })
     setComposer(true)
+  }
+
+  function applyTemplate(tpl: StrategyTemplate): void {
+    setName(tpl.name)
+    setNotes(tpl.notes)
+    setSettings({ ...tpl.settings })
   }
 
   function openEdit(s: (typeof strategies)[number]): void {
@@ -75,6 +119,18 @@ export function StrategyLibrary(): React.JSX.Element {
     setNotes('')
     setSettings({ ...DEFAULT_STRATEGY_SETTINGS })
   }
+
+  const filteredStrategies = useMemo(() => {
+    const q = filterQuery.trim().toLowerCase()
+    if (!q) return strategies
+    return strategies.filter((s) => {
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.notes.toLowerCase().includes(q) ||
+        engineName(s.settings.strategyId).toLowerCase().includes(q)
+      )
+    })
+  }, [strategies, filterQuery])
 
   return (
     <div className="app" data-frame="library">
@@ -139,150 +195,208 @@ export function StrategyLibrary(): React.JSX.Element {
       {desk === 'market' ? (
         <MarketDesk />
       ) : (
-      <section className="library-board">
-        {strategies.length === 0 ? (
-          <div className="library-empty">
-            <h2>No strategies yet</h2>
-            <p>Create a setup, then click the card to open the tester.</p>
-            <button className="primary icon-label" onClick={openCreate}>
-              <Icon name="plus" />
-              Create
-            </button>
-          </div>
-        ) : (
-          <div className="strategy-grid">
-            {strategies.map((s) => (
-              <article key={s.id} className="strategy-card">
-                <button className="strategy-card-main" onClick={() => openStrategy(s.id)}>
-                  <span className="stamp">{engineName(s.settings.strategyId)}</span>
-                  <strong>{s.name}</strong>
-                  <span>
-                    {s.notes ||
-                      STRATEGY_CATALOG.find((c) => c.id === s.settings.strategyId)?.description}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn strategy-edit"
-                  title="Edit strategy"
-                  aria-label={`Edit ${s.name}`}
-                  onClick={() => openEdit(s)}
-                >
-                  <Icon name="edit" />
-                </button>
-                <ConfirmIconButton
-                  className="strategy-delete"
-                  icon="trash"
-                  label="Delete strategy"
-                  confirmLabel={`Click again to delete ${s.name}`}
-                  onConfirm={() => void deleteSavedStrategy(s.id)}
-                />
-                <button
-                  type="button"
-                  className="primary icon-label strategy-start"
-                  onClick={() => void openStrategy(s.id)}
-                >
-                  <Icon name="play" />
-                  Start
-                </button>
-              </article>
-            ))}
-            <button type="button" className="strategy-card-add" onClick={openCreate}>
-              <Icon name="plus" />
-              <span>New strategy</span>
-            </button>
-          </div>
-        )}
-      </section>
-      )}
-
-      {composer ? (
-        <div
-          className="modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-strategy-title"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setComposer(false)
-              setEditingId(null)
-            }
-          }}
-        >
-          <form
-            className="composer"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit()
-            }}
-          >
-            <header>
-              <div>
-                <span className="stamp">Library</span>
-                <h2 id="new-strategy-title">{editingId ? 'Edit strategy' : 'New strategy'}</h2>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => {
-                  setComposer(false)
-                  setEditingId(null)
-                }}
-                title="Close"
-                aria-label="Close"
-              >
-                <Icon name="close" />
-              </button>
-            </header>
-            <label className="field">
-              Name
+        <section className="library-board">
+          {strategies.length > 4 && (
+            <div className="library-search-bar">
               <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="London breakout"
+                type="text"
+                placeholder="Search strategies..."
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
               />
-            </label>
-            <label className="field">
-              Engine
-              <Dropdown
-                ariaLabel="Engine"
-                value={settings.strategyId}
-                onChange={(v) => setSettings({ ...settings, strategyId: v })}
-                options={STRATEGY_CATALOG.map((s) => ({ value: s.id, label: s.name }))}
-              />
-            </label>
-            <p className="composer-hint">
-              {STRATEGY_CATALOG.find((s) => s.id === settings.strategyId)?.description}
-            </p>
-            <label className="field">
-              Notes
-              <textarea
-                rows={3}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional note"
-              />
-            </label>
-            <div className="composer-actions">
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => {
-                  setComposer(false)
-                  setEditingId(null)
-                }}
-              >
-                Cancel
-              </button>
-              <button className="primary icon-label" type="submit">
-                <Icon name={editingId ? 'check' : 'plus'} />
-                {editingId ? 'Save' : 'Create'}
+              {filterQuery && (
+                <button
+                  type="button"
+                  className="library-search-clear"
+                  onClick={() => setFilterQuery('')}
+                  title="Clear"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          )}
+
+          {strategies.length === 0 ? (
+            <div className="library-empty">
+              <h2>No strategies yet</h2>
+              <p>Create a setup, then click the card to open the tester.</p>
+              <Button variant="primary" icon="plus" onClick={openCreate}>
+                Create
+              </Button>
+            </div>
+          ) : filteredStrategies.length === 0 ? (
+            <div className="library-empty">
+              <h2>No matching strategies</h2>
+              <p>No results found for &quot;{filterQuery}&quot;.</p>
+              <Button variant="ghost" onClick={() => setFilterQuery('')}>
+                Clear filter
+              </Button>
+            </div>
+          ) : (
+            <div className="strategy-grid">
+              {filteredStrategies.map((s) => (
+                <article key={s.id} className="strategy-card">
+                  <div className="strategy-card-header">
+                    <span className="stamp">{engineName(s.settings.strategyId)}</span>
+                    <div className="strategy-card-actions">
+                      <button
+                        type="button"
+                        className="icon-btn strategy-action-btn"
+                        title="Edit strategy"
+                        aria-label={`Edit ${s.name}`}
+                        onClick={() => openEdit(s)}
+                      >
+                        <Icon name="edit" />
+                      </button>
+                      <ConfirmIconButton
+                        className="strategy-action-btn"
+                        icon="trash"
+                        label="Delete strategy"
+                        confirmLabel={`Delete ${s.name}?`}
+                        onConfirm={() => void deleteSavedStrategy(s.id)}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="strategy-card-main"
+                    onClick={() => void openStrategy(s.id)}
+                  >
+                    <strong className="strategy-card-title">{s.name}</strong>
+                    <span className="strategy-card-desc">
+                      {s.notes || STRATEGY_CATALOG.find((c) => c.id === s.settings.strategyId)?.description}
+                    </span>
+
+                    <div className="strategy-card-meta">
+                      <span>{s.settings.lookback} bars</span>
+                      <span className="dot">·</span>
+                      <span>1:{s.settings.defaultRr} R:R</span>
+                      <span className="dot">·</span>
+                      <span className={s.settings.autoEntry ? 'meta-bull' : 'meta-dim'}>
+                        {s.settings.autoEntry ? 'Auto' : 'Manual'}
+                      </span>
+                      {s.settings.pauseOnSetup && (
+                        <>
+                          <span className="dot">·</span>
+                          <span className="meta-warn">Pause</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+
+                  <div className="strategy-card-footer">
+                    <Button
+                      variant="primary"
+                      icon="play"
+                      size="sm"
+                      fullWidth
+                      onClick={() => void openStrategy(s.id)}
+                      className="strategy-start"
+                    >
+                      Start
+                    </Button>
+                  </div>
+                </article>
+              ))}
+
+              <button type="button" className="strategy-card-add" onClick={openCreate}>
+                <Icon name="plus" />
+                <span>New strategy</span>
               </button>
             </div>
-          </form>
-        </div>
-      ) : null}
+          )}
+        </section>
+      )}
+
+      <Modal
+        open={composer}
+        onClose={() => {
+          setComposer(false)
+          setEditingId(null)
+        }}
+        stamp="Library"
+        title={editingId ? 'Edit strategy' : 'New strategy'}
+        size="md"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => {
+                setComposer(false)
+                setEditingId(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              icon={editingId ? 'check' : 'plus'}
+              type="submit"
+              form="strategy-composer-form"
+            >
+              {editingId ? 'Save' : 'Create'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="strategy-composer-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
+          }}
+          style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
+        >
+          {!editingId && (
+            <div className="composer-preset-row">
+              <span className="muted">Quick preset:</span>
+              <div className="composer-preset-tags">
+                {STRATEGY_TEMPLATES.map((tpl) => (
+                  <button
+                    key={tpl.name}
+                    type="button"
+                    className="composer-preset-chip"
+                    onClick={() => applyTemplate(tpl)}
+                  >
+                    {tpl.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <FormField label="Name">
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="London breakout"
+            />
+          </FormField>
+          <FormField
+            label="Engine"
+            hint={STRATEGY_CATALOG.find((s) => s.id === settings.strategyId)?.description}
+          >
+            <Dropdown
+              ariaLabel="Engine"
+              value={settings.strategyId}
+              onChange={(v) => setSettings({ ...settings, strategyId: v })}
+              options={STRATEGY_CATALOG.map((s) => ({ value: s.id, label: s.name }))}
+            />
+          </FormField>
+          <FormField label="Notes">
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional note"
+            />
+          </FormField>
+        </form>
+      </Modal>
     </div>
   )
 }

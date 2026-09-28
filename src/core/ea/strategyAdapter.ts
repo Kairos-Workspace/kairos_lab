@@ -6,7 +6,7 @@ import type { EaInputParam } from './types'
 export class EaSignalStrategy implements Strategy {
   readonly id: string
   readonly name: string
-  readonly description = 'Quantify Signal DSL (bar-close)'
+  readonly description = 'Kairos Signal DSL (bar-close)'
   private state: EaRuntimeState
 
   constructor(program: Program, opts: { id: string; name: string; inputs: EaInputParam[] }) {
@@ -21,10 +21,6 @@ export class EaSignalStrategy implements Strategy {
   }
 
   onCandle(candle: Candle, context: StrategyContext): StrategySignal | null {
-    try {
-      return runOnTick(this.state, context.candles, candle)
-    } catch {
-      return null
-    }
+    return runOnTick(this.state, context.candles, candle)
   }
 }

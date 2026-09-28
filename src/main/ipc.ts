@@ -14,9 +14,11 @@ import {
   type EaChatAttachedFile,
   type EaScript,
   type SavedStrategy,
+  type ScriptKind,
   type Timeframe,
   type Trade
 } from '@shared/types'
+import { chatSystemRole, defaultScriptName, fenceLanguage, isScriptKind, scriptLanguage } from '@shared/scriptLab'
 import { stripScriptDirectives } from '@shared/chatDirectives'
 import { dbPath, getDb } from './database/db'
 import {
@@ -27,6 +29,7 @@ import {
   deleteSession,
   deleteStrategy,
   getCandles,
+  getEaScript,
   getGaps,
   getRecentCandles,
   insertDataset,
@@ -69,6 +72,18 @@ function handle(
 ): void {
   ipcMain.removeHandler(channel)
   ipcMain.handle(channel, listener)
+}
+
+function normalizeKind(kind: unknown): ScriptKind {
+  return isScriptKind(kind) ? kind : 'ea'
+}
+
+function kindForScript(scriptId: string): ScriptKind {
+  return getEaScript(scriptId)?.kind ?? 'ea'
+}
+
+function threadsFor(kind: ScriptKind): ReturnType<typeof listChatThreads> {
+  return listChatThreads(kind)
 }
 
 export function registerIpc(): void {
@@ -250,16 +265,16 @@ export function registerIpc(): void {
     return listStrategies()
   })
 
-  handle(IPC.EA_SCRIPTS_LIST, () => listEaScripts())
+  handle(IPC.EA_SCRIPTS_LIST, (_e, kind: ScriptKind) => listEaScripts(normalizeKind(kind)))
 
   handle(IPC.EA_SCRIPTS_SAVE, (_e, script: EaScript) => {
-    saveEaScript(script)
-    return listEaScripts()
+    const saved = saveEaScript(script)
+    return listEaScripts(saved.kind)
   })
 
-  handle(IPC.EA_SCRIPTS_DELETE, (_e, id: string) => {
+  handle(IPC.EA_SCRIPTS_DELETE, (_e, id: string, kind: ScriptKind) => {
     deleteEaScript(id)
-    return listEaScripts()
+    return listEaScripts(normalizeKind(kind))
   })
 
   handle(IPC.AI_LIST_PROVIDERS, () => listProviders())
@@ -300,7 +315,7 @@ export function registerIpc(): void {
     return listModels(profile, apiKey)
   })
 
-  handle(IPC.AI_LIST_CHAT_THREADS, () => listChatThreads())
+  handle(IPC.AI_LIST_CHAT_THREADS, (_e, kind: ScriptKind) => listChatThreads(normalizeKind(kind)))
 
   handle(IPC.AI_LIST_CHAT_MESSAGES, (_e, threadId: string) => listChatMessages(threadId))
 
@@ -318,13 +333,15 @@ export function registerIpc(): void {
         requestId: string
       }
     ) => {
+      const kind = kindForScript(payload.scriptId)
+      const language = scriptLanguage(kind, getEaScript(payload.scriptId)?.language)
       const profile = listProviders().find((p) => p.id === payload.providerId)
       if (!profile) {
         return {
           ok: false,
           message: 'Profile not found',
           messages: payload.threadId ? listChatMessages(payload.threadId) : [],
-          threads: listChatThreads()
+          threads: threadsFor(kind)
         }
       }
       const apiKey = getDecryptedApiKey(payload.providerId)
@@ -336,7 +353,7 @@ export function registerIpc(): void {
           ok: false,
           message: 'This script no longer exists — the reply could not be saved.',
           messages: payload.threadId ? listChatMessages(payload.threadId) : [],
-          threads: listChatThreads()
+          threads: threadsFor(kind)
         }
       }
       // The user's message is only persisted once the AI has actually replied
@@ -356,10 +373,13 @@ export function registerIpc(): void {
             : []
       const fileBlocks = attached.flatMap((file) => {
         const label = file.current ? `${file.name} (currently editing)` : file.name
-        return [`### ${label}`, fence, file.code, fence, '']
+        const lang = fenceLanguage(scriptLanguage(kind, file.language ?? language))
+        return [`### ${label}`, `${fence}${lang}`, file.code, fence, '']
       })
+      const untitled = defaultScriptName(kind)
+      const fenceTag = fenceLanguage(language)
       const systemPrompt = [
-        'You are helping the user write an MQL5 Expert Advisor script for MetaTrader.',
+        chatSystemRole(kind, language),
         '',
         attached.length > 0
           ? 'The user attached these files. Edit the one marked currently editing unless they ask otherwise.'
@@ -368,9 +388,9 @@ export function registerIpc(): void {
         ...fileBlocks,
         'The open editor applies your fenced code live as you generate it.',
         'When you change a script, output the complete file in one fence.',
-        'Put the script name in the fence header, for example: ```mql5 Grid Martingale',
+        `Put the script name in the fence header, for example: \`\`\`${fenceTag} Grid Martingale`,
         'Also output this on its own line before the fence: <!--ql-file: Grid Martingale-->',
-        'Rename when the open file is still Untitled EA, the user asks, or a clearer name is obvious.',
+        `Rename when the open file is still ${untitled}, the user asks, or a clearer name is obvious.`,
         'Use a short Title Case name with no path or extension.',
         'Put a short explanation before that fence. Do not ask the user to copy or apply.',
         'If several files are attached, edit the one marked currently editing.',
@@ -401,7 +421,7 @@ export function registerIpc(): void {
           message: result.message ?? 'No reply from the AI',
           thread,
           messages: listChatMessages(thread.id),
-          threads: listChatThreads()
+          threads: threadsFor(kind)
         }
       }
       try {
@@ -424,21 +444,21 @@ export function registerIpc(): void {
           message: 'This script no longer exists — the reply could not be saved.',
           thread,
           messages: listChatMessages(thread.id),
-          threads: listChatThreads()
+          threads: threadsFor(kind)
         }
       }
       return {
         ok: true,
         thread,
         messages: listChatMessages(thread.id),
-        threads: listChatThreads()
+        threads: threadsFor(kind)
       }
     }
   )
 
-  handle(IPC.AI_DELETE_CHAT_THREAD, (_e, threadId: string) => {
+  handle(IPC.AI_DELETE_CHAT_THREAD, (_e, threadId: string, kind: ScriptKind) => {
     deleteChatThread(threadId)
-    return listChatThreads()
+    return listChatThreads(normalizeKind(kind))
   })
 
   handle(IPC.PREFS_LOAD, () => loadDeskPrefs())

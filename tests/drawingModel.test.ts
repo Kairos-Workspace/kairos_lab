@@ -82,4 +82,23 @@ describe('parseDrawing', () => {
     expect(new Set(DRAWING_TOOLS).size).toBe(DRAWING_TOOLS.length)
     expect(DRAWING_TOOLS).toContain('fib')
   })
+
+  it('adds and verifies drawings in useAppStore for every tool', async () => {
+    const { useAppStore } = await import('@/store/useAppStore')
+    const store = useAppStore.getState()
+
+    for (const tool of DRAWING_TOOLS) {
+      const points = tool === 'horizontal' || tool === 'vertical' || tool === 'text'
+        ? [{ time: 1700000000000, price: 100 }]
+        : [
+            { time: 1700000000000, price: 100 },
+            { time: 1700000060000, price: 105 }
+          ]
+      const id = store.addDrawing({ type: tool, points, text: tool === 'text' ? 'Sample' : undefined })
+      expect(id).toBeDefined()
+      const found = useAppStore.getState().drawings.find((d) => d.id === id)
+      expect(found).toBeDefined()
+      expect(found?.type).toBe(tool)
+    }
+  })
 })

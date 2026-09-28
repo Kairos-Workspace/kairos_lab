@@ -1,20 +1,6 @@
 import type { Expr, FunctionDecl, Program, Span, Stmt } from './ast'
 import type { Diagnostic } from './types'
-
-interface Builtin {
-  minArgs: number
-  maxArgs: number
-  inTickOnly?: boolean
-}
-
-const BUILTINS: Record<string, Builtin> = {
-  SMA: { minArgs: 1, maxArgs: 2 },
-  EMA: { minArgs: 1, maxArgs: 2 },
-  crossesAbove: { minArgs: 2, maxArgs: 2 },
-  crossesBelow: { minArgs: 2, maxArgs: 2 },
-  Buy: { minArgs: 0, maxArgs: 1, inTickOnly: true },
-  Sell: { minArgs: 0, maxArgs: 1, inTickOnly: true }
-}
+import { EA_BUILTINS } from '@shared/eaLanguage'
 
 const SERIES = new Set(['open', 'high', 'low', 'close', 'time'])
 
@@ -63,7 +49,7 @@ export function checkProgram(program: Program): Diagnostic[] {
         checkExpr(expr.index, scope, functionName)
         return
       case 'call': {
-        const builtin = BUILTINS[expr.callee]
+        const builtin = EA_BUILTINS[expr.callee]
         if (!builtin) {
           diagnostics.push(diagnostic(`Unknown function '${expr.callee}'`, expr.span))
         } else {

@@ -1,4 +1,4 @@
-# Quantify — Strategy Tester
+# Kairos — Strategy Tester
 
 Desktop market replay and manual strategy tester for **XAUUSD**. The workflow is:
 
@@ -99,6 +99,27 @@ src/core  (pure TypeScript, unit tested)
 Business logic lives in `src/core`. React components do not compute P&L, R, or win/loss.
 
 ## Adding a strategy
+
+### EA Lab local scripts
+
+EA Lab's local compiler runs **Kairos Signal DSL**, an MQL5-like subset, on
+closed candles. The `.mq5` extension and MQL5 editor highlighting do not mean
+full MetaTrader compatibility. Full MQL5 must be compiled and tested in MetaTrader.
+
+Local scripts support `void OnTick()`, optional `void OnInit()`, numeric/boolean
+inputs and variables, `if/else`, and `return;`. Available functions are `SMA`,
+`EMA`, `crossesAbove`, `crossesBelow`, `Buy`, and `Sell`. Prices are available as
+`open[n]`, `high[n]`, `low[n]`, and `close[n]`; `time[n]` is Unix milliseconds.
+Index zero is the current closed candle. Position sizing, SL/TP, and costs come
+from the backtest settings, with one open position at a time.
+
+EAs receive all loaded history through the replay cursor, independent of the
+built-in strategy lookback setting. Indicators skip evaluation until enough
+history is loaded. Runtime errors pause replay and report the script, candle
+time, and cause. The AI prompt shares the compiler's supported function list
+and includes a working SMA crossover example.
+
+### Built-in TypeScript strategies
 
 1. Create a class in `src/core/strategy/` that implements `Strategy`.
 2. Register it in `src/core/strategy/registry.ts`.

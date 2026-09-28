@@ -31,7 +31,9 @@ export function App(): React.JSX.Element {
       ) : screen === 'welcome' ? (
         <Welcome />
       ) : screen === 'ea-lab' ? (
-        <EaLab />
+        <EaLab kind="ea" />
+      ) : screen === 'indicator-lab' ? (
+        <EaLab kind="indicator" />
       ) : screen === 'settings' ? (
         <SettingsScreen />
       ) : (

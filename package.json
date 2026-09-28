@@ -1,5 +1,5 @@
 {
-  "name": "quantify-strategy-tester",
+  "name": "kairos-strategy-tester",
   "version": "1.1.0",
   "description": "Desktop Strategy Tester and Market Replay",
   "main": "./out/main/index.js",
@@ -44,8 +44,8 @@
     "vitest": "^3.2.4"
   },
   "build": {
-    "appId": "com.quantify.strategy-tester",
-    "productName": "Quantify",
+    "appId": "com.kairos.strategy-tester",
+    "productName": "Kairos",
     "directories": {
       "output": "release"
     },

@@ -19,7 +19,7 @@ export function AppearanceSettings(): React.JSX.Element {
         </div>
       </header>
 
-      <p className="composer-hint">Choose how Quantify looks. Applies immediately, everywhere.</p>
+      <p className="composer-hint">Choose how Kairos looks. Applies immediately, everywhere.</p>
 
       <div className="appearance-options">
         {THEME_OPTIONS.map((option) => (

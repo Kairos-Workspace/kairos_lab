@@ -1,6 +1,6 @@
 import type { CostConfig, StrategySettings, Timeframe } from './types'
 
-export const PRODUCT_NAME = 'Quantify'
+export const PRODUCT_NAME = 'Kairos'
 export const DEFAULT_SYMBOL = 'XAUUSD'
 
 export const TIMEFRAME_MINUTES: Record<Timeframe, number> = {

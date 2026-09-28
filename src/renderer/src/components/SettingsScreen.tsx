@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { labCopy } from '@shared/scriptLab'
 import { AiProviderSettings } from './AiProviderSettings'
 import { AppearanceSettings } from './AppearanceSettings'
 import { BrandMark } from './BrandMark'
@@ -14,7 +15,11 @@ const CATEGORIES: { id: SettingsCategory; label: string }[] = [
 
 export function SettingsScreen(): React.JSX.Element {
   const leaveSettings = useAppStore((s) => s.leaveSettings)
+  const settingsReturnScreen = useAppStore((s) => s.settingsReturnScreen)
   const [category, setCategory] = useState<SettingsCategory>('appearance')
+  const backLabel = labCopy(
+    settingsReturnScreen === 'indicator-lab' ? 'indicator' : 'ea'
+  ).settingsBack
 
   return (
     <div className="app" data-frame="settings">
@@ -28,8 +33,8 @@ export function SettingsScreen(): React.JSX.Element {
             type="button"
             className="icon-btn"
             onClick={leaveSettings}
-            title="Back to EA Lab"
-            aria-label="Back to EA Lab"
+            title={backLabel}
+            aria-label={backLabel}
           >
             <Icon name="back" />
           </button>

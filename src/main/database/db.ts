@@ -31,6 +31,7 @@ export function getDb(): Database.Database {
   db.exec(SCHEMA_SQL)
   migrateChatThreads(db)
   migrateChatMetadata(db)
+  migrateScriptKind(db)
   seedSealionProvider(db)
   return db
 }
@@ -143,6 +144,17 @@ function migrateChatMetadata(database: Database.Database): void {
     }
   })
   migrate(rows)
+}
+
+function migrateScriptKind(database: Database.Database): void {
+  const columns = database.prepare('PRAGMA table_info(ea_scripts)').all() as { name: string }[]
+  if (!columns.some((column) => column.name === 'kind')) {
+    database.exec(`ALTER TABLE ea_scripts ADD COLUMN kind TEXT NOT NULL DEFAULT 'ea'`)
+  }
+  if (!columns.some((column) => column.name === 'language')) {
+    database.exec(`ALTER TABLE ea_scripts ADD COLUMN language TEXT NOT NULL DEFAULT 'mql5'`)
+  }
+  database.exec('CREATE INDEX IF NOT EXISTS idx_ea_scripts_kind ON ea_scripts(kind)')
 }
 
 export function databaseFileExists(): boolean {

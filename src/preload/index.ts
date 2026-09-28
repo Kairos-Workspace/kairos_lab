@@ -12,6 +12,7 @@ import type {
   EaChatThread,
   EaScript,
   SavedStrategy,
+  ScriptKind,
   Timeframe,
   Trade
 } from '../shared/types'
@@ -76,11 +77,11 @@ const api = {
       ipcRenderer.invoke(IPC.STRATEGIES_DELETE, id) as Promise<SavedStrategy[]>
   },
   eaScripts: {
-    list: () => ipcRenderer.invoke(IPC.EA_SCRIPTS_LIST) as Promise<EaScript[]>,
+    list: (kind: ScriptKind) => ipcRenderer.invoke(IPC.EA_SCRIPTS_LIST, kind) as Promise<EaScript[]>,
     save: (script: EaScript) =>
       ipcRenderer.invoke(IPC.EA_SCRIPTS_SAVE, script) as Promise<EaScript[]>,
-    delete: (id: string) =>
-      ipcRenderer.invoke(IPC.EA_SCRIPTS_DELETE, id) as Promise<EaScript[]>
+    delete: (id: string, kind: ScriptKind) =>
+      ipcRenderer.invoke(IPC.EA_SCRIPTS_DELETE, id, kind) as Promise<EaScript[]>
   },
   ai: {
     listProviders: () => ipcRenderer.invoke(IPC.AI_LIST_PROVIDERS) as Promise<AiProviderProfile[]>,
@@ -108,8 +109,8 @@ const api = {
         models: string[]
         message?: string
       }>,
-    listChatThreads: () =>
-      ipcRenderer.invoke(IPC.AI_LIST_CHAT_THREADS) as Promise<EaChatThread[]>,
+    listChatThreads: (kind: ScriptKind) =>
+      ipcRenderer.invoke(IPC.AI_LIST_CHAT_THREADS, kind) as Promise<EaChatThread[]>,
     listChatMessages: (threadId: string) =>
       ipcRenderer.invoke(IPC.AI_LIST_CHAT_MESSAGES, threadId) as Promise<EaChatMessage[]>,
     sendChatMessage: (payload: {
@@ -144,8 +145,8 @@ const api = {
         ipcRenderer.removeListener(IPC.AI_CHAT_CHUNK, listener)
       }
     },
-    deleteChatThread: (threadId: string) =>
-      ipcRenderer.invoke(IPC.AI_DELETE_CHAT_THREAD, threadId) as Promise<EaChatThread[]>
+    deleteChatThread: (threadId: string, kind: ScriptKind) =>
+      ipcRenderer.invoke(IPC.AI_DELETE_CHAT_THREAD, threadId, kind) as Promise<EaChatThread[]>
   },
   prefs: {
     load: () => ipcRenderer.invoke(IPC.PREFS_LOAD) as Promise<DeskPrefs>,
@@ -161,5 +162,6 @@ const api = {
 
 export type QuantifyApi = typeof api
 
+contextBridge.exposeInMainWorld('kairos', api)
 contextBridge.exposeInMainWorld('quantify', api)
 contextBridge.exposeInMainWorld('aureum', api)

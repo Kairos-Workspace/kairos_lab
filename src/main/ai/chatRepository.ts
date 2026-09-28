@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { EaChatMessage, EaChatThread } from '@shared/types'
+import type { EaChatMessage, EaChatThread, ScriptKind } from '@shared/types'
 import { chatTitleFromText } from './chatTitle'
 import { getDb } from '../database/db'
 
@@ -45,16 +45,28 @@ function toThread(row: EaChatThreadRow): EaChatThread {
   }
 }
 
-export function listChatThreads(): EaChatThread[] {
-  const rows = getDb()
-    .prepare(
-      `SELECT t.* FROM ea_chat_threads t
-       WHERE EXISTS (
-         SELECT 1 FROM ea_chat_messages m WHERE m.thread_id = t.id
-       )
-       ORDER BY t.updated_at DESC`
-    )
-    .all() as EaChatThreadRow[]
+export function listChatThreads(kind?: ScriptKind): EaChatThread[] {
+  const rows = kind
+    ? (getDb()
+        .prepare(
+          `SELECT t.* FROM ea_chat_threads t
+           WHERE EXISTS (
+             SELECT 1 FROM ea_chat_messages m
+             INNER JOIN ea_scripts s ON s.id = m.script_id
+             WHERE m.thread_id = t.id AND s.kind = ?
+           )
+           ORDER BY t.updated_at DESC`
+        )
+        .all(kind) as EaChatThreadRow[])
+    : (getDb()
+        .prepare(
+          `SELECT t.* FROM ea_chat_threads t
+           WHERE EXISTS (
+             SELECT 1 FROM ea_chat_messages m WHERE m.thread_id = t.id
+           )
+           ORDER BY t.updated_at DESC`
+        )
+        .all() as EaChatThreadRow[])
   return rows.map(toThread)
 }
 

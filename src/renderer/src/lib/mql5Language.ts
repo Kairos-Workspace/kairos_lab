@@ -15,7 +15,7 @@ loader.config({ monaco })
 // fails with "Failed to fetch dynamically imported module". Vite's `?worker`
 // suffix is a static import it can reliably bundle for both dev and build,
 // sidestepping Monaco's own resolution entirely. This app only registers a
-// custom Monarch language (mql5), so the generic editor worker is the only
+// custom Monarch languages (mql5, pinescript), so the generic editor worker is the only
 // one ever requested — no per-language workers (json/ts/css/html) needed.
 self.MonacoEnvironment = {
   getWorker() {
@@ -106,7 +106,7 @@ export function registerMql5Language(monacoInstance: Monaco): void {
     })
   }
 
-  monacoInstance.editor.defineTheme('quantify-dark', {
+  const darkTheme = {
     base: 'vs-dark',
     inherit: true,
     rules: [
@@ -145,9 +145,11 @@ export function registerMql5Language(monacoInstance: Monaco): void {
       'scrollbarSlider.activeBackground': '#e0a63e66',
       'editorOverviewRuler.border': '#00000000'
     }
-  })
+  }
+  monacoInstance.editor.defineTheme('kairos-dark', darkTheme as Parameters<typeof monacoInstance.editor.defineTheme>[1])
+  monacoInstance.editor.defineTheme('quantify-dark', darkTheme as Parameters<typeof monacoInstance.editor.defineTheme>[1])
 
-  monacoInstance.editor.defineTheme('quantify-light', {
+  const lightTheme = {
     base: 'vs',
     inherit: true,
     rules: [
@@ -186,5 +188,84 @@ export function registerMql5Language(monacoInstance: Monaco): void {
       'scrollbarSlider.activeBackground': '#8a5f1a55',
       'editorOverviewRuler.border': '#00000000'
     }
+  }
+  monacoInstance.editor.defineTheme('kairos-light', lightTheme as Parameters<typeof monacoInstance.editor.defineTheme>[1])
+  monacoInstance.editor.defineTheme('quantify-light', lightTheme as Parameters<typeof monacoInstance.editor.defineTheme>[1])
+}
+
+let pineRegistered = false
+
+function registerPineScriptLanguage(monacoInstance: Monaco): void {
+  if (pineRegistered) return
+  pineRegistered = true
+  monacoInstance.languages.register({ id: 'pinescript' })
+  monacoInstance.languages.setMonarchTokensProvider('pinescript', {
+    keywords: [
+      'if',
+      'else',
+      'for',
+      'to',
+      'by',
+      'while',
+      'switch',
+      'break',
+      'continue',
+      'true',
+      'false',
+      'na',
+      'and',
+      'or',
+      'not',
+      'var',
+      'varip',
+      'import',
+      'export',
+      'method',
+      'type',
+      'enum',
+      'in'
+    ],
+    builtins: [
+      'indicator',
+      'strategy',
+      'library',
+      'plot',
+      'plotshape',
+      'plotchar',
+      'plotcandle',
+      'plotbar',
+      'fill',
+      'hline',
+      'bgcolor',
+      'barcolor',
+      'alert',
+      'alertcondition',
+      'input'
+    ],
+    tokenizer: {
+      root: [
+        [/\/\/@@version=[\w.]+/, 'keyword.control'],
+        [/\/\/.*$/, 'comment'],
+        [/"([^"\\]|\\.)*"/, 'string'],
+        [/'([^'\\]|\\.)*'/, 'string'],
+        [/\b\d+\.\d+\b/, 'number.float'],
+        [/\b\d+\b/, 'number'],
+        [
+          /[a-zA-Z_]\w*/,
+          {
+            cases: {
+              '@keywords': 'keyword',
+              '@builtins': 'keyword.control',
+              '@default': 'identifier'
+            }
+          }
+        ]
+      ]
+    }
   })
+}
+
+export function registerLabLanguages(monacoInstance: Monaco): void {
+  registerMql5Language(monacoInstance)
+  registerPineScriptLanguage(monacoInstance)
 }

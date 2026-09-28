@@ -46,8 +46,8 @@ describe('shouldLiveApplyBlock', () => {
     expect(shouldLiveApplyBlock(code)).toBe(false)
   })
 
-  it('accepts a block once it contains a real EA entry point', () => {
-    const code = 'void OnTick()\n{\n  // trade logic\n}'
+  it('accepts a Pine Script indicator for live apply', () => {
+    const code = '//@version=5\nindicator("RSI", overlay=false)\nplot(close)'
     expect(shouldLiveApplyBlock(code)).toBe(true)
   })
 
@@ -72,6 +72,11 @@ describe('extractScriptName with a precomputed block', () => {
   it('falls back to scanning content when no block is precomputed', () => {
     const content = 'Here is your EA:\n```mql5 MyStrategy.mq5\nvoid OnTick() {}\n```'
     expect(extractScriptName(content)).toBe('MyStrategy')
+  })
+
+  it('strips a .pine extension from a fence filename', () => {
+    const content = '```pine RSI Cross.pine\n//@version=5\nindicator("RSI")\n```'
+    expect(extractScriptName(content)).toBe('RSI Cross')
   })
 
   it('returns null when the precomputed block has no filename and content has no marker', () => {

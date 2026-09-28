@@ -13,7 +13,11 @@ interface ExecutionContext {
   signal: StrategySignal | null
 }
 
-class WarmupError extends Error {}
+class WarmupError extends Error {
+  constructor() {
+    super('Not enough candle history; evaluate series and indicators in OnTick')
+  }
+}
 
 export interface EaRuntimeState {
   program: Program
@@ -145,7 +149,9 @@ function evaluateExpr(expression: Expr, context: ExecutionContext): RuntimeValue
       return getVariable(context, expression.name)
     case 'series': {
       const index = asNumber(evaluateExpr(expression.index, context))
-      if (!Number.isInteger(index) || index < 0) throw new WarmupError()
+      if (!Number.isInteger(index) || index < 0) {
+        throw new Error('Series index must be a non-negative integer')
+      }
       const bar = context.candles[context.candles.length - 1 - index]
       if (!bar) throw new WarmupError()
       return expression.series === 'time' ? bar.timestamp : bar[expression.series]
@@ -268,8 +274,8 @@ export function runOnTick(
   candles: Candle[],
   candle: Candle
 ): StrategySignal | null {
-  // Snapshot so a mid-tick WarmupError does not leave crossPrev / globals
-  // half-updated (cross memory must come from the previous successful eval).
+  // A failed tick must not leave cross memory or globals half-updated,
+  // whether it needs more history or has a runtime error.
   const crossSnapshot = new Map(state.crossPrev)
   const globalsSnapshot = new Map(state.globals)
   const context: ExecutionContext = {
@@ -283,9 +289,9 @@ export function runOnTick(
     if (state.program.onTick) executeStatements(state.program.onTick.body, context)
     return context.signal
   } catch (error) {
+    state.crossPrev = crossSnapshot
+    state.globals = globalsSnapshot
     if (error instanceof WarmupError) {
-      state.crossPrev = crossSnapshot
-      state.globals = globalsSnapshot
       return null
     }
     throw error

@@ -6,8 +6,9 @@ type DesktopApi = Window['quantify'] & {
 }
 
 export function desktop(): DesktopApi | undefined {
-  const world = window as Window & { aureum?: DesktopApi }
-  return world.quantify ?? world.aureum
+  if (typeof window === 'undefined') return undefined
+  const world = window as Window & { aureum?: DesktopApi; kairos?: DesktopApi }
+  return world.kairos ?? world.quantify ?? world.aureum
 }
 
 export function requireDesktop(): DesktopApi {
@@ -17,12 +18,13 @@ export function requireDesktop(): DesktopApi {
 }
 
 export function inElectron(): boolean {
+  if (typeof navigator === 'undefined') return false
   return navigator.userAgent.includes('Electron')
 }
 
 export function desktopMissingMessage(): string {
   return inElectron()
-    ? 'Restart Quantify so it can reconnect to the local database.'
+    ? 'Restart Kairos so it can reconnect to the local database.'
     : 'Open this app through Electron so the local database can connect.'
 }
 

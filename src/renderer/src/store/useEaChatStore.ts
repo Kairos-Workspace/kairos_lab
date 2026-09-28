@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { EaChatAttachedFile, EaChatMessage, EaChatThread } from '@shared/types'
+import type { EaChatAttachedFile, EaChatMessage, EaChatThread, ScriptKind } from '@shared/types'
 import { desktop } from '../lib/desktop'
 import { pickValidProviderId } from '../lib/aiProviders'
 import { type ChatContentSegment, latestCodeBlock } from '../lib/extractCodeBlocks'
@@ -23,6 +23,8 @@ interface EaChatState {
   error: string | null
   selectedProviderId: string | null
   currentScriptId: string | null
+  labKind: ScriptKind
+  setLabKind: (kind: ScriptKind) => void
   loadHistory: () => Promise<void>
   openThread: (threadId: string) => Promise<void>
   newChat: () => void
@@ -46,6 +48,25 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
   error: null,
   selectedProviderId: null,
   currentScriptId: null,
+  labKind: 'ea',
+
+  setLabKind: (kind) => {
+    if (get().labKind === kind) return
+    set({
+      labKind: kind,
+      messages: [],
+      threads: [],
+      currentThreadId: null,
+      sending: false,
+      thinking: false,
+      streamText: '',
+      streamThinking: '',
+      streamBlock: null,
+      activeRequestId: null,
+      error: null,
+      navSeq: get().navSeq + 1
+    })
+  },
 
   loadHistory: async () => {
     // Guards against a slower loadHistory/openThread call resolving after a
@@ -53,7 +74,7 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
     // at — without this, its `set()` below would silently snap the view back.
     const seq = get().navSeq + 1
     set({ navSeq: seq })
-    const threads = (await aiBridge()?.listChatThreads()) ?? []
+    const threads = (await aiBridge()?.listChatThreads(get().labKind)) ?? []
     const latest = threads[0]
     if (!latest) {
       if (get().navSeq !== seq) return
@@ -133,7 +154,7 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
   },
 
   deleteThread: async (threadId) => {
-    const threads = (await aiBridge()?.deleteChatThread(threadId)) ?? []
+    const threads = (await aiBridge()?.deleteChatThread(threadId, get().labKind)) ?? []
     if (get().currentThreadId === threadId) {
       set({
         threads,

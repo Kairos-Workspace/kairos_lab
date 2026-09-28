@@ -23,6 +23,8 @@ function script(id: string, overrides: Partial<EaScript> = {}): EaScript {
   return {
     id,
     name: id,
+    kind: 'ea',
+    language: 'mql5',
     code: `// ${id}`,
     createdAt: 0,
     updatedAt: 0,
@@ -70,6 +72,7 @@ describe('useEaLabStore', () => {
     })
 
     it('does not overwrite the active draft when the target script no longer exists', () => {
+      // Script 'a' was deleted mid-stream; the active script is now 'b'.
       useEaLabStore.setState({
         scripts: [script('b')],
         activeScriptId: 'b',
@@ -120,6 +123,7 @@ describe('useEaLabStore', () => {
   describe('compile actions', () => {
     it('resets compileStatus when draft changes', () => {
       useEaLabStore.setState({
+        kind: 'ea',
         activeScriptId: 'a',
         draftCode: 'void OnTick() {}',
         compileStatus: 'ok',
@@ -135,6 +139,7 @@ describe('useEaLabStore', () => {
 
     it('compiles the active EA and records success', () => {
       useEaLabStore.setState({
+        kind: 'ea',
         scripts: [script('a', { name: 'Cross EA' })],
         activeScriptId: 'a',
         draftCode: 'void OnTick() { Buy(); }'
@@ -147,6 +152,7 @@ describe('useEaLabStore', () => {
 
     it('opens a backtest for a successfully compiled EA', async () => {
       useEaLabStore.setState({
+        kind: 'ea',
         scripts: [script('a', { name: 'Cross EA' })],
         activeScriptId: 'a',
         draftCode: 'void OnTick() { Buy(); }',
@@ -164,8 +170,31 @@ describe('useEaLabStore', () => {
     it('creates an expert advisor with the EA starter template', async () => {
       await useEaLabStore.getState().createScript()
       const created = eaScripts.save.mock.calls[0][0] as EaScript
+      expect(created.kind).toBe('ea')
+      expect(created.language).toBe('mql5')
       expect(created.name).toBe('Untitled EA')
       expect(created.code).toContain('OnTick')
+    })
+
+    it('creates an MQL5 indicator by default', async () => {
+      useEaLabStore.getState().setKind('indicator')
+      await useEaLabStore.getState().createScript()
+      const created = eaScripts.save.mock.calls[0][0] as EaScript
+      expect(created.kind).toBe('indicator')
+      expect(created.language).toBe('mql5')
+      expect(created.name).toBe('Untitled Indicator')
+      expect(created.code).toContain('OnCalculate')
+      expect(created.code).toContain('#property indicator_chart_window')
+    })
+
+    it('creates a Pine Script indicator when asked', async () => {
+      useEaLabStore.getState().setKind('indicator')
+      await useEaLabStore.getState().createScript('pinescript')
+      const created = eaScripts.save.mock.calls[0][0] as EaScript
+      expect(created.kind).toBe('indicator')
+      expect(created.language).toBe('pinescript')
+      expect(created.code).toContain('//@version=5')
+      expect(created.code).toContain('indicator(')
     })
   })
 })

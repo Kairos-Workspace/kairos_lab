@@ -1,3 +1,8 @@
+import type { ScriptKind, ScriptLanguage } from './scriptLab'
+
+export type { ScriptKind, ScriptLanguage }
+export { isScriptKind } from './scriptLab'
+
 export const TIMEFRAMES = ['1M', '5M', '15M', '30M', '1H', '4H', '1D'] as const
 export type Timeframe = (typeof TIMEFRAMES)[number]
 
@@ -176,6 +181,8 @@ export interface SavedStrategy {
 export interface EaScript {
   id: string
   name: string
+  kind: ScriptKind
+  language: ScriptLanguage
   code: string
   createdAt: number
   updatedAt: number
@@ -200,6 +207,7 @@ export interface EaChatAttachedFile {
   name: string
   code: string
   current: boolean
+  language?: ScriptLanguage
 }
 
 export interface EaChatThread {

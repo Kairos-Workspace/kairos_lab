@@ -5,7 +5,7 @@ import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { modelLabel, pickValidProviderId } from '../lib/aiProviders'
 import { MarkdownBlocks } from '../lib/chatMarkdown'
-import { extractCodeBlocks, extractScriptName, isFullMql5Script, latestCodeBlock, sanitizeScriptName, shouldLiveApplyBlock } from '../lib/extractCodeBlocks'
+import { extractCodeBlocks, extractScriptName, isFullLabScript, latestCodeBlock, sanitizeScriptName, shouldLiveApplyBlock } from '../lib/extractCodeBlocks'
 import { notifySuccess } from '../lib/notify'
 import { useAiProvidersStore } from '../store/useAiProvidersStore'
 import { useEaChatStore } from '../store/useEaChatStore'
@@ -228,14 +228,14 @@ export function EaChatPanel(): React.JSX.Element {
     const block = latestCodeBlock(source)
     void (async () => {
       if (nextName) await renameScript(target, nextName)
-      if (block && isFullMql5Script(block.content)) {
+      if (block && isFullLabScript(block.content)) {
         applyCodeToScript(target, block.content, { quiet: true })
         if (useEaLabStore.getState().activeScriptId === target) {
           await saveActiveScript({ quiet: true })
         }
       }
       const name = useEaLabStore.getState().scripts.find((s) => s.id === target)?.name
-      if (nextName || (block && isFullMql5Script(block.content))) {
+      if (nextName || (block && isFullLabScript(block.content))) {
         notifySuccess(`Updated ${name ?? 'script'}`)
       }
     })()
@@ -280,7 +280,8 @@ export function EaChatPanel(): React.JSX.Element {
     return attachedScripts.map((script) => ({
       name: script.name,
       code: script.id === activeScriptId ? draftCode : script.code,
-      current: script.id === activeScriptId
+      current: script.id === activeScriptId,
+      language: script.language
     }))
   }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { formatRange, fromReplayInput, toReplayInput } from '../lib/replayRange'
-import { Icon } from './Icon'
+import { Button, FormField, Modal } from './ui'
 import { useAppStore } from '../store/useAppStore'
 
 export function ReplayRangeModal({
@@ -39,39 +39,34 @@ export function ReplayRangeModal({
   }
 
   return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="replay-range-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
+    <Modal
+      open={true}
+      onClose={onClose}
+      stamp="Replay"
+      title="Choose period"
+      subtitle={dataset ? `Data available: ${formatRange(dataset.startTs, dataset.endTs)}` : undefined}
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" icon="play" type="submit" form="replay-range-form">
+            Start
+          </Button>
+        </>
+      }
     >
       <form
-        className="composer"
+        id="replay-range-form"
         onSubmit={(event) => {
           event.preventDefault()
           handleStart()
         }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
       >
-        <header>
-          <div>
-            <span className="stamp">Replay</span>
-            <h2 id="replay-range-title">Choose period</h2>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} title="Close">
-            <Icon name="close" />
-          </button>
-        </header>
-
-        {dataset ? (
-          <p className="composer-hint">Data available: {formatRange(dataset.startTs, dataset.endTs)}</p>
-        ) : null}
-
-        <div className="row">
-          <label className="field">
-            From
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+          <FormField label="From">
             <input
               type="datetime-local"
               value={from}
@@ -81,9 +76,8 @@ export function ReplayRangeModal({
               onChange={(e) => setFrom(e.target.value)}
               aria-label="Replay from"
             />
-          </label>
-          <label className="field">
-            To
+          </FormField>
+          <FormField label="To">
             <input
               type="datetime-local"
               value={to}
@@ -93,19 +87,10 @@ export function ReplayRangeModal({
               onChange={(e) => setTo(e.target.value)}
               aria-label="Replay to"
             />
-          </label>
-        </div>
-
-        <div className="composer-actions">
-          <button className="ghost" type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="primary icon-label" type="submit">
-            <Icon name="play" />
-            Start
-          </button>
+          </FormField>
         </div>
       </form>
-    </div>
+    </Modal>
   )
 }
+

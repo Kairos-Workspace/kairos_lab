@@ -18,6 +18,9 @@ import {
   strategyIndicatorLines,
   strategyIndicatorSpecs
 } from '@core/indicators/overlay'
+import { previewPineScript } from '@core/indicators/pinePreview'
+import type { PinePreviewFill, PinePreviewLine, PinePreviewShape } from '@core/indicators/pinePreview'
+import { PineOverlayPrimitive } from '../lib/pineChartPrimitive'
 import { shouldLoadOlder, shiftedVisibleRange } from '@core/candles/pagination'
 import type { Candle, StrategySettings } from '@shared/types'
 import { Icon } from './Icon'
@@ -103,6 +106,8 @@ export function ChartPanel(): React.JSX.Element {
   const prevOverlayKey = useRef('')
   const prevDisplayCandlesRef = useRef<Candle[] | null>(null)
   const indicatorsRef = useRef(new Map<string, ISeriesApi<'Line'>>())
+  const pinePrimitiveRef = useRef<PineOverlayPrimitive | null>(null)
+  const pineLinesRef = useRef<ISeriesApi<'Line'>[]>([])
   const paintTokenRef = useRef(0)
   const followIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastVisibleRangeRef = useRef<{ from: number; to: number } | null>(null)
@@ -115,6 +120,7 @@ export function ChartPanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const levels = useAppStore((s) => s.horizontalLevels)
   const mode = useAppStore((s) => s.mode)
+  const replayIndex = useAppStore((s) => s.replayIndex)
   const isPlaying = useAppStore((s) => s.isPlaying)
   const followReplay = useAppStore((s) => s.followReplay)
   const displayCandles = useAppStore((s) => s.displayCandles)
@@ -123,6 +129,10 @@ export function ChartPanel(): React.JSX.Element {
   const theme = useAppStore((s) => s.theme)
   const chartFull = useAppStore((s) => s.chartFull)
   const toggleChartFull = useAppStore((s) => s.toggleChartFull)
+  const pineIndicators = useAppStore((s) => s.pineIndicators)
+  const activeTool = useAppStore((s) => s.activeTool)
+  const rightTab = useAppStore((s) => s.rightTab)
+  const setRightTab = useAppStore((s) => s.setRightTab)
   const startManualTrade = useAppStore((s) => s.startManualTrade)
   const canStartManualTrade = hasTape && !activeTrade && !draft
   const extras = (() => {
@@ -193,12 +203,18 @@ export function ChartPanel(): React.JSX.Element {
       }
     })
 
+    const primitive = new PineOverlayPrimitive()
+    series.attachPrimitive(primitive)
+    pinePrimitiveRef.current = primitive
+
     chartRef.current = chart
     candleRef.current = series
     setChartApi(chart)
     setSeriesApi(series)
     return () => {
       indicatorsRef.current.clear()
+      pinePrimitiveRef.current = null
+      pineLinesRef.current = []
       chart.remove()
       chartRef.current = null
       setChartApi(null)
@@ -463,8 +479,140 @@ export function ChartPanel(): React.JSX.Element {
     )
   }, [activeTrade, selectedId, trades, levels, draft, settings, theme])
 
+  useEffect(() => {
+    const chart = chartRef.current
+    const primitive = pinePrimitiveRef.current
+    if (!chart) return
+
+    const activeIndicators = pineIndicators.filter((ind) => ind.enabled && ind.code.trim().length > 0)
+
+    if (activeIndicators.length === 0) {
+      primitive?.setData([], [])
+      for (const s of pineLinesRef.current) {
+        try {
+          chart.removeSeries(s)
+        } catch {
+          /* ignore */
+        }
+      }
+      pineLinesRef.current = []
+      chart.priceScale('right').applyOptions({
+        scaleMargins: { top: 0.06, bottom: 0.06 }
+      })
+      return
+    }
+
+    if (displayCandles.length === 0) return
+
+    // Cap history so large LuxAlgo-style scripts stay interactive on attach.
+    const MAX_PINE_BARS = 600
+    const pineCandles =
+      displayCandles.length > MAX_PINE_BARS ? displayCandles.slice(-MAX_PINE_BARS) : displayCandles
+
+    const isReplay = mode === 'replay' && replayIndex >= 0 && replayIndex < displayCandles.length
+    const cutoffTime = isReplay ? displayCandles[replayIndex].timestamp : Infinity
+
+    const allFills: PinePreviewFill[] = []
+    const allShapes: PinePreviewShape[] = []
+    const allLines: PinePreviewLine[] = []
+
+    for (const ind of activeIndicators) {
+      try {
+        const preview = previewPineScript(ind.code, pineCandles, ind.name || 'Pine Indicator', {
+          diagnostics: false
+        })
+        if (preview.diagnostics.some((d) => d.severity === 'error')) continue
+        const fills = isReplay
+          ? preview.fills
+              .filter((f) => f.timestamp <= cutoffTime)
+              .map((f) => ({ ...f, until: f.until ? Math.min(f.until, cutoffTime) : cutoffTime }))
+          : preview.fills
+        const shapes = isReplay
+          ? preview.shapes.filter((s) => s.timestamp <= cutoffTime)
+          : preview.shapes
+        const validLines = preview.lines
+          .filter((l) => !l.hidden)
+          .map((l) => ({
+            ...l,
+            points: isReplay ? l.points.filter((p) => p.timestamp <= cutoffTime) : l.points
+          }))
+          .filter((l) => l.points.length > 0)
+
+        allFills.push(...fills)
+        allShapes.push(...shapes)
+        allLines.push(...validLines)
+      } catch (err) {
+        console.error('[Pine Indicator Preview Error]', ind.name, err)
+      }
+    }
+
+    primitive?.setData(allFills, allShapes)
+
+    const hasOscillator = allLines.some((l) => l.pane === 'oscillator')
+
+    chart.priceScale('right').applyOptions({
+      scaleMargins: hasOscillator ? { top: 0.04, bottom: 0.3 } : { top: 0.06, bottom: 0.06 }
+    })
+
+    const next: ISeriesApi<'Line'>[] = []
+    for (let i = 0; i < allLines.length; i++) {
+      const line = allLines[i]
+      const scaleId = line.pane === 'oscillator' ? 'pine-osc' : 'right'
+      let lineSeries = pineLinesRef.current[i]
+      if (!lineSeries) {
+        lineSeries = chart.addSeries(LineSeries, {
+          color: line.color,
+          lineWidth: 1,
+          title: line.title,
+          priceScaleId: scaleId,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false
+        })
+      } else {
+        lineSeries.applyOptions({
+          color: line.color,
+          lineWidth: 1,
+          title: line.title,
+          priceScaleId: scaleId
+        })
+      }
+      if (line.pane === 'oscillator') {
+        chart.priceScale('pine-osc').applyOptions({
+          visible: true,
+          scaleMargins: { top: 0.76, bottom: 0.02 }
+        })
+      }
+      lineSeries.setData(
+        line.points.map((p) => ({
+          time: (p.timestamp / 1000) as UTCTimestamp,
+          value: p.value
+        }))
+      )
+      next.push(lineSeries)
+    }
+
+    for (let i = allLines.length; i < pineLinesRef.current.length; i++) {
+      try {
+        chart.removeSeries(pineLinesRef.current[i])
+      } catch {
+        /* ignore */
+      }
+    }
+    pineLinesRef.current = next
+  }, [chartApi, displayCandles, mode, replayIndex, pineIndicators])
+
   return (
     <section className="chart-shell" ref={shellRef}>
+      <button
+        className="icon-btn chart-fx-btn"
+        data-active={rightTab === 'indicators' || pineIndicators.some((i) => i.enabled)}
+        onClick={() => setRightTab('indicators')}
+        title="Custom Pine Script Indicator (fx)"
+        aria-label="Pine Script Indicator"
+      >
+        <span className="fx-pill">fx</span>
+      </button>
       <button
         className="icon-btn chart-frame-btn"
         data-active={chartFull}
@@ -486,7 +634,7 @@ export function ChartPanel(): React.JSX.Element {
           </button>
         </div>
       ) : null}
-      <div className="chart" data-drawing-active={useAppStore((s) => s.activeTool) !== null} ref={hostRef}>
+      <div className="chart" data-drawing-active={activeTool !== null} ref={hostRef}>
         {hasTape ? null : (
           <div className="chart-empty">
             <h2>Pick a pair</h2>

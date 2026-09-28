@@ -10,10 +10,12 @@ import type {
   Drawing,
   EaScript,
   SavedStrategy,
+  ScriptKind,
   StrategySettings,
   Timeframe,
   Trade
 } from '@shared/types'
+import { defaultScriptName, isScriptKind, scriptLanguage } from '@shared/scriptLab'
 import { pruneEmptyChatThreads } from '../ai/chatRepository'
 import { getDb } from './db'
 
@@ -414,52 +416,72 @@ export function deleteStrategy(id: string): void {
 interface EaScriptRow {
   id: string
   name: string
+  kind: string
+  language: string
   code: string
   created_at: number
   updated_at: number
 }
 
 function mapEaScript(row: EaScriptRow): EaScript {
+  const kind = isScriptKind(row.kind) ? row.kind : 'ea'
   return {
     id: row.id,
     name: row.name,
+    kind,
+    language: scriptLanguage(kind, row.language),
     code: row.code,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }
 }
 
-export function listEaScripts(): EaScript[] {
+export function getEaScript(id: string): EaScript | null {
+  const row = getDb().prepare('SELECT * FROM ea_scripts WHERE id = ?').get(id) as EaScriptRow | undefined
+  return row ? mapEaScript(row) : null
+}
+
+export function listEaScripts(kind: ScriptKind): EaScript[] {
   const rows = getDb()
-    .prepare('SELECT * FROM ea_scripts ORDER BY updated_at DESC')
-    .all() as EaScriptRow[]
+    .prepare('SELECT * FROM ea_scripts WHERE kind = ? ORDER BY updated_at DESC')
+    .all(kind) as EaScriptRow[]
   return rows.map(mapEaScript)
 }
 
 export function saveEaScript(script: EaScript): EaScript {
   const now = Date.now()
+  const kind: ScriptKind = isScriptKind(script.kind) ? script.kind : 'ea'
+  const language = scriptLanguage(kind, script.language)
+  const name = script.name.trim() || defaultScriptName(kind)
   const row = {
     ...script,
+    kind,
+    language,
+    name,
     updatedAt: now,
     createdAt: script.createdAt || now
   }
   getDb()
     .prepare(
-      `INSERT INTO ea_scripts (id, name, code, created_at, updated_at)
-       VALUES (@id, @name, @code, @created, @updated)
+      `INSERT INTO ea_scripts (id, name, kind, language, code, created_at, updated_at)
+       VALUES (@id, @name, @kind, @language, @code, @created, @updated)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
+         kind = excluded.kind,
+         language = excluded.language,
          code = excluded.code,
          updated_at = excluded.updated_at`
     )
     .run({
       id: row.id,
-      name: row.name.trim() || 'Untitled EA',
+      name: row.name,
+      kind: row.kind,
+      language: row.language,
       code: row.code,
       created: row.createdAt,
       updated: row.updatedAt
     })
-  return { ...row, name: row.name.trim() || 'Untitled EA' }
+  return row
 }
 
 export function deleteEaScript(id: string): void {

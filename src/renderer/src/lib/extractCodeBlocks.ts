@@ -16,7 +16,7 @@ export function parseFenceMeta(raw: string): { language?: string; filename?: str
   const first = parts[0]
   const rest = parts.slice(1).join(' ').trim()
   if (rest) return { language: first, filename: rest }
-  if (/\.(mq5|mq4|ex5|ex4)$/i.test(first)) return { filename: first }
+  if (/\.(mq5|mq4|ex5|ex4|pine)$/i.test(first)) return { filename: first }
   return { language: first }
 }
 
@@ -25,7 +25,7 @@ export function sanitizeScriptName(raw: string): string | null {
   name = name.replace(/\\/g, '/')
   const slash = name.lastIndexOf('/')
   if (slash >= 0) name = name.slice(slash + 1)
-  name = name.replace(/\.(mq5|mq4|ex5|ex4)$/i, '')
+  name = name.replace(/\.(mq5|mq4|ex5|ex4|pine)$/i, '')
   name = name.replace(/[<>:"|?*]/g, ' ').replace(/\s+/g, ' ').trim()
   if (!name || name === '.' || name === '..') return null
   if (name.length > 80) name = name.slice(0, 80).trim()
@@ -131,9 +131,17 @@ export function isFullMql5Script(code: string): boolean {
   return MQL5_ENTRY_POINT_RE.test(code)
 }
 
+export function isFullPineScript(code: string): boolean {
+  return /(?:^|\n)\s*\/\/@version\s*=/.test(code) || /\b(?:indicator|strategy|library)\s*\(/.test(code)
+}
+
+export function isFullLabScript(code: string): boolean {
+  return isFullMql5Script(code) || isFullPineScript(code)
+}
+
 // Gates whether a still-streaming code block should be live-written into the
-// editor: a short conversational snippet (no MQL5 entry point) must never
-// overwrite the draft, only an actual EA rewrite should stream live.
+// editor: a short conversational snippet (no program entry point) must never
+// overwrite the draft, only an actual MQL5 or Pine rewrite should stream live.
 export function shouldLiveApplyBlock(content: string): boolean {
-  return Boolean(content.trim()) && isFullMql5Script(content)
+  return Boolean(content.trim()) && isFullLabScript(content)
 }

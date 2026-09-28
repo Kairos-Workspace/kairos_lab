@@ -2,15 +2,92 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import * as monaco from 'monaco-editor'
 import type { editor as MonacoEditor } from 'monaco-editor'
+import { diagnosePineScript, type PineDiagnostic } from '@core/indicators/pinePreview'
+import {
+  fileExtension,
+  labCopy,
+  languageLabel,
+  monacoLanguage,
+  scriptLanguage,
+  type ScriptKind,
+  type ScriptLanguage
+} from '@shared/scriptLab'
 import { BrandMark } from './BrandMark'
 import { EaChatPanel } from './EaChatPanel'
 import { Icon } from './Icon'
+import { IndicatorChart } from './IndicatorChart'
 import { ThemeToggle } from './ThemeToggle'
 import { shouldLiveApplyBlock } from '../lib/extractCodeBlocks'
-import { registerMql5Language } from '../lib/mql5Language'
+import { registerLabLanguages } from '../lib/mql5Language'
 import { useAppStore } from '../store/useAppStore'
 import { useEaChatStore } from '../store/useEaChatStore'
 import { useEaLabStore } from '../store/useEaLabStore'
+
+function scriptExt(script: { kind: ScriptKind; language?: ScriptLanguage }): string {
+  return fileExtension(scriptLanguage(script.kind, script.language))
+}
+
+function NewIndicatorMenu({
+  onCreate
+}: {
+  onCreate: (language: ScriptLanguage) => void
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(event: MouseEvent): void {
+      if (wrapRef.current?.contains(event.target as Node)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  return (
+    <div className="ea-lab-new-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="icon-btn"
+        data-active={open}
+        onClick={() => setOpen((value) => !value)}
+        title="New indicator"
+        aria-label="New indicator"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <Icon name="plus" />
+      </button>
+      {open ? (
+        <div className="ea-lab-new-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onCreate('mql5')
+            }}
+          >
+            <strong>MQL5</strong>
+            <span>MetaTrader indicator</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              onCreate('pinescript')
+            }}
+          >
+            <strong>Pine Script</strong>
+            <span>TradingView indicator</span>
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function revealWriteHead(instance: MonacoEditor.IStandaloneCodeEditor): number {
   const model = instance.getModel()
@@ -22,11 +99,13 @@ function revealWriteHead(instance: MonacoEditor.IStandaloneCodeEditor): number {
   return line
 }
 
-export function EaLab(): React.JSX.Element {
+export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
   const goHome = useAppStore((s) => s.goHome)
   const enterSettings = useAppStore((s) => s.enterSettings)
   const theme = useAppStore((s) => s.theme)
-  const scripts = useEaLabStore((s) => s.scripts)
+  const setKind = useEaLabStore((s) => s.setKind)
+  const allScripts = useEaLabStore((s) => s.scripts)
+  const scripts = useMemo(() => allScripts.filter((s) => s.kind === kind), [allScripts, kind])
   const activeScriptId = useEaLabStore((s) => s.activeScriptId)
   const draftCode = useEaLabStore((s) => s.draftCode)
   const dirty = useEaLabStore((s) => s.dirty)
@@ -37,7 +116,7 @@ export function EaLab(): React.JSX.Element {
   const saveActiveScript = useEaLabStore((s) => s.saveActiveScript)
   const renameScript = useEaLabStore((s) => s.renameScript)
   const deleteScript = useEaLabStore((s) => s.deleteScript)
-  const diagnostics = useEaLabStore((s) => s.diagnostics)
+  const eaDiagnostics = useEaLabStore((s) => s.diagnostics)
   const compileStatus = useEaLabStore((s) => s.compileStatus)
   const compileActive = useEaLabStore((s) => s.compileActive)
   const runBacktest = useEaLabStore((s) => s.runBacktest)
@@ -47,17 +126,34 @@ export function EaLab(): React.JSX.Element {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [showChat, setShowChat] = useState(false)
-  const [cursor, setCursor] = useState({ line: 1, column: 1 })
+  const [labPage, setLabPage] = useState<'editor' | 'chart'>('editor')
+  const [overlayId, setOverlayId] = useState<string | null>(null)
+  const [pineDiagnostics, setPineDiagnostics] = useState<PineDiagnostic[]>([])
   const [editorEpoch, setEditorEpoch] = useState(0)
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null)
+  const pendingJump = useRef<{ line: number; column: number } | null>(null)
+  const [cursor, setCursor] = useState({ line: 1, column: 1 })
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string
+    name: string
+    language: ScriptLanguage
+  } | null>(null)
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof monaco | null>(null)
   const decoRef = useRef<string[]>([])
   const writing = sending && Boolean(streamBlock && shouldLiveApplyBlock(streamBlock.content))
+  const copy = labCopy(kind)
 
   useEffect(() => {
+    setKind(kind)
     void loadScripts()
-  }, [loadScripts])
+    if (kind !== 'indicator') setLabPage('editor')
+  }, [kind, setKind, loadScripts])
+
+  useEffect(() => {
+    if (!overlayId) return
+    if (scripts.some((script) => script.id === overlayId)) return
+    setOverlayId(null)
+  }, [scripts, overlayId])
 
   useEffect(() => {
     if (!dirty || !activeScriptId || sending) return
@@ -68,17 +164,31 @@ export function EaLab(): React.JSX.Element {
   }, [draftCode, dirty, activeScriptId, sending, saveActiveScript])
 
   useEffect(() => {
-    const model = editorRef.current?.getModel()
+    const language = scriptLanguage(kind, scripts.find((s) => s.id === activeScriptId)?.language)
+    if (kind !== 'indicator' || language !== 'pinescript') {
+      setPineDiagnostics([])
+      return
+    }
+    if (labPage === 'chart') return
+    const timer = window.setTimeout(() => {
+      setPineDiagnostics(diagnosePineScript(draftCode))
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [kind, scripts, activeScriptId, draftCode, labPage])
+
+  useEffect(() => {
+    const instance = editorRef.current
+    const model = instance?.getModel()
     const monacoApi = monacoRef.current
     if (!model || !monacoApi) return
     monacoApi.editor.setModelMarkers(
       model,
-      'ea-dsl',
-      diagnostics.map((row) => ({
+      'quantify-pine',
+      pineDiagnostics.map((row) => ({
         startLineNumber: row.line,
         startColumn: Math.max(1, row.column),
         endLineNumber: row.line,
-        endColumn: Math.max(row.column + (row.length ?? 1), row.column + 1),
+        endColumn: Math.max(row.column + row.length, row.column + 1),
         message: row.message,
         severity:
           row.severity === 'error'
@@ -86,8 +196,32 @@ export function EaLab(): React.JSX.Element {
             : monacoApi.MarkerSeverity.Warning
       }))
     )
+    return () => monacoApi.editor.setModelMarkers(model, 'quantify-pine', [])
+  }, [pineDiagnostics, activeScriptId, labPage, editorEpoch])
+
+  useEffect(() => {
+    const model = editorRef.current?.getModel()
+    const monacoApi = monacoRef.current
+    if (!model || !monacoApi) return
+    monacoApi.editor.setModelMarkers(
+      model,
+      'ea-dsl',
+      kind === 'ea'
+        ? eaDiagnostics.map((row) => ({
+            startLineNumber: row.line,
+            startColumn: Math.max(1, row.column),
+            endLineNumber: row.line,
+            endColumn: Math.max(row.column + (row.length ?? 1), row.column + 1),
+            message: row.message,
+            severity:
+              row.severity === 'error'
+                ? monacoApi.MarkerSeverity.Error
+                : monacoApi.MarkerSeverity.Warning
+          }))
+        : []
+    )
     return () => monacoApi.editor.setModelMarkers(model, 'ea-dsl', [])
-  }, [diagnostics, activeScriptId, editorEpoch])
+  }, [kind, eaDiagnostics, activeScriptId, editorEpoch])
 
   useEffect(() => {
     if (!pendingDelete) return
@@ -145,15 +279,40 @@ export function EaLab(): React.JSX.Element {
     setRenamingId(null)
   }
 
+  function goToDiagnostic(row: PineDiagnostic): void {
+    pendingJump.current = { line: row.line, column: row.column }
+    if (labPage !== 'editor') {
+      setLabPage('editor')
+      return
+    }
+    const instance = editorRef.current
+    if (!instance) return
+    pendingJump.current = null
+    instance.revealLineInCenter(row.line)
+    instance.setPosition({ lineNumber: row.line, column: Math.max(1, row.column) })
+    instance.focus()
+    setCursor({ line: row.line, column: Math.max(1, row.column) })
+  }
+
   const activeScript = scripts.find((s) => s.id === activeScriptId)
-  const errorCount = diagnostics.filter((row) => row.severity === 'error').length
+  const activeLanguage = scriptLanguage(kind, activeScript?.language)
+  const pineErrorCount = pineDiagnostics.filter((row) => row.severity === 'error').length
+  const eaErrorCount = eaDiagnostics.filter((row) => row.severity === 'error').length
+  const diagLabel =
+    kind !== 'indicator'
+      ? null
+      : activeLanguage === 'pinescript'
+        ? pineErrorCount
+          ? `${pineErrorCount} error${pineErrorCount === 1 ? '' : 's'}`
+          : 'No issues'
+        : 'MQL5 not checked'
   const compileLabel =
-    compileStatus === 'idle'
+    kind !== 'ea' || compileStatus === 'idle'
       ? null
       : compileStatus === 'ok'
-        ? 'Compiled · ready to backtest'
-        : `${errorCount} error${errorCount === 1 ? '' : 's'}`
-  const monacoTheme = theme === 'dark' ? 'quantify-dark' : 'quantify-light'
+        ? 'Local compile passed · ready to backtest'
+        : `${eaErrorCount} error${eaErrorCount === 1 ? '' : 's'}`
+  const monacoTheme = theme === 'dark' ? 'kairos-dark' : 'kairos-light'
   const editorOptions = useMemo<MonacoEditor.IStandaloneEditorConstructionOptions>(
     () => ({
       fontFamily: "'IBM Plex Mono', Menlo, Monaco, monospace",
@@ -175,9 +334,9 @@ export function EaLab(): React.JSX.Element {
         horizontalScrollbarSize: 8,
         useShadows: false
       },
-      overviewRulerLanes: 0,
+      overviewRulerLanes: 2,
       hideCursorInOverviewRuler: true,
-      glyphMargin: false,
+      glyphMargin: true,
       folding: true,
       lineNumbersMinChars: 3,
       renderWhitespace: 'selection',
@@ -196,7 +355,7 @@ export function EaLab(): React.JSX.Element {
     <div className="app" data-frame="ea-lab">
       <header className="topbar">
         <div className="brand">
-          <BrandMark subtitle="EA development" />
+          <BrandMark subtitle={copy.brandSubtitle} />
         </div>
         <div className="top-controls" />
         <div className="session-chip">
@@ -204,15 +363,19 @@ export function EaLab(): React.JSX.Element {
             <Icon name="home" />
           </button>
           <ThemeToggle />
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => void createScript()}
-            title="New script"
-            aria-label="New script"
-          >
-            <Icon name="plus" />
-          </button>
+          {kind === 'indicator' ? (
+            <NewIndicatorMenu onCreate={(language) => void createScript(language)} />
+          ) : (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => void createScript('mql5')}
+              title={copy.newFileTitle}
+              aria-label={copy.newFileTitle}
+            >
+              <Icon name="plus" />
+            </button>
+          )}
           <button
             type="button"
             className="icon-btn"
@@ -237,12 +400,42 @@ export function EaLab(): React.JSX.Element {
 
       <section className="ea-lab-body" data-chat-open={showChat}>
         <aside className="ea-lab-sidebar">
-          <div className="ea-lab-sidebar-head">
-            <span className="stamp">Explorer</span>
-            <span className="ea-lab-sidebar-count">{scripts.length}</span>
+          <div className="ea-lab-sidebar-head" data-pages={kind === 'indicator'}>
+            {kind === 'indicator' ? (
+              <div className="ea-lab-page-tabs" role="tablist" aria-label="Indicator Lab views">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={labPage === 'editor'}
+                  data-active={labPage === 'editor'}
+                  onClick={() => setLabPage('editor')}
+                >
+                  Editor
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={labPage === 'chart'}
+                  data-active={labPage === 'chart'}
+                  onClick={() => setLabPage('chart')}
+                >
+                  Chart
+                </button>
+              </div>
+            ) : (
+              <>
+                <span className="stamp">Explorer</span>
+                <span className="ea-lab-sidebar-count">{scripts.length}</span>
+              </>
+            )}
           </div>
+          {kind === 'ea' ? (
+            <p className="ea-lab-empty">
+              Local backtests use Kairos Signal DSL. Full MQL5 requires MetaTrader.
+            </p>
+          ) : null}
           {scripts.length === 0 ? (
-            <p className="ea-lab-empty">No scripts yet. Create one to open the editor.</p>
+            <p className="ea-lab-empty">{copy.emptyExplorer}</p>
           ) : (
             <ul className="ea-lab-script-list">
               {scripts.map((s) => (
@@ -270,7 +463,7 @@ export function EaLab(): React.JSX.Element {
                       <span className="ea-lab-script-copy">
                         <strong>
                           {s.name}
-                          <em>.mq5</em>
+                          <em>{scriptExt(s)}</em>
                         </strong>
                       </span>
                     </button>
@@ -289,7 +482,13 @@ export function EaLab(): React.JSX.Element {
                     className="icon-btn"
                     title="Delete"
                     aria-label={`Delete ${s.name}`}
-                    onClick={() => setPendingDelete({ id: s.id, name: s.name })}
+                    onClick={() =>
+                      setPendingDelete({
+                        id: s.id,
+                        name: s.name,
+                        language: scriptLanguage(s.kind, s.language)
+                      })
+                    }
                   >
                     <Icon name="trash" />
                   </button>
@@ -307,7 +506,7 @@ export function EaLab(): React.JSX.Element {
                   <Icon name="file" size={12} />
                   <span>
                     {activeScript.name}
-                    <em>.mq5</em>
+                    <em>{scriptExt(activeScript)}</em>
                   </span>
                   {dirty ? <span className="ea-lab-tab-dot" aria-label="Unsaved changes" /> : null}
                 </div>
@@ -317,13 +516,13 @@ export function EaLab(): React.JSX.Element {
             </div>
             <div className="ea-lab-editor-actions">
               {writing ? <span className="ea-lab-writing-stamp">Writing</span> : null}
-              {activeScriptId ? (
+              {kind === 'ea' && activeScriptId ? (
                 <>
                   <button
                     type="button"
                     className="icon-btn"
-                    title="Compile"
-                    aria-label="Compile"
+                    title="Check Kairos Signal DSL for local backtesting"
+                    aria-label="Compile local strategy"
                     disabled={sending}
                     onClick={() => void compileActive()}
                   >
@@ -344,22 +543,41 @@ export function EaLab(): React.JSX.Element {
             </div>
           </div>
           <div className="ea-lab-editor-body">
-            {activeScriptId ? (
+            {kind === 'indicator' && labPage === 'chart' ? (
+              <IndicatorChart
+                scripts={scripts}
+                activeScriptId={activeScriptId}
+                draftCode={draftCode}
+                overlayId={overlayId}
+                onOverlayChange={setOverlayId}
+              />
+            ) : activeScriptId ? (
               <Editor
                 height="100%"
-                language="mql5"
+                language={monacoLanguage(scriptLanguage(kind, activeScript?.language))}
                 theme={monacoTheme}
                 value={draftCode}
                 onChange={(value) => {
                   if (useEaChatStore.getState().sending) return
                   updateDraftCode(value ?? '')
                 }}
-                beforeMount={registerMql5Language}
+                beforeMount={registerLabLanguages}
                 onMount={(instance, monacoApi) => {
-                  registerMql5Language(monacoApi)
+                  registerLabLanguages(monacoApi)
                   editorRef.current = instance
                   monacoRef.current = monacoApi
                   setEditorEpoch((value) => value + 1)
+                  const jump = pendingJump.current
+                  if (jump) {
+                    pendingJump.current = null
+                    instance.revealLineInCenter(jump.line)
+                    instance.setPosition({
+                      lineNumber: jump.line,
+                      column: Math.max(1, jump.column)
+                    })
+                    instance.focus()
+                    setCursor({ line: jump.line, column: Math.max(1, jump.column) })
+                  }
                   instance.addCommand(monacoApi.KeyMod.CtrlCmd | monacoApi.KeyCode.KeyS, () => {
                     const state = useEaLabStore.getState()
                     if (!state.activeScriptId || !state.dirty || useEaChatStore.getState().sending) {
@@ -370,6 +588,7 @@ export function EaLab(): React.JSX.Element {
                   instance.addCommand(
                     monacoApi.KeyMod.CtrlCmd | monacoApi.KeyCode.Enter,
                     () => {
+                      if (useEaLabStore.getState().kind !== 'ea') return
                       if (useEaChatStore.getState().sending) return
                       void useEaLabStore.getState().runBacktest()
                     }
@@ -385,17 +604,42 @@ export function EaLab(): React.JSX.Element {
               />
             ) : (
               <div className="ea-lab-editor-empty">
-                <p>Create a script to start editing.</p>
-                <button type="button" className="primary icon-label" onClick={() => void createScript()}>
-                  <Icon name="plus" />
-                  New script
-                </button>
+                <p>{copy.emptyEditor}</p>
+                {kind === 'indicator' ? (
+                  <div className="ea-lab-empty-actions">
+                    <button
+                      type="button"
+                      className="primary icon-label"
+                      onClick={() => void createScript('mql5')}
+                    >
+                      <Icon name="plus" />
+                      New MQL5
+                    </button>
+                    <button
+                      type="button"
+                      className="primary icon-label"
+                      onClick={() => void createScript('pinescript')}
+                    >
+                      <Icon name="plus" />
+                      New Pine Script
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="primary icon-label"
+                    onClick={() => void createScript('mql5')}
+                  >
+                    <Icon name="plus" />
+                    {copy.newFile}
+                  </button>
+                )}
               </div>
             )}
           </div>
-          {diagnostics.length > 0 ? (
+          {kind === 'ea' && eaDiagnostics.length > 0 ? (
             <div className="ea-lab-problems" role="list">
-              {diagnostics.map((row, index) => (
+              {eaDiagnostics.map((row, index) => (
                 <button
                   key={`${row.line}:${row.column}:${index}`}
                   type="button"
@@ -420,22 +664,56 @@ export function EaLab(): React.JSX.Element {
               ))}
             </div>
           ) : null}
-          <div className="ea-lab-status">
-            <span>
-              Ln {cursor.line}, Col {cursor.column}
-            </span>
-            <span>MQL5</span>
-            <span>UTF-8</span>
-            {compileLabel ? (
-              <span
-                className="ea-lab-diag"
-                data-kind={compileStatus === 'error' ? 'error' : 'ok'}
-              >
-                {compileLabel}
+          {kind === 'indicator' && pineDiagnostics.length > 0 ? (
+            <div className="ea-lab-problems" role="status">
+              {pineDiagnostics.map((row, index) => (
+                <button
+                  key={`${row.line}-${row.column}-${index}`}
+                  type="button"
+                  className="ea-lab-problem"
+                  data-severity={row.severity}
+                  onClick={() => goToDiagnostic(row)}
+                >
+                  <strong>Ln {row.line}</strong>
+                  <span>{row.message}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {labPage === 'chart' && kind === 'indicator' ? (
+            <div className="ea-lab-status">
+              <span>Chart</span>
+              <span>{overlayId ? scripts.find((s) => s.id === overlayId)?.name ?? 'Overlay' : 'No overlay'}</span>
+              {diagLabel ? (
+                <span className="ea-lab-diag" data-kind={pineErrorCount ? 'error' : 'ok'}>
+                  {diagLabel}
+                </span>
+              ) : null}
+              <span className="ea-lab-status-end">{dirty ? 'Unsaved' : 'Saved'}</span>
+            </div>
+          ) : (
+            <div className="ea-lab-status">
+              <span>
+                Ln {cursor.line}, Col {cursor.column}
               </span>
-            ) : null}
-            <span className="ea-lab-status-end">{dirty ? 'Unsaved' : 'Saved'}</span>
-          </div>
+              <span>{kind === 'ea' ? 'Kairos Signal DSL' : languageLabel(activeLanguage)}</span>
+              <span>UTF-8</span>
+              {diagLabel ? (
+                <span className="ea-lab-diag" data-kind={pineErrorCount ? 'error' : 'ok'}>
+                  {diagLabel}
+                </span>
+              ) : null}
+              {compileLabel ? (
+                <span
+                  className="ea-lab-diag"
+                  data-kind={compileStatus === 'error' ? 'error' : 'ok'}
+                >
+                  {compileLabel}
+                </span>
+              ) : null}
+              <span className="ea-lab-status-end">{dirty ? 'Unsaved' : 'Saved'}</span>
+            </div>
+          )}
         </div>
 
         {showChat ? <EaChatPanel /> : null}
@@ -455,7 +733,7 @@ export function EaLab(): React.JSX.Element {
             <header>
               <div>
                 <span className="stamp">Explorer</span>
-                <h2 id="ea-lab-delete-title">Delete script</h2>
+                <h2 id="ea-lab-delete-title">{copy.deleteTitle}</h2>
               </div>
               <button
                 type="button"
@@ -468,7 +746,8 @@ export function EaLab(): React.JSX.Element {
               </button>
             </header>
             <p className="composer-hint">
-              Delete {pendingDelete.name}.mq5? This cannot be undone.
+              Delete {pendingDelete.name}
+              {fileExtension(pendingDelete.language)}? This cannot be undone.
             </p>
             <div className="composer-actions">
               <button type="button" className="ghost" onClick={() => setPendingDelete(null)}>
@@ -480,6 +759,7 @@ export function EaLab(): React.JSX.Element {
                 onClick={() => {
                   const id = pendingDelete.id
                   setPendingDelete(null)
+                  if (overlayId === id) setOverlayId(null)
                   void deleteScript(id)
                 }}
               >

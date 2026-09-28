@@ -10,6 +10,7 @@ export type IconName =
   | 'expand'
   | 'compress'
   | 'strategy'
+  | 'indicators'
   | 'trade'
   | 'costs'
   | 'save'
@@ -46,6 +47,9 @@ export type IconName =
   | 'send'
   | 'file'
   | 'history'
+  | 'copy'
+  | 'chevronRight'
+  | 'chevronDown'
 
 const PATHS: Record<IconName, string> = {
   play: 'M8 5v14l11-7z',
@@ -60,6 +64,7 @@ const PATHS: Record<IconName, string> = {
   expand: 'M8 3H3v5M16 3h5v5M8 21H3v-5M21 16v5h-5',
   compress: 'M8 3v5H3M16 3v5h5M8 21v-5H3M21 16h-5v5',
   strategy: 'M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8',
+  indicators: 'M3 17l4-4 4 4 6-8 4 3M3 12l5-5 4 4 5-6 4 2',
   trade: 'M7 17V7m0 0L4 10m3-3 3 3M17 7v10m0 0 3-3m-3 3-3-3',
   costs: 'M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',
   save: 'M5 3h11l3 3v15H5V3zm3 0v6h8V3M8 14h8',
@@ -96,7 +101,10 @@ const PATHS: Record<IconName, string> = {
   chat: 'M4 4h16v12H8l-4 4V4z',
   send: 'M12 19V5M5 12l7-7 7 7',
   file: 'M7 3h8l5 5v13H7V3zm8 0v5h5',
-  history: 'M12 8v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z'
+  history: 'M12 8v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z',
+  copy: 'M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.5L16.5 4H10a2 2 0 0 0-2 2z M4 8v11a2 2 0 0 0 2 2h10',
+  chevronRight: 'M9 18l6-6-6-6',
+  chevronDown: 'M6 9l6 6 6-6'
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {

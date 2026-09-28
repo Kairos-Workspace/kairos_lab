@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChartTool, DrawingTool } from '@shared/types'
 import { Icon, type IconName } from './Icon'
 import { ConfirmIconButton } from './ConfirmIconButton'
@@ -26,89 +26,170 @@ export function DrawingToolbar(): React.JSX.Element {
   const redoDrawing = useAppStore((s) => s.redoDrawing)
   const canUndo = useAppStore((s) => s.drawingUndoStack.length > 0)
   const canRedo = useAppStore((s) => s.drawingRedoStack.length > 0)
+
+  const [selectedLineTool, setSelectedLineTool] = useState<DrawingTool>('trendline')
+  const [selectedShapeTool, setSelectedShapeTool] = useState<DrawingTool>('rectangle')
   const [openFlyout, setOpenFlyout] = useState<'lines' | 'shapes' | null>(null)
+  const toolbarRef = useRef<HTMLDivElement>(null)
+
+  // Sync selected sub-tool if activeTool changes externally
+  useEffect(() => {
+    if (!activeTool) return
+    if (LINE_TOOLS.some((t) => t.tool === activeTool)) {
+      setSelectedLineTool(activeTool as DrawingTool)
+    } else if (SHAPE_TOOLS.some((t) => t.tool === activeTool)) {
+      setSelectedShapeTool(activeTool as DrawingTool)
+    }
+  }, [activeTool])
+
+  // Click outside to close flyouts
+  useEffect(() => {
+    if (!openFlyout) return
+    const handlePointerDown = (e: MouseEvent | PointerEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setOpenFlyout(null)
+      }
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => document.removeEventListener('pointerdown', handlePointerDown)
+  }, [openFlyout])
 
   function pick(tool: ChartTool): void {
     setActiveTool(activeTool === tool ? null : tool)
     setOpenFlyout(null)
   }
 
-  const activeLineTool = LINE_TOOLS.find((t) => t.tool === activeTool)
-  const activeShapeTool = SHAPE_TOOLS.find((t) => t.tool === activeTool)
+  const currentLineToolObj =
+    LINE_TOOLS.find((t) => t.tool === (activeTool ?? selectedLineTool)) ?? LINE_TOOLS[0]
+  const isLineActive = LINE_TOOLS.some((t) => t.tool === activeTool)
+
+  const currentShapeToolObj =
+    SHAPE_TOOLS.find((t) => t.tool === (activeTool ?? selectedShapeTool)) ?? SHAPE_TOOLS[0]
+  const isShapeActive = SHAPE_TOOLS.some((t) => t.tool === activeTool)
 
   return (
-    <div className="drawing-toolbar">
+    <div className="drawing-toolbar" ref={toolbarRef}>
       <button
         type="button"
         className="icon-btn"
         data-active={activeTool === null}
-        title="Cursor"
+        title="Cursor (Pan & Select)"
         aria-label="Cursor"
-        onClick={() => setActiveTool(null)}
+        onClick={() => {
+          setActiveTool(null)
+          setOpenFlyout(null)
+        }}
       >
         <Icon name="cursor" />
       </button>
 
-      <div className="drawing-toolbar-group">
+      {/* Line tools group (single 36x36 button with corner arrow) */}
+      <div className="drawing-toolbar-item-wrap">
         <button
           type="button"
           className="icon-btn"
-          data-active={activeLineTool != null}
-          title={activeLineTool?.label ?? 'Line tools'}
-          aria-label="Line tools"
-          onClick={() => setOpenFlyout(openFlyout === 'lines' ? null : 'lines')}
+          data-active={isLineActive}
+          title={`${currentLineToolObj.label} (click arrow to choose)`}
+          aria-label={currentLineToolObj.label}
+          onClick={() => {
+            if (isLineActive) {
+              setActiveTool(null)
+            } else {
+              setActiveTool(selectedLineTool)
+            }
+            setOpenFlyout(null)
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setOpenFlyout(openFlyout === 'lines' ? null : 'lines')
+          }}
         >
-          <Icon name={activeLineTool?.icon ?? 'trendLine'} />
+          <Icon name={currentLineToolObj.icon} />
+          <span
+            className="flyout-corner-arrow"
+            title="Choose line tool"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpenFlyout(openFlyout === 'lines' ? null : 'lines')
+            }}
+          />
         </button>
+
         {openFlyout === 'lines' ? (
           <div className="drawing-flyout">
             {LINE_TOOLS.map(({ tool, icon, label }) => (
               <button
                 key={tool}
                 type="button"
-                className="icon-btn"
+                className="drawing-flyout-item"
                 data-active={activeTool === tool}
-                title={label}
-                aria-label={label}
-                onClick={() => pick(tool)}
+                onClick={() => {
+                  setSelectedLineTool(tool)
+                  pick(tool)
+                }}
               >
-                <Icon name={icon} />
+                <Icon name={icon} size={15} />
+                <span>{label}</span>
               </button>
             ))}
           </div>
         ) : null}
       </div>
 
-      <div className="drawing-toolbar-group">
+      {/* Shape tools group (single 36x36 button with corner arrow) */}
+      <div className="drawing-toolbar-item-wrap">
         <button
           type="button"
           className="icon-btn"
-          data-active={activeShapeTool != null}
-          title={activeShapeTool?.label ?? 'Shapes'}
-          aria-label="Shapes"
-          onClick={() => setOpenFlyout(openFlyout === 'shapes' ? null : 'shapes')}
+          data-active={isShapeActive}
+          title={`${currentShapeToolObj.label} (click arrow to choose)`}
+          aria-label={currentShapeToolObj.label}
+          onClick={() => {
+            if (isShapeActive) {
+              setActiveTool(null)
+            } else {
+              setActiveTool(selectedShapeTool)
+            }
+            setOpenFlyout(null)
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setOpenFlyout(openFlyout === 'shapes' ? null : 'shapes')
+          }}
         >
-          <Icon name={activeShapeTool?.icon ?? 'rectangle'} />
+          <Icon name={currentShapeToolObj.icon} />
+          <span
+            className="flyout-corner-arrow"
+            title="Choose shape tool"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpenFlyout(openFlyout === 'shapes' ? null : 'shapes')
+            }}
+          />
         </button>
+
         {openFlyout === 'shapes' ? (
           <div className="drawing-flyout">
             {SHAPE_TOOLS.map(({ tool, icon, label }) => (
               <button
                 key={tool}
                 type="button"
-                className="icon-btn"
+                className="drawing-flyout-item"
                 data-active={activeTool === tool}
-                title={label}
-                aria-label={label}
-                onClick={() => pick(tool)}
+                onClick={() => {
+                  setSelectedShapeTool(tool)
+                  pick(tool)
+                }}
               >
-                <Icon name={icon} />
+                <Icon name={icon} size={15} />
+                <span>{label}</span>
               </button>
             ))}
           </div>
         ) : null}
       </div>
 
+      {/* Direct tools */}
       <button
         type="button"
         className="icon-btn"
@@ -153,6 +234,9 @@ export function DrawingToolbar(): React.JSX.Element {
         <Icon name="measure" />
       </button>
 
+      <div className="drawing-toolbar-sep" />
+
+      {/* Drawing controls */}
       <button
         type="button"
         className="icon-btn"
