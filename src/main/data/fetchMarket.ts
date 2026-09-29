@@ -86,6 +86,12 @@ export async function fetchMarketCandles(input: {
   try {
     return await pullDukascopy(input, route.instrument)
   } catch (first) {
+    // Only tip-fallback when the caller asked for a short recent window.
+    // Falling back on a multi-year refresh silently glues Aug–now onto an
+    // incomplete historical stump (e.g. XAUUSD 5M ending in 2011).
+    const spanMs = Math.max(0, input.endTs - input.startTs)
+    const tipFallbackOk = spanMs <= 60 * 86_400_000
+    if (!tipFallbackOk) throw first
     try {
       const recent = recentWindow()
       return await pullDukascopy({ ...input, ...recent }, route.instrument)

@@ -4,17 +4,15 @@ Offline US + USD macro history used for as-of snapshots during chart scrub / rep
 
 ## Coverage
 
-| Series | Id | Cadence | Approx. span |
-|--------|----|---------|--------------|
-| Fed funds target (upper) | `fed_funds` | FOMC changes | 2019-12 → 2025-12 |
-| Unemployment U-3 | `unemployment` | Monthly print | 2019-12 → 2025-12 |
-| CPI YoY | `cpi_yoy` | Monthly print | 2019-12 → 2025-12 |
-| Nonfarm payrolls Δ | `nfp` | Monthly print | 2019-12 → 2025-12 |
-| USD index (DXY) | `dxy` | Month-end close | 2019-12 → 2025-12 |
+| Series | Id | Cadence | Source |
+|--------|----|---------|--------|
+| Fed funds target (upper) | `fed_funds` | FOMC changes | FRED `DFEDTARU` |
+| Unemployment U-3 | `unemployment` | Monthly print | FRED `UNRATE` |
+| CPI YoY | `cpi_yoy` | Monthly print | YoY from FRED `CPIAUCSL` |
+| Nonfarm payrolls Δ | `nfp` | Monthly print | MoM Δ FRED `PAYEMS` (thousands) |
+| USD index (DXY) | `dxy` | Month-end close | Yahoo `DX-Y.NYB` |
 
-High-impact `events` (`fomc` / `cpi` / `nfp`) run roughly **2020-02 → 2026-01** (Dec 2025 prints land in early Jan 2026).
-
-Intended scrub window: **2020-01-01 → 2025-12-31**.
+High-impact `events` (`fomc` / `cpi` / `nfp`) track the same release/decision timestamps, plus scheduled upcoming FOMC meetings (no `actual` until decided).
 
 ## As-of rule
 
@@ -22,19 +20,13 @@ All `points[].ts` and `events[].ts` are **unix milliseconds UTC** stamped at **r
 
 - `resolveFundamentals(bundle, asOfTs)` returns the latest point with `ts <= asOfTs` per series (no look-ahead).
 - Monthly labor / CPI rows use approximate BLS release days (first Friday / ~12th of the following month).
-- Fed funds points use FOMC decision day (~18:00 UTC).
-- DXY uses approximate month-end closes.
+- Fed funds points use the FRED target-change date (~18:00 UTC).
+- DXY uses Yahoo monthly bars stamped at month-end.
 
-Values are curated public approximations (~1 decimal for rates) for v1 offline replay — not a live FRED feed.
+Rebuild (requires `FRED_API_KEY` in `.env`):
 
-## Sources
-
-Approximate historical levels aligned with:
-
-- Fed funds: FRED `DFEDTARU` (FOMC target range upper bound)
-- Unemployment: FRED `UNRATE`
-- CPI YoY: derived from FRED `CPIAUCSL` (year-over-year %)
-- NFP: month-over-month change in FRED `PAYEMS` (thousands)
-- DXY: ICE US Dollar Index month-end closes (public market prints; similar path to FRED `DTWEXBGS`)
+```bash
+# see conversation / scripts — fetch FRED + Yahoo and rewrite macro.json
+```
 
 Bundle file: `macro.json`. Loader: `bundle.ts` → `getFundamentalsBundle()`.

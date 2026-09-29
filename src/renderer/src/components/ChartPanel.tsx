@@ -129,6 +129,10 @@ export function ChartPanel(): React.JSX.Element {
   const prevCount = useRef(0)
   const prevOverlayKey = useRef('')
   const prevDisplayCandlesRef = useRef<Candle[] | null>(null)
+  /** Last UTC-seconds time successfully plotted on the candle series. */
+  const lastPlottedTimeRef = useRef<number | null>(null)
+  /** True while a double-rAF setData is pending — skip series.update until it lands. */
+  const fullPaintPendingRef = useRef(false)
   const indicatorsRef = useRef(new Map<string, ISeriesApi<'Line'>>())
   const pinePrimitiveRef = useRef<PineOverlayPrimitive | null>(null)
   const pineLinesRef = useRef<ISeriesApi<'Line'>[]>([])
@@ -280,6 +284,10 @@ export function ChartPanel(): React.JSX.Element {
       seriesStartRef.current = start
       candlesRef.current = bars
       prevCount.current = bars.length
+      lastPlottedTimeRef.current = bars.length
+        ? Math.floor(bars[bars.length - 1].timestamp / 1000)
+        : null
+      fullPaintPendingRef.current = false
       const prior = chart.timeScale().getVisibleLogicalRange() ?? range
       series.setData(bars.map(toBar))
       for (const line of strategyIndicatorLines(s.settings, bars)) {
@@ -314,6 +322,9 @@ export function ChartPanel(): React.JSX.Element {
     seriesLookbackRef.current = SERIES_WINDOW
     seriesStartRef.current = 0
     pineCacheRef.current = null
+    prevCount.current = 0
+    lastPlottedTimeRef.current = null
+    fullPaintPendingRef.current = false
   }, [displayCandles])
 
   useEffect(() => {
@@ -414,34 +425,55 @@ export function ChartPanel(): React.JSX.Element {
       candlesRef.current = visible
       const count = visible.length
       const last = visible[count - 1]
+      const lastTimeSec = last ? Math.floor(last.timestamp / 1000) : null
       const key = overlayKey(settings)
       const overlayChanged = key !== prevOverlayKey.current
       prevOverlayKey.current = key
       syncOverlays(chart, settings)
 
+      const applySeriesData = (bars: Candle[]): void => {
+        series.setData(bars.map(toBar))
+        for (const line of strategyIndicatorLines(settings, bars)) {
+          indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
+        }
+        lastPlottedTimeRef.current = bars.length
+          ? Math.floor(bars[bars.length - 1].timestamp / 1000)
+          : null
+        prevCount.current = bars.length
+        fullPaintPendingRef.current = false
+      }
+
+      const timeOk =
+        lastTimeSec != null &&
+        (lastPlottedTimeRef.current == null || lastTimeSec >= lastPlottedTimeRef.current)
+
       const incremental =
         mode === 'replay' &&
+        !fullPaintPendingRef.current &&
         startDelta === 0 &&
         count === prevCount.current + 1 &&
         last != null &&
+        timeOk &&
         !overlayChanged
-      prevCount.current = count
 
-      if (incremental && last) {
-        series.update(toBar(last))
-        for (const point of strategyIndicatorLast(settings, visible)) {
-          indicatorsRef.current.get(point.id)?.update(toLinePoint(point))
+      if (incremental && last && lastTimeSec != null) {
+        try {
+          series.update(toBar(last))
+          for (const point of strategyIndicatorLast(settings, visible)) {
+            indicatorsRef.current.get(point.id)?.update(toLinePoint(point))
+          }
+          lastPlottedTimeRef.current = lastTimeSec
+          prevCount.current = count
+          if (follow) chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
+          return
+        } catch {
+          // Series still holds a newer tip (async setData pending / window reset) — full repaint.
         }
-        if (follow) chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
-        return
       }
 
       // Sliding/expanding replay window — keep the series capped without the loading veil.
       if (mode === 'replay' && !overlayChanged && Math.abs(startDelta) <= SERIES_EXPAND) {
-        series.setData(visible.map(toBar))
-        for (const line of strategyIndicatorLines(settings, visible)) {
-          indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
-        }
+        applySeriesData(visible)
         if (follow) {
           chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
         } else if (startDelta !== 0) {
@@ -460,11 +492,15 @@ export function ChartPanel(): React.JSX.Element {
 
       const tapeChanged = displayCandles !== prevDisplayCandlesRef.current
       const token = ++paintTokenRef.current
+      fullPaintPendingRef.current = true
+      prevCount.current = count
+      lastPlottedTimeRef.current = lastTimeSec
       if (tapeChanged) useAppStore.setState({ busy: true, status: 'Rendering chart…' })
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (paintTokenRef.current !== token) return
           if (chartRef.current !== chart || candleRef.current !== series) {
+            fullPaintPendingRef.current = false
             if (tapeChanged) useAppStore.setState({ busy: false })
             return
           }
@@ -477,10 +513,7 @@ export function ChartPanel(): React.JSX.Element {
             ? (chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current)
             : null
           if (priorRange) lastVisibleRangeRef.current = priorRange
-          series.setData(visible.map(toBar))
-          for (const line of strategyIndicatorLines(settings, visible)) {
-            indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
-          }
+          applySeriesData(visible)
           if (pendingShift != null && priorRange) {
             chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(priorRange, pendingShift))
           } else if (preserveReplayView && priorRange) {
@@ -622,14 +655,19 @@ export function ChartPanel(): React.JSX.Element {
     }
 
     // Cap history so large LuxAlgo-style scripts stay interactive on attach.
+    // During replay, the window must END at the playhead — using the tape's last
+    // 600 bars made mid-tape backtests show nothing after the cutoff filter.
     const MAX_PINE_BARS = 600
-    const pineCandles =
-      displayCandles.length > MAX_PINE_BARS ? displayCandles.slice(-MAX_PINE_BARS) : displayCandles
+    const isReplay = mode === 'replay' && replayIndex >= 0 && replayIndex < displayCandles.length
+    const end = isReplay ? replayIndex + 1 : displayCandles.length
+    const start = Math.max(0, end - MAX_PINE_BARS)
+    const pineCandles = displayCandles.slice(start, end)
+    if (pineCandles.length === 0) return
 
     const cacheKey = activeIndicators
       .map((ind) => `${ind.id}:${ind.code.length}:${ind.code.slice(0, 48)}:${ind.code.slice(-48)}`)
       .join('|')
-      .concat(`@${pineCandles.length}:${pineCandles[0]?.timestamp}:${pineCandles.at(-1)?.timestamp}`)
+      .concat(`@${start}:${end}:${pineCandles[0]?.timestamp}:${pineCandles.at(-1)?.timestamp}`)
 
     let fills: PinePreviewFill[]
     let shapes: PinePreviewShape[]
@@ -657,21 +695,10 @@ export function ChartPanel(): React.JSX.Element {
       pineCacheRef.current = { key: cacheKey, fills, shapes, lines }
     }
 
-    const isReplay = mode === 'replay' && replayIndex >= 0 && replayIndex < displayCandles.length
-    const cutoffTime = isReplay ? displayCandles[replayIndex].timestamp : Infinity
-
-    const allFills = isReplay
-      ? fills
-          .filter((f) => f.timestamp <= cutoffTime)
-          .map((f) => ({ ...f, until: f.until ? Math.min(f.until, cutoffTime) : cutoffTime }))
-      : fills
-    const allShapes = isReplay ? shapes.filter((s) => s.timestamp <= cutoffTime) : shapes
-    const allLines = lines
-      .map((l) => ({
-        ...l,
-        points: isReplay ? l.points.filter((p) => p.timestamp <= cutoffTime) : l.points
-      }))
-      .filter((l) => l.points.length > 0)
+    // Already computed up to the playhead — no future bars in the window.
+    const allFills = fills
+    const allShapes = shapes
+    const allLines = lines.filter((l) => l.points.length > 0)
 
     primitive?.setData(allFills, allShapes)
 

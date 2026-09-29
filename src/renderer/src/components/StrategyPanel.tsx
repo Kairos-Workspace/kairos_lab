@@ -12,6 +12,8 @@ export function StrategyPanel(): React.JSX.Element {
   const setAccountRisk = useAppStore((s) => s.setAccountRisk)
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
   const strategies = useAppStore((s) => s.strategies)
+  const showFundamentals = useAppStore((s) => s.showFundamentals)
+  const setShowFundamentals = useAppStore((s) => s.setShowFundamentals)
   const activeName = strategies.find((s) => s.id === activeStrategyId)?.name
   const [showRangeModal, setShowRangeModal] = useState(false)
 
@@ -122,6 +124,16 @@ export function StrategyPanel(): React.JSX.Element {
         <Icon name="play" />
         Start
       </button>
+      <label className="field">
+        <span>
+          <input
+            type="checkbox"
+            checked={showFundamentals}
+            onChange={(e) => setShowFundamentals(e.target.checked)}
+          />{' '}
+          Show fundamentals
+        </span>
+      </label>
       {showRangeModal ? <ReplayRangeModal onClose={() => setShowRangeModal(false)} /> : null}
     </>
   )

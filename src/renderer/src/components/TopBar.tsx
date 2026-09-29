@@ -23,8 +23,6 @@ export function TopBar(): React.JSX.Element {
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
   const activeEaScriptId = useAppStore((s) => s.activeEaScriptId)
   const sessionName = useAppStore((s) => s.sessionName)
-  const showFundamentals = useAppStore((s) => s.showFundamentals)
-  const setShowFundamentals = useAppStore((s) => s.setShowFundamentals)
   const strategies = useAppStore((s) => s.strategies)
   const activeName = strategies.find((s) => s.id === activeStrategyId)?.name
   const subtitle = activeEaScriptId
@@ -82,17 +80,6 @@ export function TopBar(): React.JSX.Element {
             />
           </label>
         </div>
-        <button
-          type="button"
-          className="icon-btn"
-          data-active={showFundamentals}
-          title={showFundamentals ? 'Hide fundamentals' : 'Show fundamentals'}
-          aria-label={showFundamentals ? 'Hide fundamentals' : 'Show fundamentals'}
-          aria-pressed={showFundamentals}
-          onClick={() => setShowFundamentals(!showFundamentals)}
-        >
-          Fund
-        </button>
         <div className="readout-group">
           <label>
             Date

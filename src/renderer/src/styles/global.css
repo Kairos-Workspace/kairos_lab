@@ -1669,8 +1669,28 @@ button:focus-visible {
   border-right: 0;
 }
 
+.fundamentals-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fund-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .fundamentals-panel h3 {
-  margin: 0 0 8px;
+  margin: 0;
+}
+
+.fund-asof {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .fundamentals-empty {
@@ -1679,27 +1699,88 @@ button:focus-visible {
   font-size: 12px;
 }
 
-.fundamentals-grid {
+.fund-metrics {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
-  margin: 0;
-  font-size: 12px;
+  gap: 8px 10px;
 }
 
-.fundamentals-grid dt {
+.fund-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fund-metric-label {
   color: var(--muted);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.fundamentals-grid dd {
-  margin: 2px 0 0;
+.fund-metric-value {
   font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text);
 }
 
-.fundamentals-cal[data-hot='true'] dd {
+.fund-metric-meta {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fund-events {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+}
+
+.fund-event {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.fund-event-label {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 2px;
+}
+
+.fund-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.fund-event-title {
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fund-event-date {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+}
+
+.fund-event[data-hot='true'] .fund-event-title {
   color: var(--brand);
 }
 

@@ -217,13 +217,22 @@ export function registerIpc(): void {
     if (!tape) throw new Error('That tape is not on the desk.')
     const existing = isCsvDataset(datasetId) ? csvCandles(datasetId) : getCandles(datasetId)
     if (existing.length === 0) throw new Error('Tape has no candles to extend.')
-    const range = latestWindow(existing[existing.length - 1].timestamp)
+    const lastTs = existing[existing.length - 1].timestamp
+    const range = latestWindow(lastTs)
     const pulled = await fetchMarketCandles({
       symbol: tape.symbol,
       timeframe: tape.timeframe,
       startTs: range.startTs,
       endTs: range.endTs
     })
+    const firstNew = pulled.candles.find((c) => c.timestamp > lastTs)
+    const joinGap = firstNew ? firstNew.timestamp - lastTs : 0
+    // Refuse to glue a recent tip onto a multi-year hole (seen on XAUUSD 5M/15M).
+    if (joinGap > 30 * 86_400_000) {
+      throw new Error(
+        `Refresh would leave a ${Math.round(joinGap / 86_400_000)}-day hole after ${new Date(lastTs).toISOString().slice(0, 10)}. Re-download the full tape instead.`
+      )
+    }
     const candles = dedupeCandles([...existing, ...pulled.candles])
     const report = validateCandles(candles, intervalMs(tape.timeframe))
     replaceTape({
