@@ -1,5 +1,5 @@
 import { getFundamentalsBundle } from '@core/fundamentals/bundle'
-import { fundamentalsAsOf, resolveFundamentals } from '@core/fundamentals/asOf'
+import { fundamentalsAsOf, lastEvent, resolveFundamentals } from '@core/fundamentals/asOf'
 import { useAppStore } from '../store/useAppStore'
 
 function fmt(n: number | null | undefined, digits = 2): string {
@@ -7,9 +7,23 @@ function fmt(n: number | null | undefined, digits = 2): string {
   return n.toFixed(digits)
 }
 
+function fmtPct(n: number | null | undefined, digits = 2): string {
+  if (n == null || !Number.isFinite(n)) return '—'
+  return `${n.toFixed(digits)}%`
+}
+
 function fmtWhen(ts: number | null | undefined): string {
   if (ts == null) return '—'
   return new Date(ts).toISOString().slice(0, 10)
+}
+
+function fedDirection(actual?: number, prior?: number): string | null {
+  if (actual == null || prior == null || !Number.isFinite(actual) || !Number.isFinite(prior)) {
+    return null
+  }
+  if (actual > prior) return 'hike'
+  if (actual < prior) return 'cut'
+  return 'hold'
 }
 
 export function FundamentalsPanel(): React.JSX.Element {
@@ -18,10 +32,13 @@ export function FundamentalsPanel(): React.JSX.Element {
   const displayCandles = useAppStore((s) => s.displayCandles)
 
   const asOfTs = fundamentalsAsOf({ mode, replayIndex, displayCandles })
-  const snap = asOfTs != null ? resolveFundamentals(getFundamentalsBundle(), asOfTs) : null
+  const bundle = getFundamentalsBundle()
+  const snap = asOfTs != null ? resolveFundamentals(bundle, asOfTs) : null
+  const lastFomc = asOfTs != null ? lastEvent(bundle.events, asOfTs, ['fomc']) : null
+  const fedDir = fedDirection(lastFomc?.actual, lastFomc?.prior)
 
   return (
-    <section className="fundamentals-panel" data-hot={snap?.justPrinted ? 'true' : undefined}>
+    <section className="fundamentals-panel">
       <h3>Fundamentals</h3>
       {!snap ? (
         <p className="fundamentals-empty">Load a tape to see macro context.</p>
@@ -29,15 +46,18 @@ export function FundamentalsPanel(): React.JSX.Element {
         <dl className="fundamentals-grid">
           <div>
             <dt>Fed funds</dt>
-            <dd>{fmt(snap.fedFunds?.value)}%</dd>
+            <dd>
+              {fmtPct(snap.fedFunds?.value)}
+              {lastFomc ? ` · ${fmtWhen(lastFomc.ts)}${fedDir ? ` ${fedDir}` : ''}` : ''}
+            </dd>
           </div>
           <div>
             <dt>Unemployment</dt>
-            <dd>{fmt(snap.unemployment?.value)}%</dd>
+            <dd>{fmtPct(snap.unemployment?.value)}</dd>
           </div>
           <div>
             <dt>CPI YoY</dt>
-            <dd>{fmt(snap.cpiYoy?.value)}%</dd>
+            <dd>{fmtPct(snap.cpiYoy?.value)}</dd>
           </div>
           <div>
             <dt>NFP</dt>
