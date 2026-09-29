@@ -95,6 +95,33 @@ describe('resolveFundamentals', () => {
     expect(snap.unemployment?.value).toBe(4.1)
     expect(snap.lastEvent?.kind).toBe('cpi')
     expect(snap.nextEvent?.kind).toBe('nfp')
+  })
+
+  it('sets justPrinted true when lastEvent is the same UTC calendar day as asOfTs', () => {
+    const eventDay = Date.UTC(2024, 5, 15, 10, 0)
+    const asOfSameDay = Date.UTC(2024, 5, 15, 18, 30)
+    const snap = resolveFundamentals(
+      {
+        series: [],
+        events: [{ ts: eventDay, kind: 'cpi', title: 'CPI YoY', impact: 'high', actual: 3.2 }]
+      },
+      asOfSameDay
+    )
+    expect(snap.lastEvent?.kind).toBe('cpi')
     expect(snap.justPrinted).toBe(true)
+  })
+
+  it('sets justPrinted false when lastEvent is a prior UTC calendar day', () => {
+    const eventDay = Date.UTC(2024, 5, 14, 10, 0)
+    const asOfNextDay = Date.UTC(2024, 5, 15, 18, 30)
+    const snap = resolveFundamentals(
+      {
+        series: [],
+        events: [{ ts: eventDay, kind: 'cpi', title: 'CPI YoY', impact: 'high', actual: 3.2 }]
+      },
+      asOfNextDay
+    )
+    expect(snap.lastEvent?.kind).toBe('cpi')
+    expect(snap.justPrinted).toBe(false)
   })
 })
