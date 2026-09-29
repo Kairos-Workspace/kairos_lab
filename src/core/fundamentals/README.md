@@ -4,29 +4,22 @@ Offline US + USD macro history used for as-of snapshots during chart scrub / rep
 
 ## Coverage
 
-| Series | Id | Cadence | Source |
-|--------|----|---------|--------|
-| Fed funds target (upper) | `fed_funds` | FOMC changes | FRED `DFEDTARU` |
-| Unemployment U-3 | `unemployment` | Monthly print | FRED `UNRATE` |
-| CPI YoY | `cpi_yoy` | Monthly print | YoY from FRED `CPIAUCSL` |
-| Nonfarm payrolls Δ | `nfp` | Monthly print | MoM Δ FRED `PAYEMS` (thousands) |
-| USD index (DXY) | `dxy` | Month-end close | Yahoo `DX-Y.NYB` |
+| Series | Id | Source |
+|--------|----|--------|
+| Fed target upper | `fed_funds` | FRED `DFEDTARU` (change days) |
+| Fed target lower | `fed_funds_lower` | FRED `DFEDTARL` (change days) |
+| Unemployment U-3 | `unemployment` | FRED `UNRATE` |
+| Headline CPI YoY | `cpi_yoy` | FRED `CPIAUCSL` (`units=pc1`) |
+| Core CPI YoY | `cpi_core` | FRED `CPILFESL` (`units=pc1`) |
+| Nonfarm payrolls Δ | `nfp` | MoM Δ FRED `PAYEMS` (thousands) |
+| DXY | `dxy` | Yahoo `DX-Y.NYB` daily closes |
 
-High-impact `events` (`fomc` / `cpi` / `nfp`) track the same release/decision timestamps, plus scheduled upcoming FOMC meetings (no `actual` until decided).
+Points are stamped at **release / decision time** (not period start). Monthly labor/CPI use first Friday / ~12th of the following month; each point may include a `period` label (e.g. `"Aug 2026"`).
 
-## As-of rule
-
-All `points[].ts` and `events[].ts` are **unix milliseconds UTC** stamped at **release / decision time**, not the reference period start.
-
-- `resolveFundamentals(bundle, asOfTs)` returns the latest point with `ts <= asOfTs` per series (no look-ahead).
-- Monthly labor / CPI rows use approximate BLS release days (first Friday / ~12th of the following month).
-- Fed funds points use the FRED target-change date (~18:00 UTC).
-- DXY uses Yahoo monthly bars stamped at month-end.
-
-Rebuild (requires `FRED_API_KEY` in `.env`):
+## Rebuild
 
 ```bash
-# see conversation / scripts — fetch FRED + Yahoo and rewrite macro.json
+node scripts/rebuild-fundamentals.mjs   # needs FRED_API_KEY in .env
 ```
 
-Bundle file: `macro.json`. Loader: `bundle.ts` → `getFundamentalsBundle()`.
+Loader: `bundle.ts` → `getFundamentalsBundle()`.

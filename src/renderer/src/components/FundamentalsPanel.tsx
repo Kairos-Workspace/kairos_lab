@@ -37,6 +37,14 @@ function fedDirection(actual?: number, prior?: number): string | null {
   return 'hold'
 }
 
+function fedRange(upper: FundamentalPoint | null, lower: FundamentalPoint | null): string {
+  if (upper == null && lower == null) return '—'
+  if (upper != null && lower != null && upper.value !== lower.value) {
+    return `${fmt(lower.value, 2)}–${fmt(upper.value, 2)}%`
+  }
+  return fmtPct(upper?.value ?? lower?.value)
+}
+
 function Metric({
   label,
   value,
@@ -76,7 +84,9 @@ function EventRow({
 }
 
 function pointMeta(point: FundamentalPoint | null | undefined): string | null {
-  return point ? fmtShort(point.ts) : null
+  if (!point) return null
+  if (point.period) return `${point.period} print`
+  return fmtShort(point.ts)
 }
 
 export function FundamentalsPanel(): React.JSX.Element {
@@ -97,20 +107,33 @@ export function FundamentalsPanel(): React.JSX.Element {
     <section className="fundamentals-panel">
       <header className="fund-header">
         <h3>Fundamentals</h3>
-        {snap ? <span className="fund-asof">{fmtWhen(snap.asOfTs)}</span> : null}
+        {snap ? <span className="fund-asof">as of {fmtWhen(snap.asOfTs)}</span> : null}
       </header>
       {!snap ? (
         <p className="fundamentals-empty">Load a tape to see macro context.</p>
       ) : (
         <>
           <div className="fund-metrics">
-            <Metric label="Fed funds" value={fmtPct(snap.fedFunds?.value)} meta={fedMeta} />
+            <Metric
+              label="Fed target"
+              value={fedRange(snap.fedFunds, snap.fedFundsLower)}
+              meta={fedMeta}
+            />
             <Metric
               label="Unemployment"
               value={fmtPct(snap.unemployment?.value)}
               meta={pointMeta(snap.unemployment)}
             />
-            <Metric label="CPI YoY" value={fmtPct(snap.cpiYoy?.value)} meta={pointMeta(snap.cpiYoy)} />
+            <Metric
+              label="CPI YoY"
+              value={fmtPct(snap.cpiYoy?.value)}
+              meta={pointMeta(snap.cpiYoy)}
+            />
+            <Metric
+              label="Core CPI"
+              value={fmtPct(snap.cpiCore?.value)}
+              meta={pointMeta(snap.cpiCore)}
+            />
             <Metric
               label="NFP"
               value={snap.nfp ? `${fmt(snap.nfp.value, 0)}k` : '—'}

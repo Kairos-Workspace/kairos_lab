@@ -74,8 +74,10 @@ export function resolveFundamentals(bundle: FundamentalBundle, asOfTs: number): 
   return {
     asOfTs,
     fedFunds: pick('fed_funds'),
+    fedFundsLower: pick('fed_funds_lower'),
     unemployment: pick('unemployment'),
     cpiYoy: pick('cpi_yoy'),
+    cpiCore: pick('cpi_core'),
     nfp: pick('nfp'),
     dxy: pick('dxy'),
     lastEvent: last,
