@@ -11,12 +11,35 @@ import {
   type Point
 } from '@core/drawings/geometry'
 import { useAppStore } from '../store/useAppStore'
-import { DrawingStyleMenu } from './DrawingStyleMenu'
 
 interface Props {
   chart: IChartApi | null
   series: ISeriesApi<'Candlestick'> | null
   host: HTMLDivElement | null
+}
+
+interface DragAnchor {
+  logical: number
+  price: number
+}
+
+/** Shift anchors by continuous logical/price deltas — avoids bar-time snapping jitter. */
+function shiftAnchors(
+  type: DrawingTool,
+  anchors: DragAnchor[],
+  dLogical: number,
+  dPrice: number,
+  logicalToTime: (logical: number) => number | null
+): DrawingPoint[] | null {
+  const next: DrawingPoint[] = []
+  for (const anchor of anchors) {
+    const logical = type === 'horizontal' ? anchor.logical : anchor.logical + dLogical
+    const price = type === 'vertical' ? anchor.price : anchor.price + dPrice
+    const time = logicalToTime(logical)
+    if (time == null) return null
+    next.push({ time, price })
+  }
+  return next
 }
 
 export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element | null {
@@ -38,6 +61,14 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
   const pendingPointsRef = useRef<DrawingPoint[]>([])
   const previewPointRef = useRef<DrawingPoint | null>(null)
   const dragStartPixelRef = useRef<Point | null>(null)
+  const moveDragRef = useRef<{
+    id: string
+    type: DrawingTool
+    anchors: DragAnchor[]
+    originLogical: number
+    originPrice: number
+    moved: boolean
+  } | null>(null)
 
   useEffect(() => {
     pendingPointsRef.current = []
@@ -133,6 +164,57 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
     return { x, y }
   }
 
+  function timeToLogical(time: number): number | null {
+    if (!chart) return null
+    const x = chart.timeScale().timeToCoordinate((time / 1000) as UTCTimestamp)
+    if (x != null) {
+      const logical = chart.timeScale().coordinateToLogical(x)
+      if (logical != null) return logical as number
+    }
+    const candles = useAppStore.getState().displayCandles
+    if (candles.length === 0) return null
+    const step = candles.length > 1 ? candles[1].timestamp - candles[0].timestamp : 60_000
+    if (time <= candles[0].timestamp) return (time - candles[0].timestamp) / step
+    if (time >= candles[candles.length - 1].timestamp) {
+      return candles.length - 1 + (time - candles[candles.length - 1].timestamp) / step
+    }
+    let low = 0
+    let high = candles.length - 1
+    while (low <= high) {
+      const mid = (low + high) >> 1
+      if (candles[mid].timestamp < time) low = mid + 1
+      else high = mid - 1
+    }
+    const i1 = Math.max(0, Math.min(candles.length - 1, low))
+    const i0 = Math.max(0, i1 - 1)
+    const t0 = candles[i0].timestamp
+    const t1 = candles[i1].timestamp
+    const frac = t1 > t0 ? (time - t0) / (t1 - t0) : 0
+    return i0 + frac
+  }
+
+  function logicalToTime(logical: number): number | null {
+    const candles = useAppStore.getState().displayCandles
+    if (candles.length === 0) return null
+    const step = candles.length > 1 ? candles[1].timestamp - candles[0].timestamp : 60_000
+    if (logical < 0) return candles[0].timestamp + logical * step
+    if (logical >= candles.length - 1) {
+      return candles[candles.length - 1].timestamp + (logical - (candles.length - 1)) * step
+    }
+    const i0 = Math.floor(logical)
+    const i1 = Math.min(candles.length - 1, i0 + 1)
+    const frac = logical - i0
+    return candles[i0].timestamp + (candles[i1].timestamp - candles[i0].timestamp) * frac
+  }
+
+  function pointerChartDelta(pixel: Point): { logical: number; price: number } | null {
+    if (!chart || !series) return null
+    const logical = chart.timeScale().coordinateToLogical(pixel.x)
+    const price = series.coordinateToPrice(pixel.y)
+    if (logical == null || price == null) return null
+    return { logical: logical as number, price }
+  }
+
   function drawingPixels(drawing: Drawing, width: number, height: number): Point[] | null {
     const pixels: Point[] = []
     for (const point of drawing.points) {
@@ -221,17 +303,120 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
 
   useEffect(() => {
     if (!chart || !series || !host) return
+    let raf = 0
+    const schedulePaint = (): void => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        paint()
+      })
+    }
     paint()
     const scale = chart.timeScale()
-    scale.subscribeVisibleLogicalRangeChange(paint)
-    scale.subscribeVisibleTimeRangeChange(paint)
-    scale.subscribeSizeChange(paint)
+    scale.subscribeVisibleLogicalRangeChange(schedulePaint)
+    scale.subscribeSizeChange(schedulePaint)
     return () => {
-      scale.unsubscribeVisibleLogicalRangeChange(paint)
-      scale.unsubscribeVisibleTimeRangeChange(paint)
-      scale.unsubscribeSizeChange(paint)
+      if (raf) cancelAnimationFrame(raf)
+      scale.unsubscribeVisibleLogicalRangeChange(schedulePaint)
+      scale.unsubscribeSizeChange(schedulePaint)
     }
-  }, [chart, series, host, drawings, drawingsHidden])
+  }, [chart, series, host])
+
+  useEffect(() => {
+    paint()
+  }, [drawings, drawingsHidden])
+
+  // Cursor mode: click to select, drag body to move (capture so chart pan doesn't steal the gesture).
+  useEffect(() => {
+    if (!chart || !series || !host) return
+
+    const onPointerDown = (event: PointerEvent): void => {
+      if (activeToolRef.current !== null) return
+      if (useAppStore.getState().drawingsHidden) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.drawing-handle')) return
+
+      const box = host.getBoundingClientRect()
+      const pixel: Point = { x: event.clientX - box.left, y: event.clientY - box.top }
+      if (pixel.x < 0 || pixel.y < 0 || pixel.x > box.width || pixel.y > box.height) return
+
+      const hitId = hitTest(pixel, host.clientWidth, host.clientHeight)
+      if (!hitId) {
+        if (useAppStore.getState().selectedDrawingId) {
+          useAppStore.getState().selectDrawing(null)
+        }
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      const drawing = drawingsRef.current.find((d) => d.id === hitId)
+      const origin = pointerChartDelta(pixel)
+      if (!drawing || !origin) return
+
+      const anchors: DragAnchor[] = []
+      for (const point of drawing.points) {
+        const logical = timeToLogical(point.time)
+        if (logical == null) return
+        anchors.push({ logical, price: point.price })
+      }
+
+      useAppStore.getState().selectDrawing(hitId)
+      useAppStore.getState().pushDrawingUndoSnapshot()
+      moveDragRef.current = {
+        id: hitId,
+        type: drawing.type,
+        anchors,
+        originLogical: origin.logical,
+        originPrice: origin.price,
+        moved: false
+      }
+
+      const onMove = (ev: PointerEvent): void => {
+        const drag = moveDragRef.current
+        if (!drag) return
+        const curPixel: Point = { x: ev.clientX - box.left, y: ev.clientY - box.top }
+        if (!drag.moved) {
+          const dist = Math.hypot(curPixel.x - pixel.x, curPixel.y - pixel.y)
+          if (dist < 3) return
+          drag.moved = true
+        }
+        const cur = pointerChartDelta(curPixel)
+        if (!cur) return
+        const points = shiftAnchors(
+          drag.type,
+          drag.anchors,
+          cur.logical - drag.originLogical,
+          cur.price - drag.originPrice,
+          logicalToTime
+        )
+        if (!points) return
+        useAppStore.getState().updateDrawing(drag.id, { points })
+      }
+
+      const onUp = (): void => {
+        const drag = moveDragRef.current
+        moveDragRef.current = null
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        if (!drag?.moved) return
+        const live = useAppStore.getState().drawings.find((d) => d.id === drag.id)
+        if (live) {
+          useAppStore.getState().updateDrawing(drag.id, {
+            points: live.points,
+            immediate: true
+          })
+        }
+      }
+
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+    }
+
+    host.addEventListener('pointerdown', onPointerDown, true)
+    return () => host.removeEventListener('pointerdown', onPointerDown, true)
+  }, [chart, series, host])
 
   // Chart click handler when cursor mode is active (selecting existing drawings)
   useEffect(() => {
@@ -240,6 +425,7 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
     const onClick = (param: MouseEventParams): void => {
       if (!param.point) return
       if (activeToolRef.current !== null) return
+      if (moveDragRef.current?.moved) return
       const width = host.clientWidth
       const height = host.clientHeight
       const hitId = hitTest(param.point, width, height)
@@ -433,21 +619,37 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
   function dragHandle(index: number, event: React.PointerEvent<HTMLButtonElement>): void {
     event.preventDefault()
     event.stopPropagation()
-    if (!selected || !host) return
+    if (!selected || !host || !chart || !series) return
+    const drawingId = selected.id
+    const type = selected.type
+    const startPoint = selected.points[index]
+    if (!startPoint) return
+    const startLogical = timeToLogical(startPoint.time)
+    if (startLogical == null) return
     useAppStore.getState().pushDrawingUndoSnapshot()
     const box = host.getBoundingClientRect()
+    const startPoints = selected.points.map((p) => ({ ...p }))
+
     const move = (ev: PointerEvent): void => {
-      const point = fromPixel({ x: ev.clientX - box.left, y: ev.clientY - box.top })
-      if (!point) return
-      const points = [...selected.points]
-      points[index] = point
-      useAppStore.getState().updateDrawing(selected.id, { points })
+      const cur = pointerChartDelta({ x: ev.clientX - box.left, y: ev.clientY - box.top })
+      if (!cur) return
+      const time =
+        type === 'horizontal' ? startPoint.time : logicalToTime(cur.logical)
+      const price = type === 'vertical' ? startPoint.price : cur.price
+      if (time == null) return
+      const points = [...startPoints]
+      points[index] = { time, price }
+      useAppStore.getState().updateDrawing(drawingId, { points })
     }
     const up = (ev: PointerEvent): void => {
-      const point = fromPixel({ x: ev.clientX - box.left, y: ev.clientY - box.top })
-      const points = [...selected.points]
-      if (point) points[index] = point
-      useAppStore.getState().updateDrawing(selected.id, { points, immediate: true })
+      const cur = pointerChartDelta({ x: ev.clientX - box.left, y: ev.clientY - box.top })
+      const points = [...startPoints]
+      if (cur) {
+        const time = type === 'horizontal' ? startPoint.time : logicalToTime(cur.logical)
+        const price = type === 'vertical' ? startPoint.price : cur.price
+        if (time != null) points[index] = { time, price }
+      }
+      useAppStore.getState().updateDrawing(drawingId, { points, immediate: true })
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
     }
@@ -466,7 +668,7 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
         if (pointInEllipse(target, pixels[0], pixels[1])) return drawing.id
       } else if (drawing.type === 'text') {
         if (Math.hypot(target.x - pixels[0].x, target.y - pixels[0].y) <= 14) return drawing.id
-      } else if (distanceToPolyline(target, pixels) <= 6) {
+      } else if (distanceToPolyline(target, pixels) <= 8) {
         return drawing.id
       }
     }
@@ -511,22 +713,6 @@ export function DrawingLayer({ chart, series, host }: Props): React.JSX.Element 
               />
             )
           })
-        : null}
-      {selected
-        ? (() => {
-            const anchor = toPixel(selected.points[0], selected.type)
-            return anchor ? (
-              <DrawingStyleMenu
-                drawing={selected}
-                anchor={anchor}
-                onStyleChange={(style) => {
-                  useAppStore.getState().pushDrawingUndoSnapshot()
-                  useAppStore.getState().updateDrawing(selected.id, { style, immediate: true })
-                }}
-                onDelete={() => useAppStore.getState().removeDrawing(selected.id)}
-              />
-            ) : null
-          })()
         : null}
       {measureReadout ? (
         <div

@@ -188,6 +188,8 @@ interface AppState {
   stopReplay: () => void
   play: () => void
   pause: () => void
+  /** Stop playback without autosave — used when the user pans/zooms the chart. */
+  softPause: () => void
   togglePlay: () => void
   setFollowReplay: (follow: boolean) => void
   manualStep: (n: number) => void
@@ -1396,7 +1398,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
     if (s.pendingSetup || s.draft || s.displayCandles.length === 0) return
     if (s.mode !== 'replay') get().startReplay()
     clearTimer()
-    set({ isPlaying: true, status: 'Replaying…' })
+    set({ isPlaying: true, followReplay: true, status: 'Replaying…' })
     lastTick = performance.now()
     const loop = (now: number) => {
       const current = get()
@@ -1423,12 +1425,20 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
     get().autosaveProgress()
   },
 
+  softPause: () => {
+    clearTimer()
+    set({ isPlaying: false, followReplay: false })
+  },
+
   togglePlay: () => {
-    if (get().isPlaying) get().pause()
-    else {
-      set({ followReplay: true })
-      get().play()
+    const s = get()
+    if (s.isPlaying) {
+      get().pause()
+      return
     }
+    // Resume/start even after a chart soft-pause (followReplay may be false).
+    set({ followReplay: true })
+    get().play()
   },
 
   step: (n) => {

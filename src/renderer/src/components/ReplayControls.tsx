@@ -45,7 +45,7 @@ export function ReplayControls(): React.JSX.Element {
             if (!isPlaying && mode !== 'replay') setShowRangeModal(true)
             else togglePlay()
           }}
-          title="Play / Pause"
+          title="Play / Pause (Space)"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           <Icon name={isPlaying ? 'pause' : 'play'} />

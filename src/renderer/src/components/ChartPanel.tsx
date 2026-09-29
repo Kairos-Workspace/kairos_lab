@@ -28,13 +28,37 @@ import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
 import { DrawingLayer } from './DrawingLayer'
 import { DrawingToolbar } from './DrawingToolbar'
 import { ReplayControls } from './ReplayControls'
-import { TradeTicket } from './TradeTicket'
 import { chartSkin } from '@core/desk/theme'
 import { useAppStore } from '../store/useAppStore'
 
 const VIEW_BARS = 160
 const LOAD_MORE_THRESHOLD = 200
-const FOLLOW_RESUME_MS = 4000
+/** Hard cap on candles fed to lightweight-charts during replay — full tapes stall scroll. */
+const SERIES_WINDOW = 1000
+const SERIES_EXPAND = 500
+
+/** Pin the live bar to the right (browse / live tape). */
+function trailingRange(count: number): { from: number; to: number } {
+  const from = Math.max(0, count - VIEW_BARS)
+  return { from, to: Math.max(count - 1, from + 24) }
+}
+
+/** Keep the replay cursor mid-chart with empty space ahead — backtesting UX. */
+function centeredReplayRange(count: number): { from: number; to: number } {
+  const current = Math.max(0, count - 1)
+  const half = VIEW_BARS / 2
+  return { from: current - half, to: current + half }
+}
+
+function replaySeriesSlice(
+  tape: Candle[],
+  replayIndex: number,
+  lookback: number
+): { bars: Candle[]; start: number } {
+  const end = Math.min(tape.length, Math.max(0, replayIndex) + 1)
+  const start = Math.max(0, end - lookback)
+  return { bars: tape.slice(start, end), start }
+}
 
 function visibleSlice(candles: Candle[], from: number, to: number): Candle[] {
   if (candles.length === 0) return []
@@ -109,8 +133,16 @@ export function ChartPanel(): React.JSX.Element {
   const pinePrimitiveRef = useRef<PineOverlayPrimitive | null>(null)
   const pineLinesRef = useRef<ISeriesApi<'Line'>[]>([])
   const paintTokenRef = useRef(0)
-  const followIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastVisibleRangeRef = useRef<{ from: number; to: number } | null>(null)
+  const seriesLookbackRef = useRef(SERIES_WINDOW)
+  const seriesStartRef = useRef(0)
+  const pineApplySkipRef = useRef(0)
+  const pineCacheRef = useRef<{
+    key: string
+    fills: PinePreviewFill[]
+    shapes: PinePreviewShape[]
+    lines: PinePreviewLine[]
+  } | null>(null)
   const [chartApi, setChartApi] = useState<IChartApi | null>(null)
   const [seriesApi, setSeriesApi] = useState<ISeriesApi<'Candlestick'> | null>(null)
 
@@ -173,11 +205,11 @@ export function ChartPanel(): React.JSX.Element {
         borderColor: skin.grid,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 50,
+        rightOffset: 12,
         barSpacing: 10,
         fixLeftEdge: false,
         fixRightEdge: false,
-        shiftVisibleRangeOnNewBar: true,
+        shiftVisibleRangeOnNewBar: false,
         lockVisibleTimeRangeOnResize: true
       },
       crosshair: { mode: CrosshairMode.Normal }
@@ -227,9 +259,35 @@ export function ChartPanel(): React.JSX.Element {
     const scale = chartApi.timeScale()
     const onRangeChange = (range: { from: number; to: number } | null): void => {
       if (range) lastVisibleRangeRef.current = range
-      if (useAppStore.getState().mode !== 'view') return
-      if (!shouldLoadOlder(range, LOAD_MORE_THRESHOLD)) return
-      void useAppStore.getState().loadOlderCandles()
+      const s = useAppStore.getState()
+      if (s.mode === 'view') {
+        if (!shouldLoadOlder(range, LOAD_MORE_THRESHOLD)) return
+        void s.loadOlderCandles()
+        return
+      }
+      // Replay: expand the local series window when the user scrolls into older bars.
+      if (s.mode !== 'replay' || s.followReplay || !range) return
+      if (range.from >= 40 || seriesStartRef.current <= 0) return
+      const end = s.replayIndex + 1
+      const nextLookback = Math.min(end, seriesLookbackRef.current + SERIES_EXPAND)
+      if (nextLookback <= seriesLookbackRef.current) return
+      seriesLookbackRef.current = nextLookback
+      const chart = chartRef.current
+      const series = candleRef.current
+      if (!chart || !series) return
+      const { bars, start } = replaySeriesSlice(s.displayCandles, s.replayIndex, nextLookback)
+      const prepended = seriesStartRef.current - start
+      seriesStartRef.current = start
+      candlesRef.current = bars
+      prevCount.current = bars.length
+      const prior = chart.timeScale().getVisibleLogicalRange() ?? range
+      series.setData(bars.map(toBar))
+      for (const line of strategyIndicatorLines(s.settings, bars)) {
+        indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
+      }
+      if (prepended > 0 && prior) {
+        chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(prior, prepended))
+      }
     }
     scale.subscribeVisibleLogicalRangeChange(onRangeChange)
     return () => scale.unsubscribeVisibleLogicalRangeChange(onRangeChange)
@@ -240,46 +298,44 @@ export function ChartPanel(): React.JSX.Element {
     if (!el) return
     const onInteract = (): void => {
       const s = useAppStore.getState()
-      if (s.mode !== 'replay' || !s.isPlaying) return
-      if (s.followReplay) s.setFollowReplay(false)
-      if (followIdleTimerRef.current) clearTimeout(followIdleTimerRef.current)
-      followIdleTimerRef.current = setTimeout(() => {
-        if (useAppStore.getState().isPlaying) useAppStore.getState().setFollowReplay(true)
-      }, FOLLOW_RESUME_MS)
+      if (s.mode !== 'replay') return
+      if (s.isPlaying || s.followReplay) s.softPause()
     }
     el.addEventListener('pointerdown', onInteract, { passive: true })
     el.addEventListener('wheel', onInteract, { passive: true })
     return () => {
       el.removeEventListener('pointerdown', onInteract)
       el.removeEventListener('wheel', onInteract)
-      if (followIdleTimerRef.current) clearTimeout(followIdleTimerRef.current)
     }
   }, [])
 
   useEffect(() => {
-    if (isPlaying) return
-    if (followIdleTimerRef.current) {
-      clearTimeout(followIdleTimerRef.current)
-      followIdleTimerRef.current = null
-    }
-  }, [isPlaying])
-
-  useEffect(() => {
     lastVisibleRangeRef.current = null
+    seriesLookbackRef.current = SERIES_WINDOW
+    seriesStartRef.current = 0
+    pineCacheRef.current = null
   }, [displayCandles])
 
   useEffect(() => {
     if (!chartApi || !followReplay) return
-    const s = useAppStore.getState()
-    if (s.mode !== 'replay') return
-    const count = s.replayIndex + 1
-    const from = Math.max(0, count - VIEW_BARS)
-    chartApi.timeScale().setVisibleLogicalRange({ from, to: Math.max(count - 1, from + 24) })
-  }, [chartApi, followReplay])
+    if (mode !== 'replay') return
+    seriesLookbackRef.current = SERIES_WINDOW
+    const { bars } = replaySeriesSlice(
+      useAppStore.getState().displayCandles,
+      replayIndex,
+      SERIES_WINDOW
+    )
+    if (bars.length <= 0) return
+    chartApi.timeScale().setVisibleLogicalRange(centeredReplayRange(bars.length))
+  }, [chartApi, followReplay, mode, replayIndex])
 
   useEffect(() => {
-    chartApi?.timeScale().applyOptions({ shiftVisibleRangeOnNewBar: followReplay })
-  }, [chartApi, followReplay])
+    // Manual recenter on each bar — auto-shift would pin the candle to the right edge.
+    chartApi?.timeScale().applyOptions({
+      shiftVisibleRangeOnNewBar: false,
+      rightOffset: mode === 'replay' ? 0 : 12
+    })
+  }, [chartApi, mode])
 
   useEffect(() => {
     if (mode !== 'replay') return
@@ -327,8 +383,34 @@ export function ChartPanel(): React.JSX.Element {
       const series = candleRef.current
       const chart = chartRef.current
       if (!series || !chart) return
-      const visible =
-        mode === 'replay' ? displayCandles.slice(0, replayIndex + 1) : displayCandles
+      const follow = useAppStore.getState().followReplay
+
+      let visible: Candle[]
+      let seriesStart = 0
+      if (mode === 'replay') {
+        const end = Math.min(displayCandles.length, Math.max(0, replayIndex) + 1)
+        if (follow) {
+          // Freeze the left edge while following so each bar is a cheap series.update.
+          // Compact only when the in-chart series grows well past the window.
+          let start = seriesStartRef.current
+          if (start >= end || end - start > SERIES_WINDOW + 400) {
+            start = Math.max(0, end - SERIES_WINDOW)
+          }
+          seriesStart = start
+          visible = displayCandles.slice(start, end)
+          seriesLookbackRef.current = Math.max(SERIES_WINDOW, end - start)
+        } else {
+          const sliced = replaySeriesSlice(displayCandles, replayIndex, seriesLookbackRef.current)
+          visible = sliced.bars
+          seriesStart = sliced.start
+        }
+      } else {
+        visible = displayCandles
+      }
+
+      const prevStart = seriesStartRef.current
+      const startDelta = seriesStart - prevStart // >0 slides window forward; <0 expands left
+      seriesStartRef.current = seriesStart
       candlesRef.current = visible
       const count = visible.length
       const last = visible[count - 1]
@@ -336,32 +418,58 @@ export function ChartPanel(): React.JSX.Element {
       const overlayChanged = key !== prevOverlayKey.current
       prevOverlayKey.current = key
       syncOverlays(chart, settings)
+
       const incremental =
-        mode === 'replay' && count === prevCount.current + 1 && last != null && !overlayChanged
+        mode === 'replay' &&
+        startDelta === 0 &&
+        count === prevCount.current + 1 &&
+        last != null &&
+        !overlayChanged
       prevCount.current = count
+
       if (incremental && last) {
         series.update(toBar(last))
         for (const point of strategyIndicatorLast(settings, visible)) {
           indicatorsRef.current.get(point.id)?.update(toLinePoint(point))
         }
+        if (follow) chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
         return
       }
 
-      // Full redraws recompute indicators over the whole tape and can take a
-      // noticeable moment on large datasets, so show the loading overlay
-      // instead of freezing the UI with no feedback.
+      // Sliding/expanding replay window — keep the series capped without the loading veil.
+      if (mode === 'replay' && !overlayChanged && Math.abs(startDelta) <= SERIES_EXPAND) {
+        series.setData(visible.map(toBar))
+        for (const line of strategyIndicatorLines(settings, visible)) {
+          indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
+        }
+        if (follow) {
+          chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
+        } else if (startDelta !== 0) {
+          const prior = chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current
+          if (prior) {
+            const shifted = {
+              from: prior.from - startDelta,
+              to: prior.to - startDelta
+            }
+            lastVisibleRangeRef.current = shifted
+            chart.timeScale().setVisibleLogicalRange(shifted)
+          }
+        }
+        return
+      }
+
+      const tapeChanged = displayCandles !== prevDisplayCandlesRef.current
       const token = ++paintTokenRef.current
-      useAppStore.setState({ busy: true, status: 'Rendering chart…' })
+      if (tapeChanged) useAppStore.setState({ busy: true, status: 'Rendering chart…' })
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (paintTokenRef.current !== token) return
           if (chartRef.current !== chart || candleRef.current !== series) {
-            useAppStore.setState({ busy: false })
+            if (tapeChanged) useAppStore.setState({ busy: false })
             return
           }
           const pendingShift = useAppStore.getState().pendingRangeShift
           const followReplay = useAppStore.getState().followReplay
-          const tapeChanged = displayCandles !== prevDisplayCandlesRef.current
           prevDisplayCandlesRef.current = displayCandles
           const preserveReplayView = mode === 'replay' && !followReplay && !tapeChanged
           const preserveRange = pendingShift != null || preserveReplayView
@@ -377,14 +485,13 @@ export function ChartPanel(): React.JSX.Element {
             chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(priorRange, pendingShift))
           } else if (preserveReplayView && priorRange) {
             chart.timeScale().setVisibleLogicalRange(priorRange)
+          } else if (mode === 'replay' && followReplay) {
+            chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
           } else {
-            const from = Math.max(0, count - VIEW_BARS)
-            chart.timeScale().setVisibleLogicalRange({
-              from,
-              to: Math.max(count - 1, from + 24)
-            })
+            chart.timeScale().setVisibleLogicalRange(trailingRange(count))
           }
-          useAppStore.setState({ pendingRangeShift: null, busy: false })
+          if (tapeChanged) useAppStore.setState({ pendingRangeShift: null, busy: false })
+          else useAppStore.setState({ pendingRangeShift: null })
         })
       })
     }
@@ -496,6 +603,7 @@ export function ChartPanel(): React.JSX.Element {
         }
       }
       pineLinesRef.current = []
+      pineCacheRef.current = null
       chart.priceScale('right').applyOptions({
         scaleMargins: { top: 0.06, bottom: 0.06 }
       })
@@ -504,47 +612,66 @@ export function ChartPanel(): React.JSX.Element {
 
     if (displayCandles.length === 0) return
 
+    // During playback, applying pine overlays every bar dominates the main thread.
+    if (isPlaying) {
+      pineApplySkipRef.current += 1
+      if (pineApplySkipRef.current < 8 && pineCacheRef.current) return
+      pineApplySkipRef.current = 0
+    } else {
+      pineApplySkipRef.current = 0
+    }
+
     // Cap history so large LuxAlgo-style scripts stay interactive on attach.
     const MAX_PINE_BARS = 600
     const pineCandles =
       displayCandles.length > MAX_PINE_BARS ? displayCandles.slice(-MAX_PINE_BARS) : displayCandles
 
+    const cacheKey = activeIndicators
+      .map((ind) => `${ind.id}:${ind.code.length}:${ind.code.slice(0, 48)}:${ind.code.slice(-48)}`)
+      .join('|')
+      .concat(`@${pineCandles.length}:${pineCandles[0]?.timestamp}:${pineCandles.at(-1)?.timestamp}`)
+
+    let fills: PinePreviewFill[]
+    let shapes: PinePreviewShape[]
+    let lines: PinePreviewLine[]
+
+    if (pineCacheRef.current?.key === cacheKey) {
+      ;({ fills, shapes, lines } = pineCacheRef.current)
+    } else {
+      fills = []
+      shapes = []
+      lines = []
+      for (const ind of activeIndicators) {
+        try {
+          const preview = previewPineScript(ind.code, pineCandles, ind.name || 'Pine Indicator', {
+            diagnostics: false
+          })
+          if (preview.diagnostics.some((d) => d.severity === 'error')) continue
+          fills.push(...preview.fills)
+          shapes.push(...preview.shapes)
+          lines.push(...preview.lines.filter((l) => !l.hidden))
+        } catch (err) {
+          console.error('[Pine Indicator Preview Error]', ind.name, err)
+        }
+      }
+      pineCacheRef.current = { key: cacheKey, fills, shapes, lines }
+    }
+
     const isReplay = mode === 'replay' && replayIndex >= 0 && replayIndex < displayCandles.length
     const cutoffTime = isReplay ? displayCandles[replayIndex].timestamp : Infinity
 
-    const allFills: PinePreviewFill[] = []
-    const allShapes: PinePreviewShape[] = []
-    const allLines: PinePreviewLine[] = []
-
-    for (const ind of activeIndicators) {
-      try {
-        const preview = previewPineScript(ind.code, pineCandles, ind.name || 'Pine Indicator', {
-          diagnostics: false
-        })
-        if (preview.diagnostics.some((d) => d.severity === 'error')) continue
-        const fills = isReplay
-          ? preview.fills
-              .filter((f) => f.timestamp <= cutoffTime)
-              .map((f) => ({ ...f, until: f.until ? Math.min(f.until, cutoffTime) : cutoffTime }))
-          : preview.fills
-        const shapes = isReplay
-          ? preview.shapes.filter((s) => s.timestamp <= cutoffTime)
-          : preview.shapes
-        const validLines = preview.lines
-          .filter((l) => !l.hidden)
-          .map((l) => ({
-            ...l,
-            points: isReplay ? l.points.filter((p) => p.timestamp <= cutoffTime) : l.points
-          }))
-          .filter((l) => l.points.length > 0)
-
-        allFills.push(...fills)
-        allShapes.push(...shapes)
-        allLines.push(...validLines)
-      } catch (err) {
-        console.error('[Pine Indicator Preview Error]', ind.name, err)
-      }
-    }
+    const allFills = isReplay
+      ? fills
+          .filter((f) => f.timestamp <= cutoffTime)
+          .map((f) => ({ ...f, until: f.until ? Math.min(f.until, cutoffTime) : cutoffTime }))
+      : fills
+    const allShapes = isReplay ? shapes.filter((s) => s.timestamp <= cutoffTime) : shapes
+    const allLines = lines
+      .map((l) => ({
+        ...l,
+        points: isReplay ? l.points.filter((p) => p.timestamp <= cutoffTime) : l.points
+      }))
+      .filter((l) => l.points.length > 0)
 
     primitive?.setData(allFills, allShapes)
 
@@ -600,7 +727,7 @@ export function ChartPanel(): React.JSX.Element {
       }
     }
     pineLinesRef.current = next
-  }, [chartApi, displayCandles, mode, replayIndex, pineIndicators])
+  }, [chartApi, displayCandles, mode, replayIndex, pineIndicators, isPlaying])
 
   return (
     <section className="chart-shell" ref={shellRef}>
@@ -645,7 +772,6 @@ export function ChartPanel(): React.JSX.Element {
         <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
         <DrawingLayer chart={chartApi} series={seriesApi} host={hostRef.current} />
       </div>
-      <TradeTicket />
       <ReplayControls />
     </section>
   )

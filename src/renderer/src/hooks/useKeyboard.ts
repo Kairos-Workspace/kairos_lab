@@ -2,23 +2,49 @@ import { useEffect } from 'react'
 import { SPEED_OPTIONS } from '@shared/types'
 import { useAppStore } from '../store/useAppStore'
 
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  if (target.tagName === 'TEXTAREA') return true
+  if (target.tagName === 'SELECT') return true
+  if (target.tagName === 'INPUT') {
+    const type = (target as HTMLInputElement).type
+    return (
+      type === 'text' ||
+      type === 'search' ||
+      type === 'password' ||
+      type === 'email' ||
+      type === 'url' ||
+      type === 'number' ||
+      type === ''
+    )
+  }
+  return false
+}
+
 export function useKeyboard(): void {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
-        return
-      }
       const store = useAppStore.getState()
       if (store.screen !== 'workspace') {
         if (event.key === 'Escape') return
         return
       }
+
+      // Space: toggle replay even when focus is on buttons / datetime controls.
+      if (event.code === 'Space' || event.key === ' ' || event.key === 'Spacebar') {
+        if (isTextEntryTarget(target)) return
+        event.preventDefault()
+        store.togglePlay()
+        return
+      }
+
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') {
+        return
+      }
+
       switch (event.key) {
-        case ' ':
-          event.preventDefault()
-          store.togglePlay()
-          break
         case 'ArrowRight':
           store.manualStep(event.shiftKey ? 10 : 1)
           break

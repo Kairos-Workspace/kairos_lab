@@ -1000,34 +1000,20 @@ button:focus-visible {
   gap: 6px;
 }
 
-.trade-ticket {
+.pos-actions {
   position: absolute;
-  top: 54px;
-  right: 10px;
-  z-index: 10;
-  width: 220px;
+  z-index: 3;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: linear-gradient(180deg, var(--bar-from) 0%, var(--bar-to) 100%);
-  border: 1px solid var(--gold-dim);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  padding: 14px 16px 12px;
+  gap: 6px;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
 }
 
-.trade-ticket-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  cursor: move;
-  touch-action: none;
-}
-
-.trade-ticket-header h4 {
-  margin: 0;
-  font-size: 13px;
+.pos-actions button {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .direction-tag {
@@ -1050,18 +1036,6 @@ button:focus-visible {
 .direction-tag-sell {
   color: var(--sell);
   background: var(--sell-soft);
-}
-
-.trade-ticket-stats {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 4px 12px;
-  margin: 0;
-  font-size: 12px;
-}
-
-.trade-ticket-stats dt {
-  color: var(--muted);
 }
 
 .pos-tool {

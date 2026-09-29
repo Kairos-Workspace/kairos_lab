@@ -33,14 +33,23 @@ const MIN_BARS = 6
 
 export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Element | null {
   const draft = useAppStore((s) => s.draft)
+  const pendingSetup = useAppStore((s) => s.pendingSetup)
   const active = useAppStore((s) => s.activeTrade)
   const trades = useAppStore((s) => s.trades)
+  const confirmTrade = useAppStore((s) => s.confirmTrade)
+  const skipSetup = useAppStore((s) => s.skipSetup)
   const [boxes, setBoxes] = useState<Record<string, Box>>({})
   const barWidths = useRef<Record<string, number>>({})
   const frames = listPositionFrames({ draft, active, trades })
   const framesRef = useRef(frames)
   framesRef.current = frames
   const frameKey = frames.map((f) => `${f.id}:${f.live}:${f.entry}:${f.stopLoss}:${f.takeProfit}`).join('|')
+  const draftId = draft && !active ? `t:${draft.timestamp}` : null
+
+  function cancelDraft(): void {
+    if (pendingSetup) skipSetup()
+    else useAppStore.setState({ draft: null })
+  }
 
   useEffect(() => {
     if (!chart || !series || !host || frames.length === 0) {
@@ -48,7 +57,8 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
       return
     }
 
-    const place = () => {
+    let raf = 0
+    const placeNow = (): void => {
       const spacing = chart.timeScale().options().barSpacing ?? 10
       const current = framesRef.current
       setBoxes((prev) => {
@@ -87,15 +97,22 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
         return changed ? next : prev
       })
     }
+    const place = (): void => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        placeNow()
+      })
+    }
 
-    place()
+    placeNow()
     const scale = chart.timeScale()
+    // Logical range alone covers pan/zoom — also listening to time-range doubles work every frame.
     scale.subscribeVisibleLogicalRangeChange(place)
-    scale.subscribeVisibleTimeRangeChange(place)
     scale.subscribeSizeChange(place)
     return () => {
+      if (raf) cancelAnimationFrame(raf)
       scale.unsubscribeVisibleLogicalRangeChange(place)
-      scale.unsubscribeVisibleTimeRangeChange(place)
       scale.unsubscribeSizeChange(place)
     }
   }, [chart, series, host, frameKey])
@@ -181,6 +198,8 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
       {frames.map((frame) => {
         const box = boxes[frame.id]
         if (!box) return null
+        const showActions = draftId != null && frame.id === draftId
+        const zoneTop = Math.min(box.tpY, box.slY, box.entryY)
         return (
           <PositionFrame
             key={frame.id}
@@ -188,6 +207,24 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
             live={frame.live}
             onDrag={(edge, event, resizeWidth) => startDrag(frame.id, edge, event, resizeWidth)}
             onResize={(event) => startWidthDrag(frame.id, event)}
+            actions={
+              showActions ? (
+                <div
+                  className="pos-actions"
+                  style={{
+                    left: box.left + box.width / 2,
+                    top: Math.max(8, zoneTop - 10)
+                  }}
+                >
+                  <button type="button" className="primary" onClick={confirmTrade}>
+                    Confirm
+                  </button>
+                  <button type="button" className="ghost" onClick={cancelDraft}>
+                    Cancel
+                  </button>
+                </div>
+              ) : null
+            }
           />
         )
       })}
@@ -199,7 +236,8 @@ function PositionFrame({
   box,
   live,
   onDrag,
-  onResize
+  onResize,
+  actions
 }: {
   box: Box
   live: boolean
@@ -209,6 +247,7 @@ function PositionFrame({
     resizeWidth?: boolean
   ) => void
   onResize: (event: React.PointerEvent<HTMLButtonElement>) => void
+  actions?: React.ReactNode
 }): React.JSX.Element {
   const profitTop = Math.min(box.tpY, box.entryY)
   const profitH = Math.abs(box.tpY - box.entryY)
@@ -244,6 +283,7 @@ function PositionFrame({
           />
         </>
       ) : null}
+      {actions}
     </>
   )
 }
