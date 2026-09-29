@@ -6,6 +6,7 @@ import {
   nextEvent,
   resolveFundamentals
 } from '@core/fundamentals/asOf'
+import { getFundamentalsBundle } from '@core/fundamentals/bundle'
 import type { FundamentalEvent, FundamentalSeries } from '@core/fundamentals/types'
 
 const fed: FundamentalSeries = {
@@ -123,5 +124,29 @@ describe('resolveFundamentals', () => {
     )
     expect(snap.lastEvent?.kind).toBe('cpi')
     expect(snap.justPrinted).toBe(false)
+  })
+})
+
+describe('bundled macro.json', () => {
+  const bundle = getFundamentalsBundle()
+
+  it('resolves a mid-2023 snapshot without throwing', () => {
+    const asOf = Date.UTC(2023, 5, 15)
+    const snap = resolveFundamentals(getFundamentalsBundle(), asOf)
+    expect(snap.asOfTs).toBe(asOf)
+    expect(
+      snap.fedFunds != null || snap.cpiYoy != null || snap.unemployment != null
+    ).toBe(true)
+  })
+
+  it('keeps series points and events sorted ascending by ts', () => {
+    for (const series of bundle.series) {
+      for (let i = 1; i < series.points.length; i++) {
+        expect(series.points[i].ts).toBeGreaterThanOrEqual(series.points[i - 1].ts)
+      }
+    }
+    for (let i = 1; i < bundle.events.length; i++) {
+      expect(bundle.events[i].ts).toBeGreaterThanOrEqual(bundle.events[i - 1].ts)
+    }
   })
 })
