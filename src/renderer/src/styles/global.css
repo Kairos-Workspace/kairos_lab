@@ -1654,6 +1654,10 @@ button:focus-visible {
   background: var(--ink);
 }
 
+.bottom[data-fundamentals='true'] {
+  grid-template-columns: 220px minmax(0, 1fr) minmax(280px, 360px) minmax(220px, 280px);
+}
+
 .bottom > section {
   min-width: 0;
   padding: 12px 14px;
@@ -1663,6 +1667,40 @@ button:focus-visible {
 
 .bottom > section:last-child {
   border-right: 0;
+}
+
+.fundamentals-panel h3 {
+  margin: 0 0 8px;
+}
+
+.fundamentals-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fundamentals-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.fundamentals-grid dt {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fundamentals-grid dd {
+  margin: 2px 0 0;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.fundamentals-cal[data-hot='true'] dd {
+  color: var(--brand);
 }
 
 .equity {
@@ -3422,7 +3460,8 @@ button:focus-visible {
     overflow: visible;
   }
 
-  .bottom {
+  .bottom,
+  .bottom[data-fundamentals='true'] {
     grid-template-columns: 1fr;
     grid-auto-rows: minmax(220px, auto);
   }
