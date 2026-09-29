@@ -16,5 +16,6 @@ coverage/
 .idea/
 .vscode/
 .superpowers/
+.worktrees/
 .env
 .env.*
