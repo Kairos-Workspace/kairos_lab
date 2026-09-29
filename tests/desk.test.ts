@@ -18,7 +18,8 @@ describe('parseDeskPrefs', () => {
       initialBalance: 25_000,
       lastStrategyId: 'abc',
       lastDatasetId: 12,
-      theme: 'light'
+      theme: 'light',
+      showFundamentals: true
     })
     expect(prefs.symbol).toBe('EURUSD')
     expect(prefs.displayTimeframe).toBe('15M')
@@ -31,6 +32,12 @@ describe('parseDeskPrefs', () => {
     expect(prefs.lastStrategyId).toBe('abc')
     expect(prefs.lastDatasetId).toBe(12)
     expect(prefs.theme).toBe('light')
+    expect(prefs.showFundamentals).toBe(true)
+  })
+
+  it('defaults showFundamentals to false and rejects truthy non-boolean', () => {
+    expect(parseDeskPrefs({}).showFundamentals).toBe(false)
+    expect(parseDeskPrefs({ showFundamentals: 'yes' }).showFundamentals).toBe(false)
   })
 
   it('drops impossible timeframe and speed values', () => {

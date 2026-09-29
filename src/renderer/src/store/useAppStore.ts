@@ -118,6 +118,7 @@ interface AppState {
   activeStrategyId: string | null
   activeEaScriptId: string | null
   theme: DeskTheme
+  showFundamentals: boolean
   pineIndicators: PineIndicatorInstance[]
   activePineIndicatorId: string | null
   pineIndicatorCode: string
@@ -158,6 +159,7 @@ interface AppState {
   setHistoryFilter: (filter: HistoryFilter) => void
   setSpeed: (speed: number) => void
   setTheme: (theme: DeskTheme) => void
+  setShowFundamentals: (show: boolean) => void
   setSettings: (patch: Partial<StrategySettings>) => void
   setCosts: (patch: Partial<CostConfig>) => void
   setAmbiguityRule: (rule: AmbiguityRule) => void
@@ -279,6 +281,7 @@ function deskFromState(state: {
   displayTimeframe: Timeframe
   speed: number
   theme: DeskTheme
+  showFundamentals: boolean
   costs: CostConfig
   ambiguityRule: AmbiguityRule
   account: { riskPerTrade: number; initialBalance: number }
@@ -290,6 +293,7 @@ function deskFromState(state: {
     displayTimeframe: state.displayTimeframe,
     speed: state.speed,
     theme: state.theme,
+    showFundamentals: state.showFundamentals,
     costs: state.costs,
     ambiguityRule: state.ambiguityRule,
     riskPerTrade: state.account.riskPerTrade,
@@ -441,6 +445,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   activeStrategyId: null,
   activeEaScriptId: null,
   theme: 'dark',
+  showFundamentals: false,
 
   currentCandle: () => {
     const s = get()
@@ -484,6 +489,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         account: createAccount(prefs.initialBalance, prefs.riskPerTrade),
         activeStrategyId: prefs.lastStrategyId,
         theme: prefs.theme,
+        showFundamentals: prefs.showFundamentals,
         status: `Market tape ready · ${dbPath}`
       })
       applyDeskTheme(prefs.theme)
@@ -929,6 +935,10 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   setTheme: (theme) => {
     applyDeskTheme(theme)
     set({ theme })
+    persistDesk()
+  },
+  setShowFundamentals: (showFundamentals) => {
+    set({ showFundamentals })
     persistDesk()
   },
   setSettings: (patch) => {

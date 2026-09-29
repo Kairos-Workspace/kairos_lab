@@ -242,6 +242,7 @@ export interface DeskPrefs {
   displayTimeframe: Timeframe
   speed: number
   theme: DeskTheme
+  showFundamentals: boolean
   costs: CostConfig
   ambiguityRule: AmbiguityRule
   riskPerTrade: number
