@@ -1576,6 +1576,11 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   togglePlay: () => {
     const s = get()
     if (s.isPlaying) {
+      // Scrolling releases follow without pausing — first Play/Space re-locks.
+      if (!s.followReplay) {
+        set({ followReplay: true })
+        return
+      }
       get().pause()
       return
     }

@@ -46,8 +46,18 @@ function trailingRange(count: number): { from: number; to: number } {
 /** Keep the replay cursor mid-chart with empty space ahead — backtesting UX. */
 function centeredReplayRange(count: number): { from: number; to: number } {
   const current = Math.max(0, count - 1)
-  const half = VIEW_BARS / 2
-  return { from: current - half, to: current + half }
+  // Bias playhead slightly right of center so history scrolls left as bars print.
+  const rightPad = Math.floor(VIEW_BARS * 0.38)
+  const leftPad = VIEW_BARS - rightPad
+  return { from: current - leftPad, to: current + rightPad }
+}
+
+function syncReplayFollowViewport(
+  chart: IChartApi,
+  seriesLength: number
+): void {
+  if (seriesLength <= 0) return
+  chart.timeScale().setVisibleLogicalRange(centeredReplayRange(seriesLength))
 }
 
 function replaySeriesSlice(
@@ -304,16 +314,16 @@ export function ChartPanel(): React.JSX.Element {
   useEffect(() => {
     const el = hostRef.current
     if (!el) return
-    const onInteract = (): void => {
+    // Scroll to inspect history without stopping playback — only release follow
+    // so the viewport isn't yanked back to the playhead on every bar.
+    const onWheel = (): void => {
       const s = useAppStore.getState()
-      if (s.mode !== 'replay') return
-      if (s.isPlaying || s.followReplay) s.softPause()
+      if (s.mode !== 'replay' || !s.followReplay) return
+      s.setFollowReplay(false)
     }
-    el.addEventListener('pointerdown', onInteract, { passive: true })
-    el.addEventListener('wheel', onInteract, { passive: true })
+    el.addEventListener('wheel', onWheel, { passive: true })
     return () => {
-      el.removeEventListener('pointerdown', onInteract)
-      el.removeEventListener('wheel', onInteract)
+      el.removeEventListener('wheel', onWheel)
     }
   }, [])
 
@@ -330,14 +340,18 @@ export function ChartPanel(): React.JSX.Element {
   useEffect(() => {
     if (!chartApi || !followReplay) return
     if (mode !== 'replay') return
-    seriesLookbackRef.current = SERIES_WINDOW
-    const { bars } = replaySeriesSlice(
-      useAppStore.getState().displayCandles,
-      replayIndex,
-      SERIES_WINDOW
+    // Match the follow window paint uses (frozen left edge until compact).
+    const end = Math.min(
+      useAppStore.getState().displayCandles.length,
+      Math.max(0, replayIndex) + 1
     )
-    if (bars.length <= 0) return
-    chartApi.timeScale().setVisibleLogicalRange(centeredReplayRange(bars.length))
+    let start = seriesStartRef.current
+    if (start >= end || end - start > SERIES_WINDOW + 400) {
+      start = Math.max(0, end - SERIES_WINDOW)
+    }
+    const count = Math.max(0, end - start)
+    if (count <= 0) return
+    syncReplayFollowViewport(chartApi, count)
   }, [chartApi, followReplay, mode, replayIndex])
 
   useEffect(() => {
@@ -464,7 +478,7 @@ export function ChartPanel(): React.JSX.Element {
           }
           lastPlottedTimeRef.current = lastTimeSec
           prevCount.current = count
-          if (follow) chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
+          if (follow) syncReplayFollowViewport(chart, count)
           return
         } catch {
           // Series still holds a newer tip (async setData pending / window reset) — full repaint.
@@ -475,7 +489,7 @@ export function ChartPanel(): React.JSX.Element {
       if (mode === 'replay' && !overlayChanged && Math.abs(startDelta) <= SERIES_EXPAND) {
         applySeriesData(visible)
         if (follow) {
-          chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
+          syncReplayFollowViewport(chart, count)
         } else if (startDelta !== 0) {
           const prior = chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current
           if (prior) {
@@ -519,7 +533,7 @@ export function ChartPanel(): React.JSX.Element {
           } else if (preserveReplayView && priorRange) {
             chart.timeScale().setVisibleLogicalRange(priorRange)
           } else if (mode === 'replay' && followReplay) {
-            chart.timeScale().setVisibleLogicalRange(centeredReplayRange(count))
+            syncReplayFollowViewport(chart, count)
           } else {
             chart.timeScale().setVisibleLogicalRange(trailingRange(count))
           }
