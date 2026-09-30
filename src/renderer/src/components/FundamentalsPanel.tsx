@@ -1,4 +1,3 @@
-import { getFundamentalsBundle } from '@core/fundamentals/bundle'
 import { fundamentalsAsOf, lastEvent, resolveFundamentals } from '@core/fundamentals/asOf'
 import type { FundamentalEvent, FundamentalPoint } from '@core/fundamentals/types'
 import { useAppStore } from '../store/useAppStore'
@@ -95,7 +94,7 @@ export function FundamentalsPanel(): React.JSX.Element {
   const displayCandles = useAppStore((s) => s.displayCandles)
 
   const asOfTs = fundamentalsAsOf({ mode, replayIndex, displayCandles })
-  const bundle = getFundamentalsBundle()
+  const bundle = useAppStore((s) => s.fundamentalsBundle)
   const snap = asOfTs != null ? resolveFundamentals(bundle, asOfTs) : null
   const lastFomc = asOfTs != null ? lastEvent(bundle.events, asOfTs, ['fomc']) : null
   const fedDir = fedDirection(lastFomc?.actual, lastFomc?.prior)

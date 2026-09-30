@@ -38,5 +38,10 @@ export const IPC = {
   AI_SEND_CHAT_MESSAGE: 'ai:send-chat-message',
   AI_CHAT_CHUNK: 'ai:chat-chunk',
   AI_DELETE_CHAT_THREAD: 'ai:delete-chat-thread',
-  DB_PATH: 'db:path'
+  DB_PATH: 'db:path',
+  FUNDAMENTALS_GET: 'fundamentals:get',
+  FUNDAMENTALS_REFRESH: 'fundamentals:refresh',
+  FUNDAMENTALS_RESET: 'fundamentals:reset',
+  FUNDAMENTALS_UPSERT_POINT: 'fundamentals:upsert-point',
+  FUNDAMENTALS_UPSERT_EVENT: 'fundamentals:upsert-event'
 } as const

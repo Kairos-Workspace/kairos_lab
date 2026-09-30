@@ -8,11 +8,12 @@ import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
+import { FundamentalsDesk } from './FundamentalsDesk'
 import { Button, FormField, Modal } from './ui'
 import { withoutSeeds } from '../store/strategyVault'
 import { useAppStore } from '../store/useAppStore'
 
-type LibraryDesk = 'strategies' | 'market'
+type LibraryDesk = 'strategies' | 'market' | 'fundamentals'
 
 interface StrategyTemplate {
   name: string
@@ -76,7 +77,23 @@ export function StrategyLibrary(): React.JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [filterQuery, setFilterQuery] = useState('')
   const datasets = useAppStore((s) => s.datasets)
+  const fundamentalsSource = useAppStore((s) => s.fundamentalsSource)
   const tapeCount = new Set(datasets.filter((row) => row.candleCount > 0).map((row) => row.symbol)).size
+  const chipLabel =
+    desk === 'market'
+      ? `${tapeCount} pairs`
+      : desk === 'fundamentals'
+        ? fundamentalsSource === 'custom'
+          ? 'Custom'
+          : 'Bundled'
+        : `${strategies.length} saved`
+
+  const subtitle =
+    desk === 'market'
+      ? 'Market tapes'
+      : desk === 'fundamentals'
+        ? 'Macro fundamentals'
+        : 'Strategy library'
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
   const [settings, setSettings] = useState<StrategySettings>({ ...DEFAULT_STRATEGY_SETTINGS })
@@ -136,7 +153,7 @@ export function StrategyLibrary(): React.JSX.Element {
     <div className="app" data-frame="library">
       <header className="topbar">
         <div className="brand">
-          <BrandMark subtitle={desk === 'market' ? 'Market tapes' : 'Strategy library'} />
+          <BrandMark subtitle={subtitle} />
         </div>
         <div className="top-controls">
           <div className="tabs library-tabs">
@@ -156,8 +173,16 @@ export function StrategyLibrary(): React.JSX.Element {
             >
               Market
             </button>
+            <button
+              type="button"
+              className="tab"
+              data-active={desk === 'fundamentals'}
+              onClick={() => setDesk('fundamentals')}
+            >
+              Fundamental
+            </button>
           </div>
-          <span className="chip">{desk === 'market' ? `${tapeCount} pairs` : `${strategies.length} saved`}</span>
+          <span className="chip library-status">{chipLabel}</span>
         </div>
         <div className="session-chip">
           <button
@@ -179,6 +204,15 @@ export function StrategyLibrary(): React.JSX.Element {
             >
               <Icon name="download" />
             </button>
+          ) : desk === 'fundamentals' ? (
+            <button
+              className="icon-btn"
+              onClick={() => setDesk('fundamentals')}
+              title="Macro fundamentals"
+              aria-label="Macro fundamentals"
+            >
+              <Icon name="download" />
+            </button>
           ) : (
             <button
               className="icon-btn"
@@ -194,6 +228,8 @@ export function StrategyLibrary(): React.JSX.Element {
 
       {desk === 'market' ? (
         <MarketDesk />
+      ) : desk === 'fundamentals' ? (
+        <FundamentalsDesk />
       ) : (
         <section className="library-board">
           {strategies.length > 4 && (

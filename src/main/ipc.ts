@@ -48,6 +48,14 @@ import {
 } from './database/repositories'
 import { latestWindow } from '@core/market/catalog'
 import { csvCandles, deleteCsvTape, isCsvDataset, refreshCsvDatasets } from './data/csvTape'
+import {
+  getFundamentalsState,
+  refreshFundamentalsFromFred,
+  resetFundamentalsBundle,
+  upsertFundamentalsEvent,
+  upsertFundamentalsPoint
+} from './fundamentals'
+import type { FundamentalEvent, FundamentalPoint } from '@core/fundamentals/types'
 import { estimateDownload, fetchMarketCandles } from './data/fetchMarket'
 import {
   clearProviderApiKey,
@@ -481,4 +489,20 @@ export function registerIpc(): void {
   handle(IPC.DRAWINGS_DELETE, (_e, id: string) => deleteDrawing(id))
 
   handle(IPC.DRAWINGS_CLEAR, (_e, symbol: string) => clearDrawings(symbol))
+
+  handle(IPC.FUNDAMENTALS_GET, () => getFundamentalsState())
+
+  handle(IPC.FUNDAMENTALS_REFRESH, async (_e, range?: { startDate: string; endDate: string }) =>
+    refreshFundamentalsFromFred(range)
+  )
+
+  handle(IPC.FUNDAMENTALS_RESET, () => resetFundamentalsBundle())
+
+  handle(IPC.FUNDAMENTALS_UPSERT_POINT, (_e, seriesId: string, point: FundamentalPoint) =>
+    upsertFundamentalsPoint(seriesId, point)
+  )
+
+  handle(IPC.FUNDAMENTALS_UPSERT_EVENT, (_e, event: FundamentalEvent) =>
+    upsertFundamentalsEvent(event)
+  )
 }

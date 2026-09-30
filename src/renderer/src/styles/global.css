@@ -2904,8 +2904,32 @@ button:focus-visible {
 }
 
 .library-tabs {
-  min-width: 220px;
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
   margin: 0;
+}
+
+.library-tabs .tab {
+  flex: 0 0 auto;
+  min-width: auto;
+  overflow: visible;
+  padding: 8px 14px;
+  white-space: nowrap;
+}
+
+.app[data-frame='library'] .top-controls {
+  align-items: center;
+  gap: 10px;
+}
+
+.app[data-frame='library'] .top-controls .chip {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 2px;
+  font-size: 12px;
 }
 
 .library-board {
@@ -2921,6 +2945,68 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.fundamentals-desk .fund-desk-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.fundamentals-desk .fund-series-row {
+  cursor: pointer;
+}
+
+.fundamentals-desk .fund-series-row[data-active='true'] {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+
+.fundamentals-desk .fund-edit-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  align-items: end;
+}
+
+.fundamentals-desk .fund-edit-form .primary {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.fund-range-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  background: var(--ink);
+}
+
+.fund-range-bar .field {
+  min-width: 140px;
+}
+
+.fund-range-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fund-range-presets .ghost {
+  min-width: 44px;
+  padding: 8px 10px;
+}
+
+.fund-range-bar .primary {
+  margin-left: auto;
+}
+
+@media (max-width: 960px) {
+  .fundamentals-desk .fund-desk-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .market-tabs {

@@ -39,6 +39,8 @@ import type {
   Timeframe,
   Trade
 } from '@shared/types'
+import type { FundamentalBundle, FundamentalEvent, FundamentalPoint } from '@core/fundamentals/types'
+import { FUNDAMENTALS_BUNDLE } from '@core/fundamentals/bundle'
 import { desktop, desktopMissingMessage, loadDeskPrefs, requireDesktop } from '@/lib/desktop'
 import { applyDeskTheme } from '@core/desk/theme'
 import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
@@ -119,6 +121,9 @@ interface AppState {
   activeEaScriptId: string | null
   theme: DeskTheme
   showFundamentals: boolean
+  fundamentalsBundle: FundamentalBundle
+  fundamentalsSource: 'bundled' | 'custom'
+  fundamentalsUpdatedAt: number | null
   pineIndicators: PineIndicatorInstance[]
   activePineIndicatorId: string | null
   pineIndicatorCode: string
@@ -132,6 +137,11 @@ interface AppState {
   togglePineIndicator: (id: string) => void
   duplicatePineIndicator: (id: string) => void
   setActivePineIndicatorId: (id: string) => void
+  loadFundamentals: () => Promise<void>
+  refreshFundamentals: (range?: { startDate: string; endDate: string }) => Promise<void>
+  resetFundamentals: () => Promise<void>
+  upsertFundamentalPoint: (seriesId: string, point: FundamentalPoint) => Promise<void>
+  upsertFundamentalEvent: (event: FundamentalEvent) => Promise<void>
 
   bootstrap: () => Promise<void>
   openStrategy: (id: string) => Promise<void>
@@ -446,6 +456,9 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   activeEaScriptId: null,
   theme: 'dark',
   showFundamentals: false,
+  fundamentalsBundle: FUNDAMENTALS_BUNDLE,
+  fundamentalsSource: 'bundled',
+  fundamentalsUpdatedAt: null,
 
   currentCandle: () => {
     const s = get()
@@ -464,11 +477,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
     }
     try {
       const leftover = drainLocalStrategies()
-      const [datasets, storedStrategies, prefs, dbPath] = await Promise.all([
+      const [datasets, storedStrategies, prefs, dbPath, fundamentals] = await Promise.all([
         api.datasets.list(),
         strategyBridge()?.list().catch(() => []) ?? Promise.resolve([]),
         loadDeskPrefs(),
-        api.dbPath()
+        api.dbPath(),
+        api.fundamentals?.get().catch(() => null) ?? Promise.resolve(null)
       ])
       let strategies = mergeStrategyLists(leftover, storedStrategies)
       if (leftover.length > 0) {
@@ -490,6 +504,9 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         activeStrategyId: prefs.lastStrategyId,
         theme: prefs.theme,
         showFundamentals: prefs.showFundamentals,
+        fundamentalsBundle: fundamentals?.bundle ?? FUNDAMENTALS_BUNDLE,
+        fundamentalsSource: fundamentals?.source ?? 'bundled',
+        fundamentalsUpdatedAt: fundamentals?.updatedAt ?? null,
         status: `Market tape ready · ${dbPath}`
       })
       applyDeskTheme(prefs.theme)
@@ -940,6 +957,122 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   setShowFundamentals: (showFundamentals) => {
     set({ showFundamentals })
     persistDesk()
+  },
+  loadFundamentals: async () => {
+    const api = desktop()
+    if (!api?.fundamentals) return
+    try {
+      const state = await api.fundamentals.get()
+      set({
+        fundamentalsBundle: state.bundle,
+        fundamentalsSource: state.source,
+        fundamentalsUpdatedAt: state.updatedAt
+      })
+    } catch (error) {
+      notifyError('Could not load fundamentals.', error)
+    }
+  },
+  refreshFundamentals: async (range) => {
+    const api = desktop()
+    if (!api) {
+      notifyError(desktopMissingMessage())
+      return
+    }
+    if (!api.fundamentals) {
+      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      return
+    }
+    const label =
+      range?.startDate && range?.endDate
+        ? `Fetching macro ${range.startDate} → ${range.endDate}…`
+        : 'Refreshing macro from FRED…'
+    set({ busy: true, status: label })
+    try {
+      const state = await api.fundamentals.refresh(range)
+      set({
+        fundamentalsBundle: state.bundle,
+        fundamentalsSource: state.source,
+        fundamentalsUpdatedAt: state.updatedAt,
+        busy: false,
+        status: range
+          ? `Macro loaded ${range.startDate} → ${range.endDate}`
+          : 'Macro updated from FRED'
+      })
+      notifySuccess(
+        range
+          ? `Macro ${range.startDate} → ${range.endDate} ready`
+          : 'Macro data refreshed from FRED'
+      )
+    } catch (error) {
+      set({ busy: false, status: 'Macro refresh failed' })
+      notifyError('Could not refresh fundamentals.', error)
+    }
+  },
+  resetFundamentals: async () => {
+    const api = desktop()
+    if (!api) {
+      notifyError(desktopMissingMessage())
+      return
+    }
+    if (!api.fundamentals) {
+      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      return
+    }
+    try {
+      const state = await api.fundamentals.reset()
+      set({
+        fundamentalsBundle: state.bundle,
+        fundamentalsSource: state.source,
+        fundamentalsUpdatedAt: state.updatedAt
+      })
+      notifySuccess('Restored shipped macro bundle')
+    } catch (error) {
+      notifyError('Could not reset fundamentals.', error)
+    }
+  },
+  upsertFundamentalPoint: async (seriesId, point) => {
+    const api = desktop()
+    if (!api) {
+      notifyError(desktopMissingMessage())
+      return
+    }
+    if (!api.fundamentals) {
+      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      return
+    }
+    try {
+      const state = await api.fundamentals.upsertPoint(seriesId, point)
+      set({
+        fundamentalsBundle: state.bundle,
+        fundamentalsSource: state.source,
+        fundamentalsUpdatedAt: state.updatedAt
+      })
+      notifySuccess('Saved macro point')
+    } catch (error) {
+      notifyError('Could not save that point.', error)
+    }
+  },
+  upsertFundamentalEvent: async (event) => {
+    const api = desktop()
+    if (!api) {
+      notifyError(desktopMissingMessage())
+      return
+    }
+    if (!api.fundamentals) {
+      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      return
+    }
+    try {
+      const state = await api.fundamentals.upsertEvent(event)
+      set({
+        fundamentalsBundle: state.bundle,
+        fundamentalsSource: state.source,
+        fundamentalsUpdatedAt: state.updatedAt
+      })
+      notifySuccess('Saved macro event')
+    } catch (error) {
+      notifyError('Could not save that event.', error)
+    }
   },
   setSettings: (patch) => {
     const settings = { ...get().settings, ...patch }

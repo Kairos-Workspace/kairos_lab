@@ -157,6 +157,41 @@ const api = {
     save: (drawing: Drawing) => ipcRenderer.invoke(IPC.DRAWINGS_SAVE, drawing) as Promise<void>,
     delete: (id: string) => ipcRenderer.invoke(IPC.DRAWINGS_DELETE, id) as Promise<void>,
     clear: (symbol: string) => ipcRenderer.invoke(IPC.DRAWINGS_CLEAR, symbol) as Promise<void>
+  },
+  fundamentals: {
+    get: () =>
+      ipcRenderer.invoke(IPC.FUNDAMENTALS_GET) as Promise<{
+        bundle: import('../core/fundamentals/types').FundamentalBundle
+        source: 'bundled' | 'custom'
+        updatedAt: number | null
+      }>,
+    refresh: (range?: { startDate: string; endDate: string }) =>
+      ipcRenderer.invoke(IPC.FUNDAMENTALS_REFRESH, range) as Promise<{
+        bundle: import('../core/fundamentals/types').FundamentalBundle
+        source: 'bundled' | 'custom'
+        updatedAt: number
+      }>,
+    reset: () =>
+      ipcRenderer.invoke(IPC.FUNDAMENTALS_RESET) as Promise<{
+        bundle: import('../core/fundamentals/types').FundamentalBundle
+        source: 'bundled' | 'custom'
+        updatedAt: null
+      }>,
+    upsertPoint: (
+      seriesId: string,
+      point: import('../core/fundamentals/types').FundamentalPoint
+    ) =>
+      ipcRenderer.invoke(IPC.FUNDAMENTALS_UPSERT_POINT, seriesId, point) as Promise<{
+        bundle: import('../core/fundamentals/types').FundamentalBundle
+        source: 'bundled' | 'custom'
+        updatedAt: number
+      }>,
+    upsertEvent: (event: import('../core/fundamentals/types').FundamentalEvent) =>
+      ipcRenderer.invoke(IPC.FUNDAMENTALS_UPSERT_EVENT, event) as Promise<{
+        bundle: import('../core/fundamentals/types').FundamentalBundle
+        source: 'bundled' | 'custom'
+        updatedAt: number
+      }>
   }
 }
 
