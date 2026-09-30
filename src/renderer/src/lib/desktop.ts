@@ -28,6 +28,16 @@ export function desktopMissingMessage(): string {
     : 'Open this app through Electron so the local database can connect.'
 }
 
+/** Main process was restarted without IPC handlers (stale Electron session). */
+export function isIpcHandlerMissing(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error ?? '')
+  return /no handler registered/i.test(msg)
+}
+
+export function ipcRestartMessage(feature = 'this feature'): string {
+  return `Restart Kairos fully (quit Electron, then npm run dev) so ${feature} can connect.`
+}
+
 export async function loadDeskPrefs(): Promise<DeskPrefs> {
   const api = desktop()
   if (!api?.prefs) return { ...DEFAULT_DESK_PREFS }

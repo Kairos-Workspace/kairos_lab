@@ -41,7 +41,14 @@ import type {
 } from '@shared/types'
 import type { FundamentalBundle, FundamentalEvent, FundamentalPoint } from '@core/fundamentals/types'
 import { FUNDAMENTALS_BUNDLE } from '@core/fundamentals/bundle'
-import { desktop, desktopMissingMessage, loadDeskPrefs, requireDesktop } from '@/lib/desktop'
+import {
+  desktop,
+  desktopMissingMessage,
+  ipcRestartMessage,
+  isIpcHandlerMissing,
+  loadDeskPrefs,
+  requireDesktop
+} from '@/lib/desktop'
 import { applyDeskTheme } from '@core/desk/theme'
 import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { drainLocalStrategies, mergeStrategyLists, withoutSeeds } from './strategyVault'
@@ -969,7 +976,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         fundamentalsUpdatedAt: state.updatedAt
       })
     } catch (error) {
-      notifyError('Could not load fundamentals.', error)
+      notifyError(
+        isIpcHandlerMissing(error)
+          ? ipcRestartMessage('fundamentals')
+          : 'Could not load fundamentals.',
+        isIpcHandlerMissing(error) ? undefined : error
+      )
     }
   },
   refreshFundamentals: async (range) => {
@@ -979,7 +991,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       return
     }
     if (!api.fundamentals) {
-      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      notifyError(ipcRestartMessage('fundamentals'))
       return
     }
     const label =
@@ -1005,7 +1017,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       )
     } catch (error) {
       set({ busy: false, status: 'Macro refresh failed' })
-      notifyError('Could not refresh fundamentals.', error)
+      notifyError(
+        isIpcHandlerMissing(error)
+          ? ipcRestartMessage('fundamentals')
+          : 'Could not refresh fundamentals.',
+        isIpcHandlerMissing(error) ? undefined : error
+      )
     }
   },
   resetFundamentals: async () => {
@@ -1015,7 +1032,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       return
     }
     if (!api.fundamentals) {
-      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      notifyError(ipcRestartMessage('fundamentals'))
       return
     }
     try {
@@ -1027,7 +1044,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       })
       notifySuccess('Restored shipped macro bundle')
     } catch (error) {
-      notifyError('Could not reset fundamentals.', error)
+      notifyError(
+        isIpcHandlerMissing(error)
+          ? ipcRestartMessage('fundamentals')
+          : 'Could not reset fundamentals.',
+        isIpcHandlerMissing(error) ? undefined : error
+      )
     }
   },
   upsertFundamentalPoint: async (seriesId, point) => {
@@ -1037,7 +1059,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       return
     }
     if (!api.fundamentals) {
-      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      notifyError(ipcRestartMessage('fundamentals'))
       return
     }
     try {
@@ -1049,7 +1071,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       })
       notifySuccess('Saved macro point')
     } catch (error) {
-      notifyError('Could not save that point.', error)
+      notifyError(
+        isIpcHandlerMissing(error)
+          ? ipcRestartMessage('fundamentals')
+          : 'Could not save that point.',
+        isIpcHandlerMissing(error) ? undefined : error
+      )
     }
   },
   upsertFundamentalEvent: async (event) => {
@@ -1059,7 +1086,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       return
     }
     if (!api.fundamentals) {
-      notifyError('Restart Kairos to load the fundamentals bridge (preload changed).')
+      notifyError(ipcRestartMessage('fundamentals'))
       return
     }
     try {
@@ -1071,7 +1098,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       })
       notifySuccess('Saved macro event')
     } catch (error) {
-      notifyError('Could not save that event.', error)
+      notifyError(
+        isIpcHandlerMissing(error)
+          ? ipcRestartMessage('fundamentals')
+          : 'Could not save that event.',
+        isIpcHandlerMissing(error) ? undefined : error
+      )
     }
   },
   setSettings: (patch) => {
