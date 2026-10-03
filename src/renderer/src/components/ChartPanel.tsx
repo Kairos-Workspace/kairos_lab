@@ -11,6 +11,8 @@ import {
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type Time,
   type UTCTimestamp
 } from 'lightweight-charts'
 import {
@@ -22,7 +24,7 @@ import { previewPineScript } from '@core/indicators/pinePreview'
 import type { PinePreviewFill, PinePreviewLine, PinePreviewShape } from '@core/indicators/pinePreview'
 import { PineOverlayPrimitive } from '../lib/pineChartPrimitive'
 import { shouldLoadOlder, shiftedVisibleRange } from '@core/candles/pagination'
-import type { Candle, StrategySettings } from '@shared/types'
+import type { Candle, StrategySettings, Trade } from '@shared/types'
 import { Icon } from './Icon'
 import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
 import { DrawingLayer } from './DrawingLayer'
@@ -36,6 +38,10 @@ const LOAD_MORE_THRESHOLD = 200
 /** Hard cap on candles fed to lightweight-charts during replay — full tapes stall scroll. */
 const SERIES_WINDOW = 1000
 const SERIES_EXPAND = 500
+
+/** Bumps on every HMR of this file so the chart remounts and drops orphan marker plugins. */
+let CHART_BOOT = 0
+CHART_BOOT += 1
 
 /** Pin the live bar to the right (browse / live tape). */
 function trailingRange(count: number): { from: number; to: number } {
@@ -129,12 +135,58 @@ function toLinePoint(point: { timestamp: number; value: number }): {
   return { time: (point.timestamp / 1000) as UTCTimestamp, value: point.value }
 }
 
+/**
+ * Markers whose time isn't on the plotted series snap to the nearest bar
+ * (LWC NearestLeft/Right) — every off-window fill piles on one candle.
+ * Only emit markers that match a bar currently on the series.
+ */
+function tradeMarkersForBars(
+  bars: Candle[],
+  trades: Trade[],
+  active: Trade | null
+): {
+  time: UTCTimestamp
+  position: 'belowBar' | 'aboveBar'
+  color: string
+  shape: 'arrowUp' | 'arrowDown'
+  text: string
+}[] {
+  if (bars.length === 0) return []
+  const skin = chartSkin()
+  const onChart = new Set(bars.map((c) => Math.floor(c.timestamp / 1000)))
+  const byBar = new Map<string, Trade>()
+  for (const t of trades) {
+    if (t.skipped) continue
+    const sec = Math.floor(t.openedAt / 1000)
+    if (!onChart.has(sec)) continue
+    byBar.set(`${sec}:${t.direction}`, t)
+  }
+  if (active && !active.skipped) {
+    const sec = Math.floor(active.openedAt / 1000)
+    if (onChart.has(sec)) byBar.set(`${sec}:${active.direction}`, active)
+  }
+  return [...byBar.values()].map((t) => ({
+    time: Math.floor(t.openedAt / 1000) as UTCTimestamp,
+    position: t.direction === 'BUY' ? 'belowBar' : 'aboveBar',
+    color: t.result === 'LOSS' ? skin.bear : t.result === 'WIN' ? skin.bull : skin.brand,
+    shape: t.direction === 'BUY' ? 'arrowUp' : 'arrowDown',
+    text: t.direction
+  }))
+}
+
 export function ChartPanel(): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null)
   const shellRef = useRef<HTMLElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const linesRef = useRef<IPriceLine[]>([])
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null)
+  const bootRef = useRef(CHART_BOOT)
+  const [chartBoot, setChartBoot] = useState(CHART_BOOT)
+  if (bootRef.current !== CHART_BOOT) {
+    bootRef.current = CHART_BOOT
+    setChartBoot(CHART_BOOT)
+  }
   const candlesRef = useRef<Candle[]>([])
   const prevCount = useRef(0)
   const prevOverlayKey = useRef('')
@@ -255,18 +307,26 @@ export function ChartPanel(): React.JSX.Element {
 
     chartRef.current = chart
     candleRef.current = series
+    markersRef.current = createSeriesMarkers(series, [])
     setChartApi(chart)
     setSeriesApi(series)
     return () => {
       indicatorsRef.current.clear()
       pinePrimitiveRef.current = null
       pineLinesRef.current = []
+      try {
+        markersRef.current?.detach()
+      } catch {
+        /* chart already torn down */
+      }
+      markersRef.current = null
       chart.remove()
       chartRef.current = null
+      candleRef.current = null
       setChartApi(null)
       setSeriesApi(null)
     }
-  }, [theme, chartFull])
+  }, [theme, chartFull, chartBoot])
 
   useEffect(() => {
     if (!chartApi) return
@@ -445,6 +505,13 @@ export function ChartPanel(): React.JSX.Element {
       prevOverlayKey.current = key
       syncOverlays(chart, settings)
 
+      const applyTradeMarkers = (bars: Candle[]): void => {
+        const markers = markersRef.current
+        if (!markers) return
+        const s = useAppStore.getState()
+        markers.setMarkers(tradeMarkersForBars(bars, s.trades, s.activeTrade))
+      }
+
       const applySeriesData = (bars: Candle[]): void => {
         series.setData(bars.map(toBar))
         for (const line of strategyIndicatorLines(settings, bars)) {
@@ -455,6 +522,7 @@ export function ChartPanel(): React.JSX.Element {
           : null
         prevCount.current = bars.length
         fullPaintPendingRef.current = false
+        applyTradeMarkers(bars)
       }
 
       const timeOk =
@@ -478,6 +546,7 @@ export function ChartPanel(): React.JSX.Element {
           }
           lastPlottedTimeRef.current = lastTimeSec
           prevCount.current = count
+          applyTradeMarkers(visible)
           if (follow) syncReplayFollowViewport(chart, count)
           return
         } catch {
@@ -619,19 +688,10 @@ export function ChartPanel(): React.JSX.Element {
         series.createPriceLine({ price, color: skin.warn, lineStyle: 2, title: 'H' })
       )
     }
-    createSeriesMarkers(
-      series,
-      trades
-        .filter((t) => !t.skipped)
-        .map((t) => ({
-          time: (t.openedAt / 1000) as UTCTimestamp,
-          position: t.direction === 'BUY' ? 'belowBar' : 'aboveBar',
-          color: t.result === 'LOSS' ? skin.bear : skin.brand,
-          shape: t.direction === 'BUY' ? 'arrowUp' : 'arrowDown',
-          text: t.direction
-        }))
-    )
-  }, [activeTrade, selectedId, trades, levels, draft, settings, theme])
+    const markers = markersRef.current
+    if (!markers) return
+    markers.setMarkers(tradeMarkersForBars(candlesRef.current, trades, activeTrade))
+  }, [activeTrade, selectedId, trades, levels, draft, settings, theme, replayIndex, mode, displayCandles])
 
   useEffect(() => {
     const chart = chartRef.current

@@ -15,7 +15,8 @@ export function Workspace(): React.JSX.Element {
     <div className="app" data-frame={chartFull ? 'full' : 'desk'}>
       <TopBar />
       <div className="workspace">
-        <ChartPanel />
+        {/* key busts orphaned series-marker plugins left by older HMR sessions */}
+        <ChartPanel key="markers-v2" />
         {chartFull ? null : <RightPanel />}
       </div>
       {chartFull ? null : (

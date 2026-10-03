@@ -1608,15 +1608,10 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   togglePlay: () => {
     const s = get()
     if (s.isPlaying) {
-      // Scrolling releases follow without pausing — first Play/Space re-locks.
-      if (!s.followReplay) {
-        set({ followReplay: true })
-        return
-      }
       get().pause()
       return
     }
-    // Resume/start even after a chart soft-pause (followReplay may be false).
+    // Resume/start always re-locks the chart to the playhead.
     set({ followReplay: true })
     get().play()
   },
@@ -1916,14 +1911,19 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   selectTrade: (id) => {
     const trade = get().trades.find((t) => t.id === id)
     clearTimer()
+    if (!trade) {
+      set({ selectedTradeId: null })
+      return
+    }
+    // Keep replay context — jumping to a fill should pause and seek, not dump
+    // the user into full-tape view mode (which made history feel broken).
     set({
       selectedTradeId: id,
       rightTab: 'trade',
-      mode: 'view',
       isPlaying: false,
-      replayIndex: Math.max(0, get().displayCandles.length - 1)
+      mode: 'replay'
     })
-    if (trade) get().jumpToDate(trade.openedAt)
+    get().jumpToDate(trade.openedAt)
   },
 
   addHorizontal: (price) => set({ horizontalLevels: [...get().horizontalLevels, price] }),

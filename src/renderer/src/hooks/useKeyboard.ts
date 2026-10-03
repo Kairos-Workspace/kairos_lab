@@ -22,9 +22,13 @@ function isTextEntryTarget(target: EventTarget | null): boolean {
   return false
 }
 
+function isSpace(event: KeyboardEvent): boolean {
+  return event.code === 'Space' || event.key === ' ' || event.key === 'Spacebar'
+}
+
 export function useKeyboard(): void {
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
       const store = useAppStore.getState()
       if (store.screen !== 'workspace') {
@@ -32,8 +36,9 @@ export function useKeyboard(): void {
         return
       }
 
-      // Space: toggle replay even when focus is on buttons / datetime controls.
-      if (event.code === 'Space' || event.key === ' ' || event.key === 'Spacebar') {
+      // Space: toggle replay. Buttons/range activate on keyup — we own Space
+      // entirely so focus on Play / history rows doesn't double-toggle.
+      if (isSpace(event)) {
         if (isTextEntryTarget(target)) return
         event.preventDefault()
         store.togglePlay()
@@ -105,7 +110,20 @@ export function useKeyboard(): void {
           break
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!isSpace(event)) return
+      if (useAppStore.getState().screen !== 'workspace') return
+      if (isTextEntryTarget(event.target)) return
+      // Stop focused <button> / range from firing a second action after our toggle.
+      event.preventDefault()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
   }, [])
 }
