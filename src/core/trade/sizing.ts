@@ -14,14 +14,17 @@ export function calculatePositionSize(input: {
   entry: number
   stopLoss: number
   costs?: CostConfig
+  /** Multiplier on lot size (1 = no leverage). */
+  leverage?: number
 }): { positionSize: number; riskAmount: number; stopDistance: number } {
   const costs = input.costs ?? DEFAULT_COSTS
+  const leverage = Math.max(1, input.leverage ?? 1)
   const riskAmount = input.balance * (input.riskPercent / 100)
   const stopDistance = Math.abs(input.entry - input.stopLoss)
   if (stopDistance === 0) {
     return { positionSize: costs.minLot, riskAmount, stopDistance: 0 }
   }
-  const rawLots = riskAmount / (stopDistance * costs.contractSize)
+  const rawLots = (riskAmount * leverage) / (stopDistance * costs.contractSize)
   return {
     positionSize: roundLot(rawLots, costs.minLot, costs.lotStep),
     riskAmount,

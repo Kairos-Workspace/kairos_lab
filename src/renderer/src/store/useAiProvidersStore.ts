@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { PRODUCT_NAME } from '@shared/constants'
 import type { AiProviderProfile } from '@shared/types'
 import { desktop } from '../lib/desktop'
 
@@ -86,7 +87,10 @@ export const useAiProvidersStore = create<AiProvidersState>((set, get) => ({
     if (!result) {
       set({
         loadingModels: { ...get().loadingModels, [id]: false },
-        modelsError: { ...get().modelsError, [id]: 'Not running in Electron' }
+        modelsError: {
+          ...get().modelsError,
+          [id]: `Open ${PRODUCT_NAME} as the desktop app to load models.`
+        }
       })
       return
     }
@@ -106,7 +110,7 @@ export const useAiProvidersStore = create<AiProvidersState>((set, get) => ({
     set({ testing: true, testResult: null })
     const result = (await aiBridge()?.testConnection(id)) ?? {
       ok: false,
-      message: 'Not running in Electron'
+      message: `Open ${PRODUCT_NAME} as the desktop app to use AI providers.`
     }
     set({ testing: false, testResult: result })
   },

@@ -69,7 +69,7 @@ function CodeWriteCard({
         className="ea-chat-write-toggle"
         onClick={() => setOpen((value) => !value)}
       >
-        <span className="ea-chat-code-lang">{language || 'mql5'}</span>
+        <span className="ea-chat-code-lang">{language || 'kairos'}</span>
         <span className="ea-chat-write-label">
           {streaming ? `Writing ${targetName}` : targetName}
         </span>

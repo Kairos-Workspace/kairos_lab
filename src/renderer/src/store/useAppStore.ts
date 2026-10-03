@@ -4,7 +4,12 @@ import { downloadWindow, normalizeSymbol } from '@core/market/catalog'
 import { intervalMs, resample } from '@core/candles/resample'
 import { ReplayEngine } from '@core/replay/engine'
 import { createStrategy } from '@core/strategy/registry'
+import {
+  runHeadlessEaBacktest,
+  type HeadlessBacktestResult
+} from '@core/ea/headlessBacktest'
 import { createAccount, applyClosedTrade } from '@core/trade/account'
+import { defaultStopTarget } from '@core/trade/stops'
 import { calculatePositionSize, riskReward } from '@core/trade/sizing'
 import { evaluateTradeOnCandle, lowerTimeframeWindow } from '@core/trade/simulation'
 import { fromCandleBuffer } from '@shared/candleBuffer'
@@ -156,7 +161,24 @@ interface AppState {
     scriptId: string
     scriptName: string
     strategy: Strategy
+    config?: {
+      symbol: string
+      timeframe: Timeframe
+      fromTs: number
+      toTs: number
+      initialBalance: number
+      leverage: number
+    }
   }) => Promise<void>
+  runEaHeadlessBacktest: (input: {
+    strategy: Strategy
+    symbol: string
+    timeframe: Timeframe
+    fromTs: number
+    toTs: number
+    initialBalance: number
+    leverage: number
+  }) => Promise<HeadlessBacktestResult>
   autosaveProgress: () => void
   leaveWorkspace: () => void
   enterLibrary: () => void
@@ -257,19 +279,6 @@ function newId(): string {
   return crypto.randomUUID()
 }
 
-function defaultStopTarget(
-  direction: Direction,
-  entry: number,
-  costs: CostConfig,
-  settings: StrategySettings
-): { stopLoss: number; takeProfit: number } {
-  const slDist = Math.max(costs.tickSize * 50, entry * 0.0015)
-  const stopLoss = direction === 'BUY' ? entry - slDist : entry + slDist
-  const takeProfit =
-    direction === 'BUY' ? entry + slDist * settings.defaultRr : entry - slDist * settings.defaultRr
-  return { stopLoss, takeProfit }
-}
-
 function draftFromSignal(
   signal: StrategySignal,
   costs: CostConfig,
@@ -301,7 +310,7 @@ function deskFromState(state: {
   showFundamentals: boolean
   costs: CostConfig
   ambiguityRule: AmbiguityRule
-  account: { riskPerTrade: number; initialBalance: number }
+  account: { riskPerTrade: number; initialBalance: number; leverage: number }
   activeStrategyId: string | null
   datasetId: number | null
 }): DeskPrefs {
@@ -581,7 +590,10 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         activeTrade: null,
         trades: taken,
         skipped: skippedTrades,
-        account: resumed.session.account,
+        account: {
+          ...resumed.session.account,
+          leverage: Math.max(1, resumed.session.account.leverage ?? 1)
+        },
         costs: resumed.session.costs,
         selectedTradeId: null,
         chartFull: false,
@@ -636,17 +648,21 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
     persistDesk()
   },
 
-  openEaBacktest: async ({ scriptId, scriptName, strategy: eaStrategy }) => {
+  openEaBacktest: async ({ scriptId, scriptName, strategy: eaStrategy, config }) => {
     clearTimer()
     strategy = eaStrategy
     strategy.initialize()
-    const settings = { ...get().settings, autoEntry: true }
+    // Visual bot runs need auto fills — pause-on-setup alone freezes Play.
+    const settings = config
+      ? { ...get().settings, autoEntry: true, pauseOnSetup: false }
+      : get().settings
+    const riskPerTrade = get().account.riskPerTrade
     set({
       screen: 'workspace',
       activeStrategyId: null,
       activeEaScriptId: scriptId,
       settings,
-      sessionName: `${scriptName} · EA`,
+      sessionName: `${scriptName} · Bot`,
       sessionId: newId(),
       rightTab: 'strategy',
       mode: 'view',
@@ -658,10 +674,74 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       skipped: [],
       selectedTradeId: null,
       chartFull: false,
-      status: `${scriptName} · EA ready to backtest`
+      ...(config
+        ? {
+            displayTimeframe: config.timeframe,
+            account: createAccount(config.initialBalance, riskPerTrade, config.leverage),
+            status: `${scriptName} · loading ${config.symbol}…`
+          }
+        : {
+            status: `${scriptName} · bot ready — press Start replay`
+          })
     })
+
+    if (config) {
+      await get().selectSymbol(config.symbol)
+      if (get().displayCandles.length === 0) {
+        notifyError(`No local tape for ${config.symbol}`)
+        return
+      }
+      await get().loadReplayRange(config.fromTs, config.toTs)
+      get().setReplayRange(config.fromTs, config.toTs)
+      get().startReplay({ fromTs: config.fromTs, toTs: config.toTs })
+      persistDesk()
+      notifySuccess(`${scriptName} ready — press Play to backtest`)
+      return
+    }
+
     if (get().displayCandles.length === 0) await get().selectSymbol(DEFAULT_SYMBOL)
     persistDesk()
+    notifySuccess(`${scriptName} loaded — Start replay to backtest`)
+  },
+
+  runEaHeadlessBacktest: async ({
+    strategy: eaStrategy,
+    symbol,
+    timeframe,
+    fromTs,
+    toTs,
+    initialBalance,
+    leverage
+  }) => {
+    const best = pickLocalDataset(get().datasets, symbol, timeframe)
+    if (!best) {
+      throw new Error(`No local tape for ${symbol} ${timeframe}`)
+    }
+    const warmupSpanMs = WARMUP_BARS * intervalMs(timeframe) * 3
+    const candleBuffer = await requireDesktop().datasets.candles(
+      best.id,
+      fromTs - warmupSpanMs,
+      toTs
+    )
+    const candles = fromCandleBuffer(candleBuffer)
+    if (candles.length === 0) {
+      throw new Error('No candles in that period.')
+    }
+    const s = get()
+    return runHeadlessEaBacktest({
+      strategy: eaStrategy,
+      candles,
+      symbol,
+      timeframe,
+      settings: { ...s.settings, autoEntry: true, pauseOnSetup: false },
+      costs: s.costs,
+      ambiguityRule: s.ambiguityRule,
+      initialBalance,
+      riskPerTrade: s.account.riskPerTrade,
+      leverage,
+      fromTs,
+      toTs
+    })
   },
 
   autosaveProgress: () => {
@@ -695,13 +775,15 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   leaveWorkspace: () => {
     get().autosaveProgress()
     clearTimer()
+    const fromBot = Boolean(get().activeEaScriptId)
     set({
-      screen: 'library',
+      screen: fromBot ? 'ea-lab' : 'library',
+      activeEaScriptId: null,
       isPlaying: false,
       pendingSetup: null,
       draft: null,
       chartFull: false,
-      status: 'Strategy library'
+      status: fromBot ? 'Bot Lab' : 'Strategy library'
     })
   },
 
@@ -1547,7 +1629,11 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       activeTrade: null,
       trades: [],
       skipped: [],
-      account: createAccount(s.account.initialBalance, s.account.riskPerTrade),
+      account: createAccount(
+        s.account.initialBalance,
+        s.account.riskPerTrade,
+        s.account.leverage
+      ),
       sessionId: newId(),
       selectedTradeId: null,
       status: opts?.random
@@ -1570,7 +1656,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
 
   play: () => {
     const s = get()
-    if (s.pendingSetup || s.draft || s.displayCandles.length === 0) return
+    if (s.displayCandles.length === 0) return
+    if (s.pendingSetup || s.draft) {
+      set({ rightTab: 'trade', status: 'Setup waiting — take or skip it, then play.' })
+      notifyInfo('Take or skip the setup on the Trade tab, then press Play.')
+      return
+    }
     if (s.mode !== 'replay') get().startReplay()
     clearTimer()
     set({ isPlaying: true, followReplay: true, status: 'Replaying…' })
@@ -1740,7 +1831,8 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
           notifyError(status)
           return
         }
-        if (pending && next.settings.pauseOnSetup) break
+        // Auto-entry wins over pause — otherwise Play freezes on the first signal
+        // and never opens the trade (bot backtests were stuck looking "empty").
         if (pending && next.settings.autoEntry) {
           const dir: Direction = pending.type === 'LONG' ? 'BUY' : 'SELL'
           const entry = pending.price
@@ -1750,7 +1842,8 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
             riskPercent: account.riskPerTrade,
             entry,
             stopLoss: sl,
-            costs: next.costs
+            costs: next.costs,
+            leverage: account.leverage
           })
           active = {
             id: newId(),
@@ -1767,7 +1860,9 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
             reason: pending.reason
           }
           pending = null
-        } else if (pending && !next.settings.pauseOnSetup) {
+        } else if (pending && next.settings.pauseOnSetup) {
+          break
+        } else if (pending) {
           pending = null
         }
       }
@@ -1783,6 +1878,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         ? draftFromSignal(pending, next.costs, next.settings, account.riskPerTrade)
         : null,
       isPlaying: pending ? false : get().isPlaying,
+      rightTab: pending ? 'trade' : get().rightTab,
       status: pending ? 'Setup detected. Replay paused.' : get().status
     })
     if (pending) clearTimer()
@@ -1883,7 +1979,8 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       riskPercent,
       entry,
       stopLoss,
-      costs
+      costs,
+      leverage: account.leverage
     })
     const trade: Trade = {
       id: newId(),

@@ -4417,6 +4417,82 @@ button:focus-visible {
   background: rgba(0, 0, 0, 0.12);
 }
 
+.bot-backtest-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.bot-backtest-mode label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.bot-backtest-mode label[data-active='true'] {
+  border-color: var(--accent, #c4a35a);
+  background: rgba(196, 163, 90, 0.08);
+}
+
+.bot-backtest-mode input {
+  margin-top: 3px;
+}
+
+.bot-backtest-mode span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bot-backtest-mode strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bot-backtest-mode em {
+  font-style: normal;
+  font-size: 11px;
+  opacity: 0.65;
+}
+
+.bot-backtest-results {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.bot-backtest-results-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.bot-backtest-results-row:last-child {
+  border-bottom: none;
+}
+
+.bot-backtest-results dt {
+  margin: 0;
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.bot-backtest-results dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+
 @keyframes uiModalFadeIn {
   from {
     opacity: 0;

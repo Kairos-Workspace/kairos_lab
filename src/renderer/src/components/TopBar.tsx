@@ -26,7 +26,7 @@ export function TopBar(): React.JSX.Element {
   const strategies = useAppStore((s) => s.strategies)
   const activeName = strategies.find((s) => s.id === activeStrategyId)?.name
   const subtitle = activeEaScriptId
-    ? `${sessionName.replace(/ · EA$/, '')} · EA · tester`
+    ? `${sessionName.replace(/ · (EA|Bot)$/, '')} · bot tester`
     : activeName
       ? `${activeName} · tester`
       : 'Strategy tester'
@@ -43,8 +43,8 @@ export function TopBar(): React.JSX.Element {
         <button
           className="icon-btn brand-back"
           onClick={leaveWorkspace}
-          title="Strategy library"
-          aria-label="Back to strategy library"
+          title={activeEaScriptId ? 'Back to Bot Lab' : 'Strategy library'}
+          aria-label={activeEaScriptId ? 'Back to Bot Lab' : 'Back to strategy library'}
         >
           <Icon name="back" />
         </button>

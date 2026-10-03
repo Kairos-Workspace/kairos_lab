@@ -25,9 +25,9 @@ export function Welcome(): React.JSX.Element {
             <span>Backtest and manage strategies</span>
           </button>
           <button type="button" className="welcome-lab-card" onClick={enterEaLab}>
-            <span className="stamp">Editor</span>
-            <strong>EA Development Lab</strong>
-            <span>Build automated trading bots</span>
+            <span className="stamp">Bots</span>
+            <strong>Bot Lab</strong>
+            <span>Build bots with AI and backtest them here</span>
           </button>
           <button type="button" className="welcome-lab-card" onClick={enterIndicatorLab}>
             <span className="stamp">Editor</span>

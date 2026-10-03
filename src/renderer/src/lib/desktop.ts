@@ -1,4 +1,5 @@
 import { DEFAULT_DESK_PREFS } from '@core/desk/prefs'
+import { PRODUCT_NAME } from '@shared/constants'
 import type { DeskPrefs } from '@shared/types'
 
 type DesktopApi = Window['quantify'] & {
@@ -17,25 +18,31 @@ export function requireDesktop(): DesktopApi {
   return api
 }
 
-export function inElectron(): boolean {
+/** True when the UI is running inside the Kairos desktop shell. */
+export function inDesktopApp(): boolean {
   if (typeof navigator === 'undefined') return false
   return navigator.userAgent.includes('Electron')
 }
 
-export function desktopMissingMessage(): string {
-  return inElectron()
-    ? 'Restart Kairos so it can reconnect to the local database.'
-    : 'Open this app through Electron so the local database can connect.'
+/** @deprecated Prefer inDesktopApp() */
+export function inElectron(): boolean {
+  return inDesktopApp()
 }
 
-/** Main process was restarted without IPC handlers (stale Electron session). */
+export function desktopMissingMessage(): string {
+  return inDesktopApp()
+    ? `Restart ${PRODUCT_NAME} so it can reconnect to the local database.`
+    : `Open ${PRODUCT_NAME} as the desktop app so the local database can connect.`
+}
+
+/** Main process was restarted without IPC handlers (stale desktop session). */
 export function isIpcHandlerMissing(error: unknown): boolean {
   const msg = error instanceof Error ? error.message : String(error ?? '')
   return /no handler registered/i.test(msg)
 }
 
 export function ipcRestartMessage(feature = 'this feature'): string {
-  return `Restart Kairos fully (quit Electron, then npm run dev) so ${feature} can connect.`
+  return `Restart ${PRODUCT_NAME} fully (quit the app, then open it again) so ${feature} can connect.`
 }
 
 export async function loadDeskPrefs(): Promise<DeskPrefs> {

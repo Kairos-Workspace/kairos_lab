@@ -12,7 +12,10 @@ import {
   type ScriptKind,
   type ScriptLanguage
 } from '@shared/scriptLab'
+import type { HeadlessBacktestResult } from '@core/ea/headlessBacktest'
 import { BrandMark } from './BrandMark'
+import { BotBacktestModal, type BotBacktestConfig } from './BotBacktestModal'
+import { BotBacktestResultModal } from './BotBacktestResultModal'
 import { EaChatPanel } from './EaChatPanel'
 import { Icon } from './Icon'
 import { IndicatorChart } from './IndicatorChart'
@@ -24,7 +27,7 @@ import { useEaChatStore } from '../store/useEaChatStore'
 import { useEaLabStore } from '../store/useEaLabStore'
 
 function scriptExt(script: { kind: ScriptKind; language?: ScriptLanguage }): string {
-  return fileExtension(scriptLanguage(script.kind, script.language))
+  return fileExtension(scriptLanguage(script.kind, script.language), script.kind)
 }
 
 function NewIndicatorMenu({
@@ -137,11 +140,48 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
     name: string
     language: ScriptLanguage
   } | null>(null)
+  const [backtestOpen, setBacktestOpen] = useState(false)
+  const [backtestBusy, setBacktestBusy] = useState(false)
+  const [backtestResult, setBacktestResult] = useState<{
+    scriptName: string
+    symbol: string
+    config: BotBacktestConfig
+    result: HeadlessBacktestResult
+  } | null>(null)
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof monaco | null>(null)
   const decoRef = useRef<string[]>([])
   const writing = sending && Boolean(streamBlock && shouldLiveApplyBlock(streamBlock.content))
   const copy = labCopy(kind)
+
+  function openBacktestModal(): void {
+    if (kind !== 'ea' || !activeScriptId || sending) return
+    setBacktestOpen(true)
+  }
+
+  async function confirmBacktest(config: BotBacktestConfig): Promise<void> {
+    setBacktestBusy(true)
+    try {
+      const outcome = await runBacktest(config)
+      if (!outcome.ok) return
+      if (outcome.mode === 'visual') {
+        setBacktestOpen(false)
+        return
+      }
+      const name =
+        useEaLabStore.getState().scripts.find((s) => s.id === useEaLabStore.getState().activeScriptId)
+          ?.name ?? 'Bot'
+      setBacktestOpen(false)
+      setBacktestResult({
+        scriptName: name,
+        symbol: config.symbol,
+        config,
+        result: outcome.result
+      })
+    } finally {
+      setBacktestBusy(false)
+    }
+  }
 
   useEffect(() => {
     setKind(kind)
@@ -310,7 +350,7 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
     kind !== 'ea' || compileStatus === 'idle'
       ? null
       : compileStatus === 'ok'
-        ? 'Local compile passed · ready to backtest'
+        ? 'Bot rules OK · ready to backtest'
         : `${eaErrorCount} error${eaErrorCount === 1 ? '' : 's'}`
   const monacoTheme = theme === 'dark' ? 'kairos-dark' : 'kairos-light'
   const editorOptions = useMemo<MonacoEditor.IStandaloneEditorConstructionOptions>(
@@ -431,7 +471,7 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
           </div>
           {kind === 'ea' ? (
             <p className="ea-lab-empty">
-              Local backtests use Kairos Signal DSL. Full MQL5 requires MetaTrader.
+              Write bot rules here (or ask AI). Check, then Run backtest. MQL5 export comes later.
             </p>
           ) : null}
           {scripts.length === 0 ? (
@@ -521,8 +561,8 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
                   <button
                     type="button"
                     className="icon-btn"
-                    title="Check Kairos Signal DSL for local backtesting"
-                    aria-label="Compile local strategy"
+                    title="Check bot rules"
+                    aria-label="Check bot rules"
                     disabled={sending}
                     onClick={() => void compileActive()}
                   >
@@ -531,12 +571,21 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
                   <button
                     type="button"
                     className="primary icon-label"
-                    title="Run backtest"
+                    title="Run backtest in Kairos"
                     disabled={sending}
-                    onClick={() => void runBacktest()}
+                    onClick={openBacktestModal}
                   >
                     <Icon name="play" />
                     Run backtest
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost icon-label"
+                    title="Export to MetaTrader MQL5 — coming soon"
+                    aria-label="Export to MQL5 coming soon"
+                    disabled
+                  >
+                    Export MQL5
                   </button>
                 </>
               ) : null}
@@ -590,7 +639,7 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
                     () => {
                       if (useEaLabStore.getState().kind !== 'ea') return
                       if (useEaChatStore.getState().sending) return
-                      void useEaLabStore.getState().runBacktest()
+                      setBacktestOpen(true)
                     }
                   )
                   instance.onDidChangeCursorPosition((event) => {
@@ -696,7 +745,7 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
               <span>
                 Ln {cursor.line}, Col {cursor.column}
               </span>
-              <span>{kind === 'ea' ? 'Kairos Signal DSL' : languageLabel(activeLanguage)}</span>
+              <span>{languageLabel(activeLanguage, kind)}</span>
               <span>UTF-8</span>
               {diagLabel ? (
                 <span className="ea-lab-diag" data-kind={pineErrorCount ? 'error' : 'ok'}>
@@ -747,7 +796,7 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
             </header>
             <p className="composer-hint">
               Delete {pendingDelete.name}
-              {fileExtension(pendingDelete.language)}? This cannot be undone.
+              {fileExtension(pendingDelete.language, kind)}? This cannot be undone.
             </p>
             <div className="composer-actions">
               <button type="button" className="ghost" onClick={() => setPendingDelete(null)}>
@@ -768,6 +817,32 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {backtestOpen && kind === 'ea' ? (
+        <BotBacktestModal
+          scriptName={activeScript?.name ?? 'Bot'}
+          busy={backtestBusy}
+          onClose={() => {
+            if (backtestBusy) return
+            setBacktestOpen(false)
+          }}
+          onConfirm={confirmBacktest}
+        />
+      ) : null}
+
+      {backtestResult ? (
+        <BotBacktestResultModal
+          scriptName={backtestResult.scriptName}
+          symbol={backtestResult.symbol}
+          result={backtestResult.result}
+          onClose={() => setBacktestResult(null)}
+          onOpenVisual={() => {
+            const { config } = backtestResult
+            setBacktestResult(null)
+            void runBacktest({ ...config, visualize: true })
+          }}
+        />
       ) : null}
     </div>
   )

@@ -6,7 +6,7 @@ import type { EaInputParam } from './types'
 export class EaSignalStrategy implements Strategy {
   readonly id: string
   readonly name: string
-  readonly description = 'Kairos Signal DSL (bar-close)'
+  readonly description = 'Kairos Bot Rules (bar-close)'
   private state: EaRuntimeState
 
   constructor(program: Program, opts: { id: string; name: string; inputs: EaInputParam[] }) {

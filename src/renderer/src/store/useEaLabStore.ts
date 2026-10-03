@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { notifyError, notifyInfo, notifySuccess } from '@/lib/notify'
 import { compileEaScript } from '@core/ea/compile'
+import type { HeadlessBacktestResult } from '@core/ea/headlessBacktest'
 import type { Diagnostic } from '@core/ea/types'
-import type { EaScript, ScriptKind, ScriptLanguage } from '@shared/types'
+import type { EaScript, ScriptKind, ScriptLanguage, Timeframe } from '@shared/types'
 import {
   defaultScriptName,
   labCopy,
@@ -46,7 +47,19 @@ interface EaLabState {
   renameScript: (id: string, name: string) => Promise<void>
   deleteScript: (id: string) => Promise<void>
   compileActive: () => boolean
-  runBacktest: () => Promise<boolean>
+  runBacktest: (config: {
+    symbol: string
+    timeframe: Timeframe
+    fromTs: number
+    toTs: number
+    initialBalance: number
+    leverage: number
+    visualize: boolean
+  }) => Promise<
+    | { ok: true; mode: 'visual' }
+    | { ok: true; mode: 'background'; result: HeadlessBacktestResult }
+    | { ok: false }
+  >
 }
 
 export const useEaLabStore = create<EaLabState>((set, get) => ({
@@ -236,39 +249,69 @@ export const useEaLabStore = create<EaLabState>((set, get) => ({
     return true
   },
 
-  runBacktest: async () => {
+  runBacktest: async (config) => {
     const { kind, dirty, activeScriptId, draftCode, scripts } = get()
-    if (kind !== 'ea' || !activeScriptId) return false
+    if (kind !== 'ea' || !activeScriptId) return { ok: false }
     if (dirty) {
       await get().saveActiveScript({ quiet: true })
       if (get().dirty) {
         notifyError('Could not save before backtest')
-        return false
+        return { ok: false }
       }
     }
 
-    const name = scripts.find((script) => script.id === activeScriptId)?.name ?? 'EA'
-    const result = compileEaScript(draftCode, { id: activeScriptId, name })
+    const name = scripts.find((script) => script.id === activeScriptId)?.name ?? 'Bot'
+    const compiled = compileEaScript(draftCode, { id: activeScriptId, name })
     const lastCompiledAt = Date.now()
-    if (!result.ok) {
+    if (!compiled.ok) {
       set({
         compileStatus: 'error',
-        diagnostics: result.diagnostics,
+        diagnostics: compiled.diagnostics,
         lastCompiledAt
       })
-      notifyError('Compile failed')
-      return false
+      notifyError('Bot rules check failed')
+      return { ok: false }
     }
     set({
       compileStatus: 'ok',
-      diagnostics: result.warnings,
+      diagnostics: compiled.warnings,
       lastCompiledAt
     })
-    await useAppStore.getState().openEaBacktest({
-      scriptId: activeScriptId,
-      scriptName: name,
-      strategy: result.strategy
-    })
-    return true
+
+    if (config.visualize) {
+      await useAppStore.getState().openEaBacktest({
+        scriptId: activeScriptId,
+        scriptName: name,
+        strategy: compiled.strategy,
+        config: {
+          symbol: config.symbol,
+          timeframe: config.timeframe,
+          fromTs: config.fromTs,
+          toTs: config.toTs,
+          initialBalance: config.initialBalance,
+          leverage: config.leverage
+        }
+      })
+      return { ok: true, mode: 'visual' }
+    }
+
+    try {
+      const result = await useAppStore.getState().runEaHeadlessBacktest({
+        strategy: compiled.strategy,
+        symbol: config.symbol,
+        timeframe: config.timeframe,
+        fromTs: config.fromTs,
+        toTs: config.toTs,
+        initialBalance: config.initialBalance,
+        leverage: config.leverage
+      })
+      notifySuccess(
+        `${name} · ${result.stats.totalTrades} trades · PnL ${result.stats.netPnl.toFixed(2)}`
+      )
+      return { ok: true, mode: 'background', result }
+    } catch (error) {
+      notifyError('Background backtest failed', error)
+      return { ok: false }
+    }
   }
 }))

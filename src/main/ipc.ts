@@ -390,14 +390,21 @@ export function registerIpc(): void {
             : []
       const fileBlocks = attached.flatMap((file) => {
         const label = file.current ? `${file.name} (currently editing)` : file.name
-        const lang = fenceLanguage(scriptLanguage(kind, file.language ?? language))
+        const lang = fenceLanguage(scriptLanguage(kind, file.language ?? language), kind)
         return [`### ${label}`, `${fence}${lang}`, file.code, fence, '']
       })
       const untitled = defaultScriptName(kind)
-      const fenceTag = fenceLanguage(language)
+      const fenceTag = fenceLanguage(language, kind)
       const systemPrompt = [
         chatSystemRole(kind, language),
         '',
+        kind === 'ea'
+          ? [
+              'REMINDER: This is Bot Lab. Generate Kairos Bot Rules only.',
+              'Do not emit #include, #property, CTrade, OrderSend, iMA, or other full MQL5.',
+              'If the attached file contains full MQL5, rewrite it into Kairos Bot Rules before returning code.'
+            ].join(' ')
+          : '',
         attached.length > 0
           ? 'The user attached these files. Edit the one marked currently editing unless they ask otherwise.'
           : 'No file is attached. Ask which script to work on if you need one.',
@@ -418,7 +425,9 @@ export function registerIpc(): void {
         '- Use **bold** for key terms and `inline code` for identifiers.',
         '- Keep prose concise. Do not wrap the whole reply in a code fence.',
         'Never use emoji, emoticons, or decorative unicode symbols in replies or code comments.'
-      ].join('\n')
+      ]
+        .filter((line) => line !== '')
+        .join('\n')
       const result = await sendChatMessage(
         profile,
         apiKey,

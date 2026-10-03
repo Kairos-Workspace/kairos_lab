@@ -1,4 +1,4 @@
-import { eaChatInstructions } from './eaLanguage'
+import { EA_LOCAL_EXAMPLE, eaChatInstructions } from './eaLanguage'
 
 export const SCRIPT_KINDS = ['ea', 'indicator'] as const
 export type ScriptKind = (typeof SCRIPT_KINDS)[number]
@@ -20,10 +20,11 @@ export function scriptLanguage(kind: ScriptKind, value: unknown): ScriptLanguage
 }
 
 export function defaultScriptName(kind: ScriptKind): string {
-  return kind === 'indicator' ? 'Untitled Indicator' : 'Untitled EA'
+  return kind === 'indicator' ? 'Untitled Indicator' : 'Untitled Bot'
 }
 
-export function fileExtension(language: ScriptLanguage): string {
+export function fileExtension(language: ScriptLanguage, kind?: ScriptKind): string {
+  if (kind === 'ea') return '.kairos'
   return language === 'pinescript' ? '.pine' : '.mq5'
 }
 
@@ -31,11 +32,13 @@ export function monacoLanguage(language: ScriptLanguage): string {
   return language === 'pinescript' ? 'pinescript' : 'mql5'
 }
 
-export function languageLabel(language: ScriptLanguage): string {
+export function languageLabel(language: ScriptLanguage, kind?: ScriptKind): string {
+  if (kind === 'ea') return 'Kairos Bot Rules'
   return language === 'pinescript' ? 'Pine Script' : 'MQL5'
 }
 
-export function fenceLanguage(language: ScriptLanguage): string {
+export function fenceLanguage(language: ScriptLanguage, kind?: ScriptKind): string {
+  if (kind === 'ea') return 'kairos'
   return language === 'pinescript' ? 'pine' : 'mql5'
 }
 
@@ -68,17 +71,17 @@ export function labCopy(kind: ScriptKind): {
     }
   }
   return {
-    brandSubtitle: 'EA development',
-    untitled: 'Untitled EA',
-    emptyExplorer: 'No scripts yet. Create one to open the editor.',
-    emptyEditor: 'Create a script to start editing.',
-    newFile: 'New script',
-    newFileTitle: 'New script',
-    deleteTitle: 'Delete script',
-    removed: 'EA script removed',
-    settingsBack: 'Back to EA Lab',
-    welcomeTitle: 'EA Development Lab',
-    welcomeBody: 'Build automated trading bots'
+    brandSubtitle: 'Bot Lab',
+    untitled: 'Untitled Bot',
+    emptyExplorer: 'No bots yet. Create one, or ask AI to write the rules.',
+    emptyEditor: 'Create a bot, then ask AI to write entry rules and run a backtest.',
+    newFile: 'New bot',
+    newFileTitle: 'New bot',
+    deleteTitle: 'Delete bot',
+    removed: 'Bot removed',
+    settingsBack: 'Back to Bot Lab',
+    welcomeTitle: 'Bot Lab',
+    welcomeBody: 'Build trading bots with AI and backtest them here'
   }
 }
 
@@ -100,15 +103,11 @@ export function chatSystemRole(kind: ScriptKind, language: ScriptLanguage): stri
   return eaChatInstructions()
 }
 
-export const EA_STARTER_TEMPLATE = `// Kairos Signal DSL for local backtesting (MQL5-like subset).
-// Full MetaTrader MQL5 must be compiled and tested in MetaTrader.
-void OnInit()
-{
-}
+export const EA_STARTER_TEMPLATE = `// Kairos Bot Rules — build here, backtest in Kairos.
+// Ask AI to describe entries; use Check then Run backtest.
+// MetaTrader MQL5 export comes later — do not paste full MQL5 here.
 
-void OnTick()
-{
-}
+${EA_LOCAL_EXAMPLE}
 `
 
 export const INDICATOR_STARTER_TEMPLATE = `#property indicator_chart_window

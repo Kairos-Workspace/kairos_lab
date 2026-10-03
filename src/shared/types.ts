@@ -61,6 +61,8 @@ export interface AccountState {
   balance: number
   equity: number
   riskPerTrade: number
+  /** Position-size multiplier for bot / desk backtests (1 = flat). */
+  leverage: number
 }
 
 export interface Trade {

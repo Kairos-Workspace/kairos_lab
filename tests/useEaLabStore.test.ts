@@ -3,8 +3,14 @@ import type { EaScript } from '@shared/types'
 import { useEaChatStore } from '@/store/useEaChatStore'
 import { useEaLabStore } from '@/store/useEaLabStore'
 
-const { openEaBacktest } = vi.hoisted(() => ({
-  openEaBacktest: vi.fn().mockResolvedValue(undefined)
+const { openEaBacktest, runEaHeadlessBacktest } = vi.hoisted(() => ({
+  openEaBacktest: vi.fn().mockResolvedValue(undefined),
+  runEaHeadlessBacktest: vi.fn().mockResolvedValue({
+    trades: [],
+    account: { initialBalance: 10_000, balance: 10_000, equity: 10_000, riskPerTrade: 1, leverage: 1 },
+    stats: { totalTrades: 0, netPnl: 0 },
+    barsPlayed: 0
+  })
 }))
 
 vi.mock('@/lib/notify', () => ({
@@ -15,7 +21,7 @@ vi.mock('@/lib/notify', () => ({
 
 vi.mock('@/store/useAppStore', () => ({
   useAppStore: {
-    getState: () => ({ openEaBacktest })
+    getState: () => ({ openEaBacktest, runEaHeadlessBacktest })
   }
 }))
 
@@ -41,6 +47,19 @@ describe('useEaLabStore', () => {
   beforeEach(() => {
     useEaLabStore.setState(initialState, true)
     useEaChatStore.setState(initialChatState, true)
+    openEaBacktest.mockReset().mockResolvedValue(undefined)
+    runEaHeadlessBacktest.mockReset().mockResolvedValue({
+      trades: [],
+      account: {
+        initialBalance: 10_000,
+        balance: 10_000,
+        equity: 10_000,
+        riskPerTrade: 1,
+        leverage: 1
+      },
+      stats: { totalTrades: 0, netPnl: 0 },
+      barsPlayed: 0
+    })
     eaScripts = {
       save: vi.fn().mockImplementation(async (s: EaScript) => {
         const others = useEaLabStore.getState().scripts.filter((x) => x.id !== s.id)
@@ -53,7 +72,7 @@ describe('useEaLabStore', () => {
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('applyCodeToScript', () => {
@@ -159,10 +178,53 @@ describe('useEaLabStore', () => {
         dirty: false
       })
 
-      await expect(useEaLabStore.getState().runBacktest()).resolves.toBe(true)
+      const config = {
+        symbol: 'XAUUSD',
+        timeframe: '1H' as const,
+        fromTs: 0,
+        toTs: 1_000_000,
+        initialBalance: 10_000,
+        leverage: 10,
+        visualize: true
+      }
+      await expect(useEaLabStore.getState().runBacktest(config)).resolves.toEqual({
+        ok: true,
+        mode: 'visual'
+      })
       expect(openEaBacktest).toHaveBeenCalledWith(
-        expect.objectContaining({ scriptId: 'a', scriptName: 'Cross EA' })
+        expect.objectContaining({
+          scriptId: 'a',
+          scriptName: 'Cross EA',
+          config: expect.objectContaining({
+            symbol: 'XAUUSD',
+            leverage: 10,
+            initialBalance: 10_000
+          })
+        })
       )
+    })
+
+    it('runs a background backtest without opening the tester', async () => {
+      useEaLabStore.setState({
+        kind: 'ea',
+        scripts: [script('a', { name: 'Cross EA' })],
+        activeScriptId: 'a',
+        draftCode: 'void OnTick() { Buy(); }',
+        dirty: false
+      })
+
+      const outcome = await useEaLabStore.getState().runBacktest({
+        symbol: 'EURUSD',
+        timeframe: '1H',
+        fromTs: 0,
+        toTs: 1_000_000,
+        initialBalance: 5_000,
+        leverage: 5,
+        visualize: false
+      })
+      expect(outcome).toEqual(expect.objectContaining({ ok: true, mode: 'background' }))
+      expect(runEaHeadlessBacktest).toHaveBeenCalled()
+      expect(openEaBacktest).not.toHaveBeenCalled()
     })
   })
 
@@ -172,7 +234,7 @@ describe('useEaLabStore', () => {
       const created = eaScripts.save.mock.calls[0][0] as EaScript
       expect(created.kind).toBe('ea')
       expect(created.language).toBe('mql5')
-      expect(created.name).toBe('Untitled EA')
+      expect(created.name).toBe('Untitled Bot')
       expect(created.code).toContain('OnTick')
     })
 

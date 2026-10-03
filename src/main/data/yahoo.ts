@@ -52,7 +52,7 @@ export async function downloadYahoo(input: {
 
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'QuantifyStrategyTester/1.0',
+      'User-Agent': 'KairosStrategyTester/1.0',
       Accept: 'application/json'
     }
   })

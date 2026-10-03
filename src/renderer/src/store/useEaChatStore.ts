@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { PRODUCT_NAME } from '@shared/constants'
 import type { EaChatAttachedFile, EaChatMessage, EaChatThread, ScriptKind } from '@shared/types'
 import { desktop } from '../lib/desktop'
 import { pickValidProviderId } from '../lib/aiProviders'
@@ -277,7 +278,10 @@ export const useEaChatStore = create<EaChatState>((set, get) => ({
         streamThinking: '',
         streamBlock: null,
         activeRequestId: null,
-        error: failure ?? resultFailure?.message ?? 'Not running in Electron',
+        error:
+          failure ??
+          resultFailure?.message ??
+          `Open ${PRODUCT_NAME} as the desktop app to use chat.`,
         currentThreadId: resultFailure?.thread?.id ?? get().currentThreadId,
         messages,
         threads: resultFailure?.threads ?? get().threads,

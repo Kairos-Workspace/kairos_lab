@@ -11,11 +11,86 @@ export function StrategyPanel(): React.JSX.Element {
   const account = useAppStore((s) => s.account)
   const setAccountRisk = useAppStore((s) => s.setAccountRisk)
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
+  const activeEaScriptId = useAppStore((s) => s.activeEaScriptId)
+  const sessionName = useAppStore((s) => s.sessionName)
   const strategies = useAppStore((s) => s.strategies)
   const showFundamentals = useAppStore((s) => s.showFundamentals)
   const setShowFundamentals = useAppStore((s) => s.setShowFundamentals)
   const activeName = strategies.find((s) => s.id === activeStrategyId)?.name
+  const botName = sessionName.replace(/ · EA$/, '')
   const [showRangeModal, setShowRangeModal] = useState(false)
+
+  if (activeEaScriptId) {
+    return (
+      <>
+        <h3>Bot backtest</h3>
+        <p className="muted">
+          Running <strong>{botName}</strong> from Bot Lab. Signals come from your bot rules — not
+          the catalog strategies below.
+        </p>
+        <div className="row">
+          <label className="field">
+            Default RR
+            <input
+              type="number"
+              step="0.1"
+              value={settings.defaultRr}
+              onChange={(e) => setSettings({ defaultRr: Number(e.target.value) })}
+            />
+          </label>
+          <label className="field">
+            Risk %
+            <input
+              type="number"
+              step="0.1"
+              value={account.riskPerTrade}
+              onChange={(e) => setAccountRisk(Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <label className="field">
+          <span>
+            <input
+              type="checkbox"
+              checked={settings.autoEntry}
+              onChange={(e) => setSettings({ autoEntry: e.target.checked })}
+            />{' '}
+            Auto entry
+          </span>
+        </label>
+        <label className="field">
+          <span>
+            <input
+              type="checkbox"
+              checked={settings.pauseOnSetup}
+              onChange={(e) => setSettings({ pauseOnSetup: e.target.checked })}
+              disabled={settings.autoEntry}
+            />{' '}
+            Pause on setup{settings.autoEntry ? ' (off while auto entry)' : ''}
+          </span>
+        </label>
+        <button
+          className="primary icon-label"
+          onClick={() => setShowRangeModal(true)}
+          title="Choose period and start replay"
+        >
+          <Icon name="play" />
+          Start replay
+        </button>
+        <label className="field">
+          <span>
+            <input
+              type="checkbox"
+              checked={showFundamentals}
+              onChange={(e) => setShowFundamentals(e.target.checked)}
+            />{' '}
+            Show fundamentals
+          </span>
+        </label>
+        {showRangeModal ? <ReplayRangeModal onClose={() => setShowRangeModal(false)} /> : null}
+      </>
+    )
+  }
 
   return (
     <>
