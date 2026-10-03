@@ -221,6 +221,7 @@ export function ChartPanel(): React.JSX.Element {
   const replayIndex = useAppStore((s) => s.replayIndex)
   const isPlaying = useAppStore((s) => s.isPlaying)
   const followReplay = useAppStore((s) => s.followReplay)
+  const setFollowReplay = useAppStore((s) => s.setFollowReplay)
   const displayCandles = useAppStore((s) => s.displayCandles)
   const draft = useAppStore((s) => s.draft)
   const settings = useAppStore((s) => s.settings)
@@ -869,6 +870,18 @@ export function ChartPanel(): React.JSX.Element {
             <p>Choose a symbol in the top bar. The chart loads from the local database.</p>
           </div>
         )}
+        {mode === 'replay' && isPlaying && !followReplay ? (
+          <button
+            type="button"
+            className="chart-follow-btn"
+            onClick={() => setFollowReplay(true)}
+            title="Jump chart back to the playhead"
+            aria-label="Follow playhead"
+          >
+            <span>Follow</span>
+            <Icon name="arrowRight" size={14} />
+          </button>
+        ) : null}
         <DrawingToolbar />
         <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
         <DrawingLayer chart={chartApi} series={seriesApi} host={hostRef.current} />

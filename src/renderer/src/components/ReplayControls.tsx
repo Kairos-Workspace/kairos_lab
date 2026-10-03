@@ -18,7 +18,6 @@ export function ReplayControls(): React.JSX.Element {
   const replayToTs = useAppStore((s) => s.replayToTs)
   const replayIndex = useAppStore((s) => s.replayIndex)
   const candles = useAppStore((s) => s.displayCandles)
-  const followReplay = useAppStore((s) => s.followReplay)
   const setFollowReplay = useAppStore((s) => s.setFollowReplay)
   const [showRangeModal, setShowRangeModal] = useState(false)
 
@@ -96,16 +95,6 @@ export function ReplayControls(): React.JSX.Element {
           >
             <Icon name="shuffle" />
           </button>
-          {mode === 'replay' && !followReplay ? (
-            <button
-              className="ghost replay-follow"
-              type="button"
-              onClick={() => setFollowReplay(true)}
-              title="Re-lock chart to playhead"
-            >
-              Follow
-            </button>
-          ) : null}
         </div>
 
         <div className="replay-scrub">

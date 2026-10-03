@@ -38,6 +38,7 @@ export type IconName =
   | 'measure'
   | 'arrowUp'
   | 'arrowDown'
+  | 'arrowRight'
   | 'undo'
   | 'redo'
   | 'edit'
@@ -50,6 +51,7 @@ export type IconName =
   | 'copy'
   | 'chevronRight'
   | 'chevronDown'
+  | 'crosshair'
 
 const PATHS: Record<IconName, string> = {
   play: 'M8 5v14l11-7z',
@@ -92,6 +94,7 @@ const PATHS: Record<IconName, string> = {
   measure: 'M4 16L16 4M7 13l2 2M11 9l2 2',
   arrowUp: 'M12 19V5M5 12l7-7 7 7',
   arrowDown: 'M12 5v14M19 12l-7 7-7-7',
+  arrowRight: 'M5 12h14M12 5l7 7-7 7',
   undo: 'M7 10H3V6M3 10a8 8 0 1 1 2.3 6.7',
   redo: 'M17 10h4V6M21 10a8 8 0 1 0-2.3 6.7',
   edit: 'M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z',
@@ -104,7 +107,8 @@ const PATHS: Record<IconName, string> = {
   history: 'M12 8v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z',
   copy: 'M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.5L16.5 4H10a2 2 0 0 0-2 2z M4 8v11a2 2 0 0 0 2 2h10',
   chevronRight: 'M9 18l6-6-6-6',
-  chevronDown: 'M6 9l6 6 6-6'
+  chevronDown: 'M6 9l6 6 6-6',
+  crosshair: 'M12 2v5M12 17v5M2 12h5M17 12h5M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0'
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {

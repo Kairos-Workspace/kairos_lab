@@ -1411,12 +1411,63 @@ button:focus-visible {
   color: var(--parchment);
 }
 
-.replay-follow {
-  min-height: 32px;
-  padding: 0 10px;
-  font-size: 11px;
-  letter-spacing: 0.06em;
+.chart-follow-btn {
+  position: absolute;
+  right: 72px;
+  top: 50%;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--brand) 55%, var(--rule));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 88%, var(--ink));
+  color: #fff;
+  font-family: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  box-shadow: none;
+  cursor: pointer;
+  transform: translateY(-50%);
+  animation: chart-follow-nudge 1.05s ease-in-out infinite;
+}
+
+.chart-follow-btn:hover {
+  filter: brightness(1.06);
+}
+
+.chart-follow-btn:active {
+  animation: none;
+  transform: translateY(-50%) translateX(1px) scale(0.98);
+}
+
+@keyframes chart-follow-nudge {
+  0%,
+  100% {
+    transform: translateY(-50%) translateX(0);
+  }
+  18% {
+    transform: translateY(-50%) translateX(8px);
+  }
+  32% {
+    transform: translateY(-50%) translateX(0);
+  }
+  42% {
+    transform: translateY(-50%) translateX(4px);
+  }
+  54% {
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-follow-btn {
+    animation: none;
+  }
 }
 
 .replay-scrub {
