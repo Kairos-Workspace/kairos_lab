@@ -14,8 +14,9 @@ export function useVisibleCandles(): Candle[] {
 }
 
 export function useCurrentCandle(): Candle | undefined {
-  const candles = useVisibleCandles()
-  return candles.at(-1)
+  return useAppStore((s) =>
+    s.mode === 'view' ? s.displayCandles.at(-1) : s.displayCandles[s.replayIndex]
+  )
 }
 
 export function usePerformance() {

@@ -1,9 +1,13 @@
+import { Suspense, lazy } from 'react'
 import { useAppStore, type RightTab } from '../store/useAppStore'
 import { Icon, type IconName } from './Icon'
 import { StrategyPanel } from './StrategyPanel'
-import { PineIndicatorPanel } from './PineIndicatorPanel'
 import { TradePanel } from './TradePanel'
 import { CostsPanel } from './CostsPanel'
+
+const PineIndicatorPanel = lazy(() =>
+  import('./PineIndicatorPanel').then((m) => ({ default: m.PineIndicatorPanel }))
+)
 
 const TABS: Array<{ id: RightTab; label: string; icon: IconName }> = [
   { id: 'strategy', label: 'Strategy', icon: 'strategy' },
@@ -33,10 +37,12 @@ export function RightPanel(): React.JSX.Element {
         ))}
       </nav>
       <div className="panel-body">
-        {tab === 'strategy' ? <StrategyPanel /> : null}
-        {tab === 'indicators' ? <PineIndicatorPanel /> : null}
-        {tab === 'trade' ? <TradePanel /> : null}
-        {tab === 'costs' ? <CostsPanel /> : null}
+        <Suspense fallback={null}>
+          {tab === 'strategy' ? <StrategyPanel /> : null}
+          {tab === 'indicators' ? <PineIndicatorPanel /> : null}
+          {tab === 'trade' ? <TradePanel /> : null}
+          {tab === 'costs' ? <CostsPanel /> : null}
+        </Suspense>
       </div>
     </aside>
   )
