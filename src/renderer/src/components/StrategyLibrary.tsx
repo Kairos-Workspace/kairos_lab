@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { STRATEGY_CATALOG } from '@core/strategy/registry'
 import { DEFAULT_STRATEGY_SETTINGS } from '@shared/constants'
 import type { StrategySettings } from '@shared/types'
@@ -7,11 +7,14 @@ import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
-import { FundamentalsDesk } from './FundamentalsDesk'
 import { Button, FormField, Modal } from './ui'
 import { inDesktopApp } from '../lib/desktop'
 import { withoutSeeds } from '../store/strategyVault'
 import { useAppStore } from '../store/useAppStore'
+
+const FundamentalsDesk = lazy(() =>
+  import('./FundamentalsDesk').then((m) => ({ default: m.FundamentalsDesk }))
+)
 
 type LibraryDesk = 'strategies' | 'market' | 'fundamentals'
 
@@ -236,7 +239,9 @@ export function StrategyLibrary(): React.JSX.Element {
       {activeDesk === 'market' ? (
         <MarketDesk />
       ) : activeDesk === 'fundamentals' ? (
-        <FundamentalsDesk />
+        <Suspense fallback={null}>
+          <FundamentalsDesk />
+        </Suspense>
       ) : (
         <section className="library-board">
           {strategies.length > 4 && (

@@ -3,7 +3,6 @@ import {
   MARKET_CATALOG,
   findMarketInstrument,
 } from '@core/market/catalog'
-import { PRODUCT_NAME } from '@shared/constants'
 import type { DatasetInfo, Timeframe } from '@shared/types'
 import { ConfirmIconButton } from './ConfirmIconButton'
 import { DownloadWizard } from './DownloadWizard'

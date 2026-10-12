@@ -194,7 +194,7 @@ export function createBrowserApi() {
   // Pre-seed demo data in the background
   void ensureDemoData().catch(() => undefined)
 
-  return {
+  const api = {
     dbPath: async (): Promise<string> => 'Browser (IndexedDB)',
 
     datasets: {
@@ -314,7 +314,7 @@ export function createBrowserApi() {
       }): Promise<{ dataset: DatasetInfo; datasets: DatasetInfo[] }> => {
         // Fallback demo generation for requested symbol in browser
         const days = Math.max(1, Math.round((payload.endTs - payload.startTs) / (24 * 3600 * 1000)))
-        const res = await (await createBrowserApi()).datasets.generateDemo({
+        const res = await api.datasets.generateDemo({
           symbol: payload.symbol,
           days: Math.min(days, 30)
         })
@@ -404,7 +404,7 @@ export function createBrowserApi() {
         model: string
         baseUrl: string | null
       }): Promise<AiProviderProfile[]> => {
-        const list = await (await createBrowserApi()).ai.listProviders()
+        const list = await api.ai.listProviders()
         const index = list.findIndex((p) => p.id === profile.id)
         const updatedProfile: AiProviderProfile = {
           ...profile,
@@ -426,7 +426,7 @@ export function createBrowserApi() {
       },
 
       deleteProvider: async (id: string): Promise<AiProviderProfile[]> => {
-        const list = await (await createBrowserApi()).ai.listProviders()
+        const list = await api.ai.listProviders()
         const next = list.filter((p) => p.id !== id)
         localStorage.setItem('kairos.ai_providers', JSON.stringify(next))
         localStorage.removeItem(`kairos.ai_key.${id}`)
@@ -442,7 +442,7 @@ export function createBrowserApi() {
       },
 
       listModels: async (id: string): Promise<{ ok: boolean; models: string[]; message?: string }> => {
-        const providers = await (await createBrowserApi()).ai.listProviders()
+        const providers = await api.ai.listProviders()
         const target = providers.find((p) => p.id === id)
         const defaults = target?.model ? [target.model] : ['gpt-4o', 'claude-3-7-sonnet']
         return { ok: true, models: defaults }
@@ -629,7 +629,7 @@ export function createBrowserApi() {
       },
 
       upsertPoint: async (seriesId: string, point: FundamentalPoint) => {
-        const current = (await (await createBrowserApi()).fundamentals.get()).bundle
+        const current = (await api.fundamentals.get()).bundle
         const series = current.series.find((s) => s.id === seriesId)
         if (series) {
           const idx = series.points.findIndex((p) => p.ts === point.ts)
@@ -644,7 +644,7 @@ export function createBrowserApi() {
       },
 
       upsertEvent: async (event: FundamentalEvent) => {
-        const current = (await (await createBrowserApi()).fundamentals.get()).bundle
+        const current = (await api.fundamentals.get()).bundle
         const idx = current.events.findIndex((e) => e.ts === event.ts && e.title === event.title)
         if (idx >= 0) current.events[idx] = event
         else {
@@ -656,6 +656,8 @@ export function createBrowserApi() {
       }
     }
   }
+
+  return api
 }
 
 export function initBrowserApi(): void {

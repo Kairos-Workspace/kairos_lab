@@ -1,12 +1,16 @@
+import { Suspense, lazy } from 'react'
 import { TopBar } from './TopBar'
 import { ChartPanel } from './ChartPanel'
 import { RightPanel } from './RightPanel'
 import { PerformancePanel } from './PerformancePanel'
 import { EquityCurve } from './EquityCurve'
 import { TradeHistory } from './TradeHistory'
-import { FundamentalsPanel } from './FundamentalsPanel'
 import { inDesktopApp } from '../lib/desktop'
 import { useAppStore } from '../store/useAppStore'
+
+const FundamentalsPanel = lazy(() =>
+  import('./FundamentalsPanel').then((m) => ({ default: m.FundamentalsPanel }))
+)
 
 export function Workspace(): React.JSX.Element {
   const chartFull = useAppStore((s) => s.chartFull)
@@ -25,7 +29,11 @@ export function Workspace(): React.JSX.Element {
           <PerformancePanel />
           <EquityCurve />
           <TradeHistory />
-          {showFundamentals ? <FundamentalsPanel /> : null}
+          {showFundamentals ? (
+            <Suspense fallback={null}>
+              <FundamentalsPanel />
+            </Suspense>
+          ) : null}
         </div>
       )}
     </div>
