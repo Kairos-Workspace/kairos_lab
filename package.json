@@ -6,8 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:web": "vite",
     "build": "electron-vite build",
+    "build:web": "vite build",
+    "deploy:pages": "npm run build:web && npx wrangler pages deploy dist-web",
     "preview": "electron-vite preview",
+    "preview:web": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",

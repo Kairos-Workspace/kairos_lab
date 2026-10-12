@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { applyDeskTheme } from '@core/desk/theme'
+import { inDesktopApp } from './lib/desktop'
 import { EaLab } from './components/EaLab'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { SettingsScreen } from './components/SettingsScreen'
@@ -24,17 +25,19 @@ export function App(): React.JSX.Element {
     void bootstrap()
   }, [bootstrap])
 
+  const isDesktop = inDesktopApp()
+
   return (
     <>
       {screen === 'workspace' ? (
         <Workspace />
-      ) : screen === 'welcome' ? (
+      ) : isDesktop && screen === 'welcome' ? (
         <Welcome />
-      ) : screen === 'ea-lab' ? (
+      ) : isDesktop && screen === 'ea-lab' ? (
         <EaLab kind="ea" />
-      ) : screen === 'indicator-lab' ? (
+      ) : isDesktop && screen === 'indicator-lab' ? (
         <EaLab kind="indicator" />
-      ) : screen === 'settings' ? (
+      ) : isDesktop && screen === 'settings' ? (
         <SettingsScreen />
       ) : (
         <StrategyLibrary />

@@ -22,6 +22,7 @@ export type IconName =
   | 'back'
   | 'close'
   | 'download'
+  | 'upload'
   | 'sun'
   | 'moon'
   | 'dashed'
@@ -78,6 +79,7 @@ const PATHS: Record<IconName, string> = {
   back: 'M15 6l-6 6 6 6',
   close: 'M6 6l12 12M18 6L6 18',
   download: 'M12 3v12m0 0l-4-4m4 4l4-4M4 21h16',
+  upload: 'M12 21V9m0 0l-4 4m4-4l4 4M4 3h16',
   sun: 'M12 4V2M12 22v-2M4.9 4.9 3.5 3.5M20.5 20.5l-1.4-1.4M4 12H2M22 12h-2M4.9 19.1 3.5 20.5M20.5 3.5l-1.4 1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z',
   moon: 'M21 14.3A8.5 8.5 0 1 1 9.7 3 7 7 0 0 0 21 14.3z',
   dashed: 'M3 12h3M10 12h3M17 12h3',

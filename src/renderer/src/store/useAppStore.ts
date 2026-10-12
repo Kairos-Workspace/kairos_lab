@@ -49,6 +49,7 @@ import { FUNDAMENTALS_BUNDLE } from '@core/fundamentals/bundle'
 import {
   desktop,
   desktopMissingMessage,
+  inDesktopApp,
   ipcRestartMessage,
   isIpcHandlerMissing,
   loadDeskPrefs,
@@ -215,6 +216,8 @@ interface AppState {
   refreshTapes: (ids: number[]) => Promise<number>
   removeTape: (id: number) => Promise<void>
   removeTapes: (ids: number[]) => Promise<void>
+  importCsvTape: (payload: { symbol: string; timeframe: Timeframe; csv: string }) => Promise<void>
+  generateDemoTape: (payload?: { symbol?: string; days?: number; seed?: number }) => Promise<void>
   loadDataset: (id: number) => Promise<void>
   loadOlderCandles: () => Promise<void>
   loadReplayRange: (fromTs: number, toTs: number) => Promise<void>
@@ -465,7 +468,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   drawingUndoStack: [],
   drawingRedoStack: [],
   chartFull: false,
-  screen: 'welcome',
+  screen: inDesktopApp() ? 'welcome' : 'library',
   settingsReturnScreen: 'ea-lab',
   strategies: [],
   activeStrategyId: null,
@@ -792,15 +795,17 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   },
 
   enterEaLab: () => {
-    set({ screen: 'ea-lab' })
+    if (inDesktopApp()) set({ screen: 'ea-lab' })
   },
 
   enterIndicatorLab: () => {
-    set({ screen: 'indicator-lab' })
+    if (inDesktopApp()) set({ screen: 'indicator-lab' })
   },
 
   enterSettings: () => {
-    set({ settingsReturnScreen: get().screen, screen: 'settings' })
+    if (inDesktopApp()) {
+      set({ settingsReturnScreen: get().screen, screen: 'settings' })
+    }
   },
 
   leaveSettings: () => {
@@ -809,7 +814,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   },
 
   goHome: () => {
-    set({ screen: 'welcome' })
+    set({ screen: inDesktopApp() ? 'welcome' : 'library' })
   },
 
   createStrategy: async (input) => {
@@ -1456,6 +1461,48 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         status: error instanceof Error ? error.message : 'Could not remove those tapes.'
       })
       notifyError('Could not remove those tapes.', error)
+    }
+  },
+
+  importCsvTape: async (payload) => {
+    if (!desktop()) return
+    set({ busy: true, status: 'Importing CSV tape…' })
+    try {
+      const res = await requireDesktop().datasets.importCsv(payload)
+      set({
+        datasets: res.datasets,
+        busy: false,
+        status: `Imported ${res.dataset.symbol} (${res.dataset.candleCount} bars)`
+      })
+      notifySuccess(`Imported ${res.dataset.symbol} ${res.dataset.timeframe} tape`)
+    } catch (error) {
+      set({
+        busy: false,
+        status: error instanceof Error ? error.message : 'Could not import CSV.'
+      })
+      notifyError('Could not import CSV tape.', error)
+      throw error
+    }
+  },
+
+  generateDemoTape: async (payload) => {
+    if (!desktop()) return
+    set({ busy: true, status: 'Generating demo market tape…' })
+    try {
+      const res = await requireDesktop().datasets.generateDemo(payload ?? {})
+      set({
+        datasets: res.datasets,
+        busy: false,
+        status: `Generated ${res.dataset.symbol} demo tape (${res.dataset.candleCount} bars)`
+      })
+      notifySuccess(`Generated ${res.dataset.symbol} demo tape`)
+    } catch (error) {
+      set({
+        busy: false,
+        status: error instanceof Error ? error.message : 'Could not generate demo tape.'
+      })
+      notifyError('Could not generate demo tape.', error)
+      throw error
     }
   },
 

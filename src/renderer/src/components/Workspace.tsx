@@ -5,11 +5,12 @@ import { PerformancePanel } from './PerformancePanel'
 import { EquityCurve } from './EquityCurve'
 import { TradeHistory } from './TradeHistory'
 import { FundamentalsPanel } from './FundamentalsPanel'
+import { inDesktopApp } from '../lib/desktop'
 import { useAppStore } from '../store/useAppStore'
 
 export function Workspace(): React.JSX.Element {
   const chartFull = useAppStore((s) => s.chartFull)
-  const showFundamentals = useAppStore((s) => s.showFundamentals)
+  const showFundamentals = inDesktopApp() && useAppStore((s) => s.showFundamentals)
 
   return (
     <div className="app" data-frame={chartFull ? 'full' : 'desk'}>

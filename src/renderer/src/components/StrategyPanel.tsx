@@ -3,6 +3,7 @@ import { STRATEGY_CATALOG } from '@core/strategy/registry'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ReplayRangeModal } from './ReplayRangeModal'
+import { inDesktopApp } from '../lib/desktop'
 import { useAppStore } from '../store/useAppStore'
 
 export function StrategyPanel(): React.JSX.Element {
@@ -77,16 +78,18 @@ export function StrategyPanel(): React.JSX.Element {
           <Icon name="play" />
           Start replay
         </button>
-        <label className="field">
-          <span>
-            <input
-              type="checkbox"
-              checked={showFundamentals}
-              onChange={(e) => setShowFundamentals(e.target.checked)}
-            />{' '}
-            Show fundamentals
-          </span>
-        </label>
+        {inDesktopApp() && (
+          <label className="field">
+            <span>
+              <input
+                type="checkbox"
+                checked={showFundamentals}
+                onChange={(e) => setShowFundamentals(e.target.checked)}
+              />{' '}
+              Show fundamentals
+            </span>
+          </label>
+        )}
         {showRangeModal ? <ReplayRangeModal onClose={() => setShowRangeModal(false)} /> : null}
       </>
     )
@@ -199,16 +202,18 @@ export function StrategyPanel(): React.JSX.Element {
         <Icon name="play" />
         Start
       </button>
-      <label className="field">
-        <span>
-          <input
-            type="checkbox"
-            checked={showFundamentals}
-            onChange={(e) => setShowFundamentals(e.target.checked)}
-          />{' '}
-          Show fundamentals
-        </span>
-      </label>
+      {inDesktopApp() && (
+        <label className="field">
+          <span>
+            <input
+              type="checkbox"
+              checked={showFundamentals}
+              onChange={(e) => setShowFundamentals(e.target.checked)}
+            />{' '}
+            Show fundamentals
+          </span>
+        </label>
+      )}
       {showRangeModal ? <ReplayRangeModal onClose={() => setShowRangeModal(false)} /> : null}
     </>
   )

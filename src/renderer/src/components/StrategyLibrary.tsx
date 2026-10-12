@@ -3,13 +3,13 @@ import { STRATEGY_CATALOG } from '@core/strategy/registry'
 import { DEFAULT_STRATEGY_SETTINGS } from '@shared/constants'
 import type { StrategySettings } from '@shared/types'
 import { BrandMark } from './BrandMark'
-import { ConfirmIconButton } from './ConfirmIconButton'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
 import { FundamentalsDesk } from './FundamentalsDesk'
 import { Button, FormField, Modal } from './ui'
+import { inDesktopApp } from '../lib/desktop'
 import { withoutSeeds } from '../store/strategyVault'
 import { useAppStore } from '../store/useAppStore'
 
@@ -75,23 +75,26 @@ export function StrategyLibrary(): React.JSX.Element {
   const [desk, setDesk] = useState<LibraryDesk>('strategies')
   const [composer, setComposer] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [deletingStrategy, setDeletingStrategy] = useState<(typeof strategies)[number] | null>(null)
   const [filterQuery, setFilterQuery] = useState('')
   const datasets = useAppStore((s) => s.datasets)
   const fundamentalsSource = useAppStore((s) => s.fundamentalsSource)
+  const isDesktop = inDesktopApp()
+  const activeDesk: LibraryDesk = !isDesktop && desk === 'fundamentals' ? 'strategies' : desk
   const tapeCount = new Set(datasets.filter((row) => row.candleCount > 0).map((row) => row.symbol)).size
   const chipLabel =
-    desk === 'market'
+    activeDesk === 'market'
       ? `${tapeCount} pairs`
-      : desk === 'fundamentals'
+      : activeDesk === 'fundamentals'
         ? fundamentalsSource === 'custom'
           ? 'Custom'
           : 'Bundled'
         : `${strategies.length} saved`
 
   const subtitle =
-    desk === 'market'
+    activeDesk === 'market'
       ? 'Market tapes'
-      : desk === 'fundamentals'
+      : activeDesk === 'fundamentals'
         ? 'Macro fundamentals'
         : 'Strategy library'
   const [name, setName] = useState('')
@@ -160,7 +163,7 @@ export function StrategyLibrary(): React.JSX.Element {
             <button
               type="button"
               className="tab"
-              data-active={desk === 'strategies'}
+              data-active={activeDesk === 'strategies'}
               onClick={() => setDesk('strategies')}
             >
               Strategies
@@ -168,34 +171,38 @@ export function StrategyLibrary(): React.JSX.Element {
             <button
               type="button"
               className="tab"
-              data-active={desk === 'market'}
+              data-active={activeDesk === 'market'}
               onClick={() => setDesk('market')}
             >
               Market
             </button>
-            <button
-              type="button"
-              className="tab"
-              data-active={desk === 'fundamentals'}
-              onClick={() => setDesk('fundamentals')}
-            >
-              Fundamental
-            </button>
+            {isDesktop && (
+              <button
+                type="button"
+                className="tab"
+                data-active={activeDesk === 'fundamentals'}
+                onClick={() => setDesk('fundamentals')}
+              >
+                Fundamental
+              </button>
+            )}
           </div>
           <span className="chip library-status">{chipLabel}</span>
         </div>
         <div className="session-chip">
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={goHome}
-            title="Home"
-            aria-label="Home"
-          >
-            <Icon name="home" />
-          </button>
+          {isDesktop && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={goHome}
+              title="Home"
+              aria-label="Home"
+            >
+              <Icon name="home" />
+            </button>
+          )}
           <ThemeToggle />
-          {desk === 'market' ? (
+          {activeDesk === 'market' ? (
             <button
               className="icon-btn"
               onClick={() => setDesk('market')}
@@ -204,7 +211,7 @@ export function StrategyLibrary(): React.JSX.Element {
             >
               <Icon name="download" />
             </button>
-          ) : desk === 'fundamentals' ? (
+          ) : activeDesk === 'fundamentals' ? (
             <button
               className="icon-btn"
               onClick={() => setDesk('fundamentals')}
@@ -226,9 +233,9 @@ export function StrategyLibrary(): React.JSX.Element {
         </div>
       </header>
 
-      {desk === 'market' ? (
+      {activeDesk === 'market' ? (
         <MarketDesk />
-      ) : desk === 'fundamentals' ? (
+      ) : activeDesk === 'fundamentals' ? (
         <FundamentalsDesk />
       ) : (
         <section className="library-board">
@@ -285,13 +292,18 @@ export function StrategyLibrary(): React.JSX.Element {
                       >
                         <Icon name="edit" />
                       </button>
-                      <ConfirmIconButton
-                        className="strategy-action-btn"
-                        icon="trash"
-                        label="Delete strategy"
-                        confirmLabel={`Delete ${s.name}?`}
-                        onConfirm={() => void deleteSavedStrategy(s.id)}
-                      />
+                      <button
+                        type="button"
+                        className="icon-btn danger strategy-action-btn"
+                        title="Delete strategy"
+                        aria-label={`Delete ${s.name}`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeletingStrategy(s)
+                        }}
+                      >
+                        <Icon name="trash" />
+                      </button>
                     </div>
                   </div>
 
@@ -432,6 +444,45 @@ export function StrategyLibrary(): React.JSX.Element {
             />
           </FormField>
         </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(deletingStrategy)}
+        onClose={() => setDeletingStrategy(null)}
+        stamp="Delete"
+        title="Delete Strategy"
+        size="sm"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setDeletingStrategy(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              icon="trash"
+              type="button"
+              onClick={async () => {
+                if (!deletingStrategy) return
+                const id = deletingStrategy.id
+                setDeletingStrategy(null)
+                await deleteSavedStrategy(id)
+              }}
+            >
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p style={{ margin: 0, color: 'var(--parchment)', lineHeight: 1.5 }}>
+          Are you sure you want to delete <strong>{deletingStrategy?.name}</strong>?
+        </p>
+        <p style={{ margin: 0, fontSize: 'var(--font-sm)', color: 'var(--muted)', lineHeight: 1.5 }}>
+          This cannot be undone. All configuration and notes for this strategy will be permanently removed.
+        </p>
       </Modal>
     </div>
   )

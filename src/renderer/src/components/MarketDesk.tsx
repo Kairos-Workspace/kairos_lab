@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   MARKET_CATALOG,
   findMarketInstrument,
 } from '@core/market/catalog'
 import { PRODUCT_NAME } from '@shared/constants'
-import type { DatasetInfo } from '@shared/types'
+import type { DatasetInfo, Timeframe } from '@shared/types'
 import { ConfirmIconButton } from './ConfirmIconButton'
 import { DownloadWizard } from './DownloadWizard'
 import { Icon } from './Icon'
@@ -19,6 +19,9 @@ export function MarketDesk(): React.JSX.Element {
   const status = useAppStore((s) => s.status)
   const refreshTapes = useAppStore((s) => s.refreshTapes)
   const removeTapes = useAppStore((s) => s.removeTapes)
+  const importCsvTape = useAppStore((s) => s.importCsvTape)
+  const generateDemoTape = useAppStore((s) => s.generateDemoTape)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [view, setView] = useState<MarketView>('data')
 
@@ -52,6 +55,22 @@ export function MarketDesk(): React.JSX.Element {
       await refreshTapes(ids)
     } catch {
       // Store already toasts the failure.
+    }
+  }
+
+  async function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = event.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const base = file.name.replace(/\.[^/.]+$/, '').toUpperCase()
+      const parts = base.split(/[_\-\s]+/)
+      const symbol = parts[0] || 'XAUUSD'
+      const tfMatch = parts.find((p) => ['1M', '5M', '15M', '30M', '1H', '4H', '1D'].includes(p))
+      const timeframe = (tfMatch as Timeframe) || '1M'
+      await importCsvTape({ symbol, timeframe, csv: text })
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -89,25 +108,78 @@ export function MarketDesk(): React.JSX.Element {
             <span className="muted">
               {busy ? status : `${pairCount} pair${pairCount === 1 ? '' : 's'} stored`}
             </span>
-            <button
-              type="button"
-              className="ghost icon-label"
-              disabled={busy || rows.length === 0}
-              onClick={() => void updateLatest(rows.map((row) => row.id))}
-            >
-              <Icon name="download" />
-              Get latest
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                style={{ display: 'none' }}
+                onChange={handleFileSelect}
+              />
+              <button
+                type="button"
+                className="ghost icon-label"
+                disabled={busy}
+                onClick={() => fileInputRef.current?.click()}
+                title="Import CSV market tape"
+              >
+                <Icon name="upload" />
+                Import CSV
+              </button>
+              <button
+                type="button"
+                className="ghost icon-label"
+                disabled={busy}
+                onClick={() => void generateDemoTape({ days: 15 })}
+                title="Generate 15-day 1-minute gold demo tape"
+              >
+                <Icon name="play" />
+                Demo tape
+              </button>
+              <button
+                type="button"
+                className="ghost icon-label"
+                disabled={busy || rows.length === 0}
+                onClick={() => void updateLatest(rows.map((row) => row.id))}
+              >
+                <Icon name="download" />
+                Get latest
+              </button>
+            </div>
           </header>
 
           {rows.length === 0 ? (
             <div className="library-empty">
               <h2>No market tapes yet</h2>
-              <p>Switch to Add a pair and {PRODUCT_NAME} will pull free history for the tester.</p>
-              <button className="primary icon-label" onClick={() => setView('add')}>
-                <Icon name="plus" />
-                Add a pair
-              </button>
+              <p>Import a CSV file, generate a demo tape, or add a pair to get started.</p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  className="primary icon-label"
+                  disabled={busy}
+                  onClick={() => void generateDemoTape({ days: 15 })}
+                >
+                  <Icon name="play" />
+                  Generate demo tape
+                </button>
+                <button
+                  type="button"
+                  className="ghost icon-label"
+                  disabled={busy}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Icon name="upload" />
+                  Import CSV
+                </button>
+                <button
+                  type="button"
+                  className="ghost icon-label"
+                  onClick={() => setView('add')}
+                >
+                  <Icon name="plus" />
+                  Add a pair
+                </button>
+              </div>
             </div>
           ) : (
             <div className="market-table-shell">
