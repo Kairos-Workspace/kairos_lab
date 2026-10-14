@@ -1,0 +1,10 @@
+release/
+data/
+out/
+.dukascopy-cache/
+quantify.db
+build/
+docs/
+tests/
+scripts/
+EOF

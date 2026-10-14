@@ -42,7 +42,7 @@ export function BotBacktestModal({
     pairs.includes(deskSymbol) ? deskSymbol : (pairs[0] ?? 'XAUUSD')
   )
   const downloadedTfs = exactTimeframesForSymbol(datasets, symbol)
-  const timeframeOptions = TIMEFRAMES.filter((tf) => downloadedTfs.includes(tf) || tf === deskTf)
+  const timeframeOptions = TIMEFRAMES
   const [timeframe, setTimeframe] = useState<Timeframe>(() => {
     if (downloadedTfs.includes(deskTf)) return deskTf
     return (downloadedTfs[0] as Timeframe | undefined) ?? deskTf

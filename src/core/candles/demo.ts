@@ -17,9 +17,10 @@ export function generateDemoCandles(options?: {
   startTs?: number
   seed?: number
 }): Candle[] {
+  const now = Date.now()
   const days = options?.days ?? 15
-  const startPrice = options?.startPrice ?? 3342.5
-  const startTs = options?.startTs ?? Date.UTC(2025, 5, 2, 0, 0, 0)
+  const startPrice = options?.startPrice ?? 4340.0
+  const startTs = options?.startTs ?? (now - days * 24 * 3600 * 1000)
   const rand = mulberry32(options?.seed ?? 20250906)
 
   const candles: Candle[] = []

@@ -1,6 +1,6 @@
 import { SPEED_OPTIONS, SYMBOLS, TIMEFRAMES } from '@shared/types'
 import { sessionAt, formatReplayClock } from '@core/candles/session'
-import { exactTimeframesForSymbol, localSymbols } from '@core/candles/dataset'
+import { localSymbols } from '@core/candles/dataset'
 import { BrandMark } from './BrandMark'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
@@ -34,8 +34,7 @@ export function TopBar(): React.JSX.Element {
   const session = candle ? sessionAt(candle.timestamp) : '—'
   const stored = localSymbols(datasets)
   const pairs = stored.length > 0 ? stored : [...SYMBOLS]
-  const downloaded = exactTimeframesForSymbol(datasets, symbol)
-  const timeframeOptions = TIMEFRAMES.filter((tf) => tf === timeframe || downloaded.includes(tf))
+  const timeframeOptions = TIMEFRAMES
 
   return (
     <header className="topbar">

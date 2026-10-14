@@ -1,5 +1,5 @@
 import { generateDemoCandles } from '@core/candles/demo'
-import { intervalMs } from '@core/candles/resample'
+import { intervalMs, resample } from '@core/candles/resample'
 import { dedupeCandles, validateCandles } from '@core/candles/validate'
 import { parseCandleCsv } from '@core/csv/parse'
 import { DEFAULT_DESK_PREFS } from '@core/desk/prefs'
@@ -165,30 +165,137 @@ const DEFAULT_AI_PROFILES: AiProviderProfile[] = [
 
 let chatChunkSubscribers: Array<(payload: { requestId: string; text?: string; thinking?: string }) => void> = []
 
-export function createBrowserApi() {
-  async function ensureDemoData(): Promise<void> {
-    const datasets = await idbGetAll<DatasetInfo>('datasets')
-    if (datasets.length > 0) return
+async function fetchRemoteMarketCandles(
+  symbol: string,
+  timeframe: Timeframe,
+  limit = 2000,
+  before?: number
+): Promise<Candle[]> {
+  const normSym = symbol.toUpperCase()
 
-    const candles = generateDemoCandles({ days: 15, seed: 20250906 })
-    const report = validateCandles(candles, intervalMs('1M'))
-    const now = Date.now()
+  // 1. Try Finhub Chart API (Cloud Run on GCP)
+  try {
+    const params = new URLSearchParams({
+      pair: normSym,
+      tf: timeframe,
+      limit: String(limit)
+    })
+    if (before) params.set('before', String(before))
 
-    const dataset: DatasetInfo = {
-      id: 1,
-      symbol: 'XAUUSD',
-      timeframe: '1M',
-      source: 'demo',
-      startTs: candles[0]?.timestamp ?? now,
-      endTs: candles.at(-1)?.timestamp ?? now,
-      candleCount: candles.length,
-      createdAt: now,
-      version: 1,
-      gapCount: report.gaps.length
+    const res = await fetch(`https://finhub-chart-api-oe2fht4xda-as.a.run.app/api/candles?${params}`)
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data.candles) && data.candles.length > 0) {
+        return data.candles
+          .map((c: { time: number; open: number; high: number; low: number; close: number; volume?: number }) => ({
+            timestamp: c.time < 1e11 ? c.time * 1000 : c.time,
+            open: Number(c.open),
+            high: Number(c.high),
+            low: Number(c.low),
+            close: Number(c.close),
+            volume: Math.round(Number(c.volume || 10) * 100)
+          }))
+          .sort((a: Candle, b: Candle) => a.timestamp - b.timestamp)
+      }
     }
+  } catch (e) {
+    console.warn('[browserApi] finhub-chart-api fetch failed, trying fallbacks', e)
+  }
 
-    await idbPut('datasets', dataset)
-    await idbPut('candles', { datasetId: 1, candles, gaps: report.gaps } satisfies StoredCandles)
+  // 2. Try Binance for Crypto
+  if (normSym.includes('BTC') || normSym.includes('ETH')) {
+    try {
+      const binanceSym = normSym.includes('BTC') ? 'BTCUSDT' : 'ETHUSDT'
+      const intervalMap: Record<string, string> = {
+        '1M': '1m',
+        '5M': '5m',
+        '15M': '15m',
+        '30M': '30m',
+        '1H': '1h',
+        '4H': '4h',
+        '1D': '1d'
+      }
+      const interval = intervalMap[timeframe] || '1m'
+      const res = await fetch(
+        `https://api.binance.com/api/v3/klines?symbol=${binanceSym}&interval=${interval}&limit=${Math.min(limit, 1000)}`
+      )
+      if (res.ok) {
+        const klines = await res.json()
+        if (Array.isArray(klines) && klines.length > 0) {
+          return klines.map((k: (string | number)[]) => ({
+            timestamp: Number(k[0]),
+            open: Number(k[1]),
+            high: Number(k[2]),
+            low: Number(k[3]),
+            close: Number(k[4]),
+            volume: Math.round(Number(k[5]))
+          }))
+        }
+      }
+    } catch (e) {
+      console.warn('[browserApi] Binance fetch failed', e)
+    }
+  }
+
+  return []
+}
+
+export function createBrowserApi() {
+  let ensureDemoPromise: Promise<void> | null = null
+
+  function ensureDemoData(): Promise<void> {
+    if (ensureDemoPromise) return ensureDemoPromise
+
+    ensureDemoPromise = (async () => {
+      const datasets = await idbGetAll<DatasetInfo>('datasets')
+      const standardTfs: Timeframe[] = ['1M', '5M', '15M', '30M', '1H', '4H', '1D']
+      const xauDatasets = datasets.filter((d) => d.symbol === 'XAUUSD')
+      const hasAllTfs = standardTfs.every((tf) => xauDatasets.some((d) => d.timeframe === tf))
+      const outdated = xauDatasets.some((d) => d.endTs < 1767225600000)
+
+      if (datasets.length > 0 && hasAllTfs && !outdated) return
+
+      let base1m: Candle[] = await fetchRemoteMarketCandles('XAUUSD', '1M', 5000)
+      let source = 'finhub-api'
+
+      if (base1m.length === 0) {
+        const now = Date.now()
+        base1m = generateDemoCandles({
+          days: 15,
+          startPrice: 4340.0,
+          startTs: now - 15 * 24 * 3600 * 1000
+        })
+        source = 'demo'
+      }
+
+      const now = Date.now()
+
+      for (let i = 0; i < standardTfs.length; i++) {
+        const tf = standardTfs[i]
+        const tfCandles = tf === '1M' ? base1m : resample(base1m, tf)
+        const report = validateCandles(tfCandles, intervalMs(tf))
+        const existingForTf = xauDatasets.find((d) => d.timeframe === tf)
+        const id = existingForTf ? existingForTf.id : i + 1
+
+        const dataset: DatasetInfo = {
+          id,
+          symbol: 'XAUUSD',
+          timeframe: tf,
+          source,
+          startTs: tfCandles[0]?.timestamp ?? now,
+          endTs: tfCandles.at(-1)?.timestamp ?? now,
+          candleCount: tfCandles.length,
+          createdAt: existingForTf?.createdAt ?? now,
+          version: (existingForTf?.version ?? 0) + 1,
+          gapCount: report.gaps.length
+        }
+
+        await idbPut('datasets', dataset)
+        await idbPut('candles', { datasetId: id, candles: tfCandles, gaps: report.gaps } satisfies StoredCandles)
+      }
+    })()
+
+    return ensureDemoPromise
   }
 
   // Pre-seed demo data in the background
@@ -277,15 +384,18 @@ export function createBrowserApi() {
         days?: number
         seed?: number
       }): Promise<{ dataset: DatasetInfo; report: ValidationReport; datasets: DatasetInfo[] }> => {
+        const now = Date.now()
+        const days = payload.days ?? 15
         const candles = generateDemoCandles({
-          days: payload.days ?? 15,
-          seed: payload.seed
+          days,
+          seed: payload.seed,
+          startPrice: (payload.symbol ?? 'XAUUSD').toUpperCase().includes('BTC') ? 83500 : 4340,
+          startTs: now - days * 24 * 3600 * 1000
         })
         const report = validateCandles(candles, intervalMs('1M'))
         const existing = await idbGetAll<DatasetInfo>('datasets')
         const maxId = existing.reduce((max, d) => Math.max(max, d.id), 0)
         const id = maxId + 1
-        const now = Date.now()
 
         const dataset: DatasetInfo = {
           id,
@@ -312,13 +422,52 @@ export function createBrowserApi() {
         startTs: number
         endTs: number
       }): Promise<{ dataset: DatasetInfo; datasets: DatasetInfo[] }> => {
-        // Fallback demo generation for requested symbol in browser
-        const days = Math.max(1, Math.round((payload.endTs - payload.startTs) / (24 * 3600 * 1000)))
-        const res = await api.datasets.generateDemo({
-          symbol: payload.symbol,
-          days: Math.min(days, 30)
-        })
-        return { dataset: res.dataset, datasets: res.datasets }
+        let baseCandles = await fetchRemoteMarketCandles(payload.symbol, '1M', 5000)
+        let source = 'finhub-api'
+
+        if (baseCandles.length === 0) {
+          const days = Math.max(1, Math.round((payload.endTs - payload.startTs) / (24 * 3600 * 1000)))
+          baseCandles = generateDemoCandles({
+            days: Math.min(days, 30),
+            startPrice: payload.symbol.toUpperCase().includes('BTC') ? 83500 : 4340,
+            startTs: payload.startTs
+          })
+          source = 'demo'
+        }
+
+        const standardTfs: Timeframe[] = ['1M', '5M', '15M', '30M', '1H', '4H', '1D']
+        const existing = await idbGetAll<DatasetInfo>('datasets')
+        let maxId = existing.reduce((max, d) => Math.max(max, d.id), 0)
+        const now = Date.now()
+
+        let primaryDataset: DatasetInfo | null = null
+
+        for (const tf of standardTfs) {
+          const tfCandles = tf === '1M' ? baseCandles : resample(baseCandles, tf)
+          const report = validateCandles(tfCandles, intervalMs(tf))
+          const id = ++maxId
+
+          const dataset: DatasetInfo = {
+            id,
+            symbol: payload.symbol.toUpperCase(),
+            timeframe: tf,
+            source,
+            startTs: tfCandles[0]?.timestamp ?? now,
+            endTs: tfCandles.at(-1)?.timestamp ?? now,
+            candleCount: tfCandles.length,
+            createdAt: now,
+            version: 1,
+            gapCount: report.gaps.length
+          }
+
+          if (tf === payload.timeframe) primaryDataset = dataset
+
+          await idbPut('datasets', dataset)
+          await idbPut('candles', { datasetId: id, candles: tfCandles, gaps: report.gaps } satisfies StoredCandles)
+        }
+
+        const updatedList = await idbGetAll<DatasetInfo>('datasets')
+        return { dataset: primaryDataset || updatedList[0], datasets: updatedList }
       },
 
       downloadEstimate: async (_payload: {
@@ -333,6 +482,81 @@ export function createBrowserApi() {
       refresh: async (datasetId: number) => {
         const dataset = await idbGet<DatasetInfo>('datasets', datasetId)
         if (!dataset) throw new Error('Dataset not found')
+        const stored = await idbGet<StoredCandles>('candles', datasetId)
+        const existing = stored?.candles ?? []
+        const lastTs = existing.at(-1)?.timestamp ?? dataset.endTs
+        const now = Date.now()
+
+        let newCandles: Candle[] = []
+
+        // If dataset was an old 2025 demo (lastTs < Jan 2026), fetch full fresh history
+        if (lastTs < 1767225600000) {
+          const freshHistory = await fetchRemoteMarketCandles(dataset.symbol, dataset.timeframe, 4000)
+          if (freshHistory.length > 0) {
+            const report = validateCandles(freshHistory, intervalMs(dataset.timeframe))
+            const updatedDataset: DatasetInfo = {
+              ...dataset,
+              source: 'finhub-api',
+              startTs: freshHistory[0].timestamp,
+              endTs: freshHistory.at(-1)!.timestamp,
+              candleCount: freshHistory.length,
+              gapCount: report.gaps.length,
+              version: (dataset.version || 1) + 1
+            }
+            await idbPut('datasets', updatedDataset)
+            await idbPut('candles', {
+              datasetId,
+              candles: freshHistory,
+              gaps: report.gaps
+            } satisfies StoredCandles)
+            const datasets = await idbGetAll<DatasetInfo>('datasets')
+            return { dataset: updatedDataset, added: freshHistory.length, datasets }
+          }
+        }
+
+        // Try pulling newer real candles from API
+        const remote = await fetchRemoteMarketCandles(dataset.symbol, dataset.timeframe, 2000)
+        const fresh = remote.filter((c) => c.timestamp > lastTs)
+
+        if (fresh.length > 0) {
+          newCandles = fresh
+        } else if (lastTs < now - 60_000) {
+          // Extend seamlessly up to current time
+          const stepMs = intervalMs(dataset.timeframe)
+          const lastCandle = existing.at(-1)
+          const startPrice = lastCandle ? lastCandle.close : 4340
+          const missingBars = Math.min(2000, Math.max(1, Math.floor((now - lastTs) / stepMs)))
+
+          const extended = generateDemoCandles({
+            days: Math.max(1, Math.ceil(missingBars / (23 * 60))),
+            startPrice,
+            startTs: lastTs + stepMs
+          })
+          newCandles = extended.filter((c) => c.timestamp > lastTs && c.timestamp <= now)
+        }
+
+        if (newCandles.length > 0) {
+          const combined = dedupeCandles([...existing, ...newCandles])
+          const report = validateCandles(combined, intervalMs(dataset.timeframe))
+          const updatedDataset: DatasetInfo = {
+            ...dataset,
+            endTs: combined.at(-1)?.timestamp ?? now,
+            candleCount: combined.length,
+            gapCount: report.gaps.length,
+            version: (dataset.version || 1) + 1
+          }
+
+          await idbPut('datasets', updatedDataset)
+          await idbPut('candles', {
+            datasetId,
+            candles: combined,
+            gaps: report.gaps
+          } satisfies StoredCandles)
+
+          const datasets = await idbGetAll<DatasetInfo>('datasets')
+          return { dataset: updatedDataset, added: newCandles.length, datasets }
+        }
+
         const datasets = await idbGetAll<DatasetInfo>('datasets')
         return { dataset, added: 0, datasets }
       }
