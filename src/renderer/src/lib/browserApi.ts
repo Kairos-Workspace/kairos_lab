@@ -240,69 +240,233 @@ async function fetchRemoteMarketCandles(
   return []
 }
 
+const GCS_MARKET_DATA_URL = 'https://storage.googleapis.com/finhubkh-media/market-data'
+
+interface RemoteManifestItem {
+  symbol: string
+  timeframe: Timeframe
+  startTs: number
+  endTs: number
+  candleCount: number
+  filename: string
+  gzFilename?: string
+}
+
+const DEFAULT_REMOTE_MANIFEST: RemoteManifestItem[] = [
+  {
+    symbol: 'XAUUSD',
+    timeframe: '1D',
+    startTs: 928368000000, // June 3, 1999
+    endTs: 1790553600000, // September 28, 2026
+    candleCount: 8285,
+    filename: 'XAUUSD_1D.json',
+    gzFilename: 'XAUUSD_1D.json.gz'
+  },
+  {
+    symbol: 'XAUUSD',
+    timeframe: '4H',
+    startTs: 1052092800000, // May 5, 2003
+    endTs: 1790683200000,
+    candleCount: 37564,
+    filename: 'XAUUSD_4H.json',
+    gzFilename: 'XAUUSD_4H.json.gz'
+  },
+  {
+    symbol: 'XAUUSD',
+    timeframe: '1H',
+    startTs: 1052092800000, // May 5, 2003
+    endTs: 1790686800000,
+    candleCount: 141425,
+    filename: 'XAUUSD_1H.json',
+    gzFilename: 'XAUUSD_1H.json.gz'
+  },
+  {
+    symbol: 'XAUUSD',
+    timeframe: '30M',
+    startTs: 1052092800000,
+    endTs: 1790656200000,
+    candleCount: 277752,
+    filename: 'XAUUSD_30M.json',
+    gzFilename: 'XAUUSD_30M.json.gz'
+  },
+  {
+    symbol: 'XAUUSD',
+    timeframe: '15M',
+    startTs: 1052092800000,
+    endTs: 1790657367000,
+    candleCount: 553622,
+    filename: 'XAUUSD_15M.json',
+    gzFilename: 'XAUUSD_15M.json.gz'
+  },
+  {
+    symbol: 'XAUUSD',
+    timeframe: '5M',
+    startTs: 1052092800000,
+    endTs: 1790657405000,
+    candleCount: 1641333,
+    filename: 'XAUUSD_5M.json'
+  },
+  {
+    symbol: 'XAUUSD',
+    timeframe: '1M',
+    startTs: 1451862000000, // Jan 3, 2016
+    endTs: 1786319880000,
+    candleCount: 2547332,
+    filename: 'XAUUSD_1M.json'
+  },
+  {
+    symbol: 'GBPUSD',
+    timeframe: '1H',
+    startTs: 1725606000000,
+    endTs: 1788926400000,
+    candleCount: 12345,
+    filename: 'GBPUSD_1H.json',
+    gzFilename: 'GBPUSD_1H.json.gz'
+  }
+]
+
+async function fetchGcsCandles(filename: string): Promise<Candle[]> {
+  const gzFilename = filename.endsWith('.gz') ? filename : filename.replace(/\.json$/, '.json.gz')
+  const gzUrl = `${GCS_MARKET_DATA_URL}/${gzFilename}`
+  const jsonUrl = `${GCS_MARKET_DATA_URL}/${filename.replace(/\.gz$/, '')}`
+
+  if (typeof DecompressionStream !== 'undefined') {
+    try {
+      const res = await fetch(gzUrl)
+      if (res.ok && res.body) {
+        const stream = res.body.pipeThrough(new DecompressionStream('gzip'))
+        const decompressed = new Response(stream)
+        const data = (await decompressed.json()) as Candle[]
+        if (Array.isArray(data) && data.length > 0) return data
+      }
+    } catch (e) {
+      console.warn(`[browserApi] DecompressionStream failed for ${gzUrl}, falling back to json`, e)
+    }
+  }
+
+  try {
+    const res = await fetch(jsonUrl)
+    if (res.ok) {
+      const data = (await res.json()) as Candle[]
+      if (Array.isArray(data) && data.length > 0) return data
+    }
+  } catch (e) {
+    console.warn(`[browserApi] fetch raw JSON failed for ${jsonUrl}`, e)
+  }
+
+  return []
+}
+
 export function createBrowserApi() {
   let ensureDemoPromise: Promise<void> | null = null
+  const inFlightLoads = new Map<number, Promise<Candle[]>>()
+
+  async function ensureCandlesLoaded(datasetId: number): Promise<Candle[]> {
+    const cached = inFlightLoads.get(datasetId)
+    if (cached) return cached
+
+    const p = (async () => {
+      const stored = await idbGet<StoredCandles>('candles', datasetId)
+      if (stored && stored.candles.length > 0) {
+        return stored.candles
+      }
+      const dataset = await idbGet<DatasetInfo>('datasets', datasetId)
+      if (!dataset) return []
+
+      const entry = DEFAULT_REMOTE_MANIFEST.find(
+        (m) => m.symbol === dataset.symbol && m.timeframe === dataset.timeframe
+      )
+
+      let candles: Candle[] = []
+      if (entry?.filename) {
+        candles = await fetchGcsCandles(entry.filename)
+      }
+
+      if (candles.length === 0) {
+        candles = await fetchRemoteMarketCandles(dataset.symbol, dataset.timeframe, 10000)
+      }
+
+      if (candles.length === 0) {
+        const now = Date.now()
+        candles = generateDemoCandles({
+          days: 30,
+          startPrice: dataset.symbol.includes('BTC') ? 83500 : 4340,
+          startTs: now - 30 * 24 * 3600 * 1000
+        })
+      }
+
+      const report = validateCandles(candles, intervalMs(dataset.timeframe))
+      await idbPut('candles', { datasetId, candles, gaps: report.gaps } satisfies StoredCandles)
+      return candles
+    })().finally(() => {
+      inFlightLoads.delete(datasetId)
+    })
+
+    inFlightLoads.set(datasetId, p)
+    return p
+  }
 
   function ensureDemoData(): Promise<void> {
     if (ensureDemoPromise) return ensureDemoPromise
 
     ensureDemoPromise = (async () => {
-      const datasets = await idbGetAll<DatasetInfo>('datasets')
-      const standardTfs: Timeframe[] = ['1M', '5M', '15M', '30M', '1H', '4H', '1D']
-      const xauDatasets = datasets.filter((d) => d.symbol === 'XAUUSD')
-      const hasAllTfs = standardTfs.every((tf) => xauDatasets.some((d) => d.timeframe === tf))
-      const outdated = xauDatasets.some((d) => d.endTs < 1767225600000)
+      const existing = await idbGetAll<DatasetInfo>('datasets')
+      const xauDatasets = existing.filter((d) => d.symbol === 'XAUUSD')
+      const hasFullHistory = xauDatasets.some((d) => d.timeframe === '1D' && d.startTs <= 946684800000)
+      const hasAllTfs = ['1M', '5M', '15M', '30M', '1H', '4H', '1D'].every((tf) =>
+        xauDatasets.some((d) => d.timeframe === tf)
+      )
 
-      if (datasets.length > 0 && hasAllTfs && !outdated) return
+      if (existing.length > 0 && hasFullHistory && hasAllTfs) return
 
-      let base1m: Candle[] = await fetchRemoteMarketCandles('XAUUSD', '1M', 5000)
-      let source = 'finhub-api'
-
-      if (base1m.length === 0) {
-        const now = Date.now()
-        base1m = generateDemoCandles({
-          days: 15,
-          startPrice: 4340.0,
-          startTs: now - 15 * 24 * 3600 * 1000
-        })
-        source = 'demo'
+      let manifest = DEFAULT_REMOTE_MANIFEST
+      try {
+        const res = await fetch(`${GCS_MARKET_DATA_URL}/index.json`)
+        if (res.ok) {
+          const remoteList = (await res.json()) as RemoteManifestItem[]
+          if (Array.isArray(remoteList) && remoteList.length > 0) {
+            manifest = [
+              ...remoteList,
+              ...DEFAULT_REMOTE_MANIFEST.filter(
+                (m) => !remoteList.some((r) => r.symbol === m.symbol && r.timeframe === m.timeframe)
+              )
+            ]
+          }
+        }
+      } catch (e) {
+        console.warn('[browserApi] Failed to fetch remote manifest, using default', e)
       }
 
-      const now = Date.now()
-
-      for (let i = 0; i < standardTfs.length; i++) {
-        const tf = standardTfs[i]
-        const tfCandles = tf === '1M' ? base1m : resample(base1m, tf)
-        const report = validateCandles(tfCandles, intervalMs(tf))
-        const existingForTf = xauDatasets.find((d) => d.timeframe === tf)
-        const id = existingForTf ? existingForTf.id : i + 1
-
+      let id = 0
+      for (const item of manifest) {
+        id++
         const dataset: DatasetInfo = {
           id,
-          symbol: 'XAUUSD',
-          timeframe: tf,
-          source,
-          startTs: tfCandles[0]?.timestamp ?? now,
-          endTs: tfCandles.at(-1)?.timestamp ?? now,
-          candleCount: tfCandles.length,
-          createdAt: existingForTf?.createdAt ?? now,
-          version: (existingForTf?.version ?? 0) + 1,
-          gapCount: report.gaps.length
+          symbol: item.symbol,
+          timeframe: item.timeframe,
+          source: 'finhub-history',
+          startTs: item.startTs,
+          endTs: item.endTs,
+          candleCount: item.candleCount,
+          createdAt: Date.now(),
+          version: 1,
+          gapCount: 0
         }
-
         await idbPut('datasets', dataset)
-        await idbPut('candles', { datasetId: id, candles: tfCandles, gaps: report.gaps } satisfies StoredCandles)
       }
+
+      // Preload the primary 1H tape (id 3) in the background so chart appears immediately
+      void ensureCandlesLoaded(3).catch(() => undefined)
     })()
 
     return ensureDemoPromise
   }
 
-  // Pre-seed demo data in the background
+  // Pre-seed full multi-decade history in the background
   void ensureDemoData().catch(() => undefined)
 
   const api = {
-    dbPath: async (): Promise<string> => 'Browser (IndexedDB)',
+    dbPath: async (): Promise<string> => 'Cloud Storage & IndexedDB (Full History)',
 
     datasets: {
       list: async (): Promise<DatasetInfo[]> => {
@@ -311,7 +475,11 @@ export function createBrowserApi() {
       },
 
       candles: async (datasetId: number, fromTs?: number, toTs?: number) => {
-        const stored = await idbGet<StoredCandles>('candles', datasetId)
+        let stored = await idbGet<StoredCandles>('candles', datasetId)
+        if (!stored || stored.candles.length === 0) {
+          const loaded = await ensureCandlesLoaded(datasetId)
+          stored = { datasetId, candles: loaded, gaps: [] }
+        }
         const all = stored?.candles ?? []
         const filtered = all.filter(
           (c) =>
@@ -322,7 +490,11 @@ export function createBrowserApi() {
       },
 
       candlesPage: async (datasetId: number, limit: number, beforeTs?: number) => {
-        const stored = await idbGet<StoredCandles>('candles', datasetId)
+        let stored = await idbGet<StoredCandles>('candles', datasetId)
+        if (!stored || stored.candles.length === 0) {
+          const loaded = await ensureCandlesLoaded(datasetId)
+          stored = { datasetId, candles: loaded, gaps: [] }
+        }
         const all = stored?.candles ?? []
         let slice: Candle[]
         if (beforeTs !== undefined) {
