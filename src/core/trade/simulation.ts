@@ -27,6 +27,11 @@ function pnlAt(trade: Trade, exit: number, contractSize: number): number {
   return (exit - trade.entry) * dir * trade.positionSize * contractSize
 }
 
+/** Mark-to-market PnL for an open position (no spread/commission). */
+export function unrealizedPnl(trade: Trade, mark: number, contractSize: number): number {
+  return pnlAt(trade, mark, contractSize)
+}
+
 function rAt(trade: Trade, exit: number): number {
   const risk = riskDistance(trade)
   if (risk === 0) return 0

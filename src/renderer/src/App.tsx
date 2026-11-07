@@ -11,11 +11,16 @@ import { useAppStore } from './store/useAppStore'
 const EaLab = lazy(() => import('./components/EaLab').then((m) => ({ default: m.EaLab })))
 const SettingsScreen = lazy(() => import('./components/SettingsScreen').then((m) => ({ default: m.SettingsScreen })))
 const Welcome = lazy(() => import('./components/Welcome').then((m) => ({ default: m.Welcome })))
+const KeyboardShortcutsModal = lazy(() =>
+  import('./components/KeyboardShortcutsModal').then((m) => ({ default: m.KeyboardShortcutsModal }))
+)
 
 export function App(): React.JSX.Element {
   const bootstrap = useAppStore((s) => s.bootstrap)
   const screen = useAppStore((s) => s.screen)
   const theme = useAppStore((s) => s.theme)
+  const shortcutsOpen = useAppStore((s) => s.shortcutsModalOpen)
+  const setShortcutsOpen = useAppStore((s) => s.setShortcutsModalOpen)
   useKeyboard()
 
   useEffect(() => {
@@ -39,12 +44,17 @@ export function App(): React.JSX.Element {
           <EaLab kind="ea" />
         ) : isDesktop && screen === 'indicator-lab' ? (
           <EaLab kind="indicator" />
-        ) : isDesktop && screen === 'settings' ? (
+        ) : screen === 'settings' ? (
           <SettingsScreen />
         ) : (
           <StrategyLibrary />
         )}
       </Suspense>
+      {shortcutsOpen ? (
+        <Suspense fallback={null}>
+          <KeyboardShortcutsModal onClose={() => setShortcutsOpen(false)} />
+        </Suspense>
+      ) : null}
       <LoadingOverlay />
       <ToastHost />
     </>

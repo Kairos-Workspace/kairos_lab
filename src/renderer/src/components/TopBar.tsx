@@ -20,6 +20,8 @@ export function TopBar(): React.JSX.Element {
   const candle = useCurrentCandle()
   const datasets = useAppStore((s) => s.datasets)
   const leaveWorkspace = useAppStore((s) => s.leaveWorkspace)
+  const enterSettings = useAppStore((s) => s.enterSettings)
+  const setShortcutsModalOpen = useAppStore((s) => s.setShortcutsModalOpen)
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
   const activeEaScriptId = useAppStore((s) => s.activeEaScriptId)
   const sessionName = useAppStore((s) => s.sessionName)
@@ -97,7 +99,25 @@ export function TopBar(): React.JSX.Element {
         </div>
       </div>
       <div className="session-chip">
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={() => setShortcutsModalOpen(true)}
+          title="Keyboard shortcuts (?)"
+          aria-label="Keyboard shortcuts"
+        >
+          <Icon name="help" />
+        </button>
         <ThemeToggle />
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={enterSettings}
+          title="Settings"
+          aria-label="Settings"
+        >
+          <Icon name="settings" />
+        </button>
       </div>
     </header>
   )

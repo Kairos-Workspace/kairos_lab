@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts'
+import { unrealizedPnl } from '@core/trade/simulation'
 import { useAppStore } from '../store/useAppStore'
+import { useCurrentCandle } from '../store/selectors'
 
 interface Props {
   chart: IChartApi | null
@@ -31,13 +33,21 @@ type DragEdge = 'stopLoss' | 'takeProfit' | 'entry'
 const DEFAULT_BARS = 24
 const MIN_BARS = 6
 
+function formatFloating(n: number): string {
+  const sign = n > 0 ? '+' : ''
+  return `${sign}${n.toFixed(2)}`
+}
+
 export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Element | null {
   const draft = useAppStore((s) => s.draft)
   const pendingSetup = useAppStore((s) => s.pendingSetup)
   const active = useAppStore((s) => s.activeTrade)
   const trades = useAppStore((s) => s.trades)
+  const costs = useAppStore((s) => s.costs)
   const confirmTrade = useAppStore((s) => s.confirmTrade)
   const skipSetup = useAppStore((s) => s.skipSetup)
+  const candle = useCurrentCandle()
+  const liveMark = useAppStore((s) => s.liveMark)
   const [boxes, setBoxes] = useState<Record<string, Box>>({})
   const barWidths = useRef<Record<string, number>>({})
   const frames = listPositionFrames({ draft, active, trades })
@@ -45,6 +55,10 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
   framesRef.current = frames
   const frameKey = frames.map((f) => `${f.id}:${f.live}:${f.entry}:${f.stopLoss}:${f.takeProfit}`).join('|')
   const draftId = draft && !active ? `t:${draft.timestamp}` : null
+  const mark = liveMark ?? candle?.close
+  const floatingPnl =
+    active && mark != null ? unrealizedPnl(active, mark, costs.contractSize) : null
+  const activeFrameId = active ? `t:${active.openedAt}` : null
 
   function cancelDraft(): void {
     if (pendingSetup) skipSetup()
@@ -205,6 +219,9 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
             key={frame.id}
             box={box}
             live={frame.live}
+            floatingPnl={
+              frame.live && activeFrameId === frame.id && floatingPnl != null ? floatingPnl : null
+            }
             onDrag={(edge, event, resizeWidth) => startDrag(frame.id, edge, event, resizeWidth)}
             onResize={(event) => startWidthDrag(frame.id, event)}
             actions={
@@ -235,12 +252,14 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
 function PositionFrame({
   box,
   live,
+  floatingPnl,
   onDrag,
   onResize,
   actions
 }: {
   box: Box
   live: boolean
+  floatingPnl?: number | null
   onDrag: (
     edge: DragEdge,
     event: React.PointerEvent<HTMLButtonElement>,
@@ -265,6 +284,15 @@ function PositionFrame({
         style={{ left: box.left, width: box.width, top: lossTop, height: Math.max(18, lossH) }}
       />
       <div className="pos-entry" style={{ left: box.left, width: box.width, top: box.entryY }} />
+
+      {live && floatingPnl != null ? (
+        <div
+          className={`pos-pill floating-pnl ${floatingPnl >= 0 ? 'target' : 'stop'}`}
+          style={{ left: box.left + box.width + 10, top: box.entryY }}
+        >
+          {formatFloating(floatingPnl)}
+        </div>
+      ) : null}
 
       {live ? (
         <>

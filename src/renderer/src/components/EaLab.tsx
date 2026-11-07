@@ -104,7 +104,11 @@ function revealWriteHead(instance: MonacoEditor.IStandaloneCodeEditor): number {
 
 export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
   const goHome = useAppStore((s) => s.goHome)
+  const enterLibrary = useAppStore((s) => s.enterLibrary)
+  const enterEaLab = useAppStore((s) => s.enterEaLab)
+  const enterIndicatorLab = useAppStore((s) => s.enterIndicatorLab)
   const enterSettings = useAppStore((s) => s.enterSettings)
+  const setShortcutsModalOpen = useAppStore((s) => s.setShortcutsModalOpen)
   const theme = useAppStore((s) => s.theme)
   const setKind = useEaLabStore((s) => s.setKind)
   const allScripts = useEaLabStore((s) => s.scripts)
@@ -401,6 +405,45 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
         <div className="session-chip">
           <button type="button" className="icon-btn" onClick={goHome} title="Home" aria-label="Home">
             <Icon name="home" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={enterLibrary}
+            title="Strategy Lab"
+            aria-label="Strategy Lab"
+          >
+            <Icon name="strategy" />
+          </button>
+          {kind === 'ea' ? (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={enterIndicatorLab}
+              title="Indicator Lab"
+              aria-label="Indicator Lab"
+            >
+              <Icon name="indicators" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={enterEaLab}
+              title="Bot Lab"
+              aria-label="Bot Lab"
+            >
+              <Icon name="chat" />
+            </button>
+          )}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setShortcutsModalOpen(true)}
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            <Icon name="help" />
           </button>
           <ThemeToggle />
           {kind === 'indicator' ? (

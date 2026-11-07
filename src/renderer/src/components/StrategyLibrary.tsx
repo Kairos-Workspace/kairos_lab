@@ -75,6 +75,10 @@ export function StrategyLibrary(): React.JSX.Element {
   const deleteSavedStrategy = useAppStore((s) => s.deleteSavedStrategy)
   const purgeSeededStrategies = useAppStore((s) => s.purgeSeededStrategies)
   const goHome = useAppStore((s) => s.goHome)
+  const enterEaLab = useAppStore((s) => s.enterEaLab)
+  const enterIndicatorLab = useAppStore((s) => s.enterIndicatorLab)
+  const enterSettings = useAppStore((s) => s.enterSettings)
+  const setShortcutsModalOpen = useAppStore((s) => s.setShortcutsModalOpen)
   const [desk, setDesk] = useState<LibraryDesk>('strategies')
   const [composer, setComposer] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -194,17 +198,55 @@ export function StrategyLibrary(): React.JSX.Element {
         </div>
         <div className="session-chip">
           {isDesktop && (
-            <button
-              type="button"
-              className="icon-btn"
-              onClick={goHome}
-              title="Home"
-              aria-label="Home"
-            >
-              <Icon name="home" />
-            </button>
+            <>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={goHome}
+                title="Home"
+                aria-label="Home"
+              >
+                <Icon name="home" />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={enterEaLab}
+                title="Bot Lab"
+                aria-label="Bot Lab"
+              >
+                <Icon name="chat" />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={enterIndicatorLab}
+                title="Indicator Lab"
+                aria-label="Indicator Lab"
+              >
+                <Icon name="indicators" />
+              </button>
+            </>
           )}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setShortcutsModalOpen(true)}
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            <Icon name="help" />
+          </button>
           <ThemeToggle />
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={enterSettings}
+            title="Settings"
+            aria-label="Settings"
+          >
+            <Icon name="settings" />
+          </button>
           {activeDesk === 'market' ? (
             <button
               className="icon-btn"

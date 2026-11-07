@@ -53,6 +53,7 @@ export type IconName =
   | 'chevronRight'
   | 'chevronDown'
   | 'crosshair'
+  | 'help'
 
 const PATHS: Record<IconName, string> = {
   play: 'M8 5v14l11-7z',
@@ -110,7 +111,8 @@ const PATHS: Record<IconName, string> = {
   copy: 'M8 4v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7.5L16.5 4H10a2 2 0 0 0-2 2z M4 8v11a2 2 0 0 0 2 2h10',
   chevronRight: 'M9 18l6-6-6-6',
   chevronDown: 'M6 9l6 6 6-6',
-  crosshair: 'M12 2v5M12 17v5M2 12h5M17 12h5M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0'
+  crosshair: 'M12 2v5M12 17v5M2 12h5M17 12h5M15.5 12a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0',
+  help: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3m.08 4h.01'
 }
 
 export function Icon({ name, size = 15 }: { name: IconName; size?: number }): React.JSX.Element {

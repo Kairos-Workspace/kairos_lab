@@ -27,4 +27,12 @@ describe('shiftedVisibleRange', () => {
   it('is a no-op when nothing was added', () => {
     expect(shiftedVisibleRange({ from: 100, to: 300 }, 0)).toEqual({ from: 100, to: 300 })
   })
+
+  it('correctly preserves scroll position across consecutive step additions', () => {
+    let range = { from: 50, to: 210 }
+    range = shiftedVisibleRange(range, 1000)
+    expect(range).toEqual({ from: 1050, to: 1210 })
+    range = shiftedVisibleRange(range, 1000)
+    expect(range).toEqual({ from: 2050, to: 2210 })
+  })
 })

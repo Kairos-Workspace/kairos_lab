@@ -11,6 +11,7 @@ import {
 import { createAccount, applyClosedTrade } from '@core/trade/account'
 import { defaultStopTarget } from '@core/trade/stops'
 import { calculatePositionSize, riskReward } from '@core/trade/sizing'
+import { buildCandleFormPath, formFrameCount } from '@core/candles/formPath'
 import { evaluateTradeOnCandle, lowerTimeframeWindow } from '@core/trade/simulation'
 import { fromCandleBuffer } from '@shared/candleBuffer'
 import {
@@ -91,6 +92,10 @@ interface AppState {
   sourceHasOlder: boolean
   loadingOlderCandles: boolean
   pendingRangeShift: number | null
+  historyStreaming: boolean
+  historyStreamProgress: { loaded: number; total: number } | null
+  historyScrollTargetIndex: number | null
+  historyViewTarget: 'oldest' | 'latest' | null
   downloadProgress: { fraction: number; indeterminate: boolean } | null
   dbPath: string
   symbol: string
@@ -106,6 +111,10 @@ interface AppState {
   pendingSetup: StrategySignal | null
   draft: DraftTrade | null
   activeTrade: Trade | null
+  /** Live mark price for floating PnL / tip morph (updates inside each bar). */
+  liveMark: number | null
+  /** In-progress tip candle OHLC while a bar is forming on Play. */
+  formingCandle: Candle | null
   trades: Trade[]
   skipped: Trade[]
   account: ReturnType<typeof createAccount>
@@ -127,6 +136,8 @@ interface AppState {
   drawingUndoStack: Drawing[][]
   drawingRedoStack: Drawing[][]
   chartFull: boolean
+  shortcutsModalOpen: boolean
+  setShortcutsModalOpen: (open: boolean) => void
   screen: AppScreen
   settingsReturnScreen: AppScreen
   strategies: SavedStrategy[]
@@ -219,7 +230,13 @@ interface AppState {
   importCsvTape: (payload: { symbol: string; timeframe: Timeframe; csv: string }) => Promise<void>
   generateDemoTape: (payload?: { symbol?: string; days?: number; seed?: number }) => Promise<void>
   loadDataset: (id: number) => Promise<void>
-  loadOlderCandles: () => Promise<void>
+  loadOlderCandles: (batchSize?: number) => Promise<boolean>
+  displayEntireHistory: (options?: { progressive?: boolean }) => Promise<void>
+  stopHistoryStream: () => void
+  exitReplayToEntireHistory: () => void
+  setHistoryScrollTargetIndex: (index: number | null) => void
+  setHistoryViewTarget: (target: 'oldest' | 'latest' | null) => void
+  jumpToHistoryEdge: (edge: 'oldest' | 'latest') => Promise<void>
   loadReplayRange: (fromTs: number, toTs: number) => Promise<void>
   startReplay: (opts?: {
     random?: boolean
@@ -268,6 +285,13 @@ let raf = 0
 let accMs = 0
 let lastTick = 0
 let strategy = createStrategy(DEFAULT_STRATEGY_SETTINGS)
+/** In-bar formation clock while Play is running (module-local, not React state). */
+let formAnim: {
+  frames: Candle[]
+  startedAt: number
+  durationMs: number
+  finalClose: number
+} | null = null
 
 function clearTimer(): void {
   if (raf) {
@@ -276,6 +300,49 @@ function clearTimer(): void {
   }
   accMs = 0
   lastTick = 0
+  formAnim = null
+}
+
+function beginBarFormation(get: () => AppState, set: (partial: Partial<AppState>) => void): void {
+  const s = get()
+  const tip = s.displayCandles[s.replayIndex]
+  if (!tip) {
+    formAnim = null
+    set({ formingCandle: null, liveMark: null })
+    return
+  }
+  const prior = s.displayCandles[s.replayIndex - 1]
+  const ticks =
+    s.sourceTimeframe !== s.displayTimeframe && prior
+      ? lowerTimeframeWindow(s.sourceCandles, prior.timestamp, tip.timestamp)
+      : []
+  const stepMs = Math.max(48, BASE_TICK_MS / Math.max(0.25, s.speed))
+  // Formation fills the whole play interval so floating PnL moves continuously.
+  const durationMs = stepMs
+  const frames = buildCandleFormPath(tip, ticks, formFrameCount(durationMs))
+  formAnim = {
+    frames,
+    startedAt: performance.now(),
+    durationMs,
+    finalClose: tip.close
+  }
+  const first = frames[0] ?? tip
+  set({ formingCandle: first, liveMark: first.close })
+}
+
+function paintFormFrame(set: (partial: Partial<AppState>) => void, now: number): boolean {
+  if (!formAnim) return false
+  const { frames, startedAt, durationMs, finalClose } = formAnim
+  const t = Math.min(1, (now - startedAt) / Math.max(16, durationMs))
+  const idx = Math.min(frames.length - 1, Math.floor(t * (frames.length - 1)))
+  const frame = frames[idx]
+  if (frame) set({ formingCandle: frame, liveMark: frame.close })
+  if (t >= 1) {
+    formAnim = null
+    set({ formingCandle: null, liveMark: finalClose })
+    return false
+  }
+  return true
 }
 
 function newId(): string {
@@ -409,6 +476,10 @@ export const useAppStore = create<AppState>((set, get) => {
   sourceHasOlder: false,
   loadingOlderCandles: false,
   pendingRangeShift: null,
+  historyStreaming: false,
+  historyStreamProgress: null,
+  historyScrollTargetIndex: null,
+  historyViewTarget: null,
   downloadProgress: null,
   dbPath: '',
   symbol: 'XAUUSD',
@@ -424,6 +495,8 @@ export const useAppStore = create<AppState>((set, get) => {
   pendingSetup: null,
   draft: null,
   activeTrade: null,
+  liveMark: null,
+  formingCandle: null,
   trades: [],
   skipped: [],
   account: createAccount(),
@@ -468,6 +541,8 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   drawingUndoStack: [],
   drawingRedoStack: [],
   chartFull: false,
+  shortcutsModalOpen: false,
+  setShortcutsModalOpen: (open) => set({ shortcutsModalOpen: open }),
   screen: inDesktopApp() ? 'welcome' : 'library',
   settingsReturnScreen: 'ea-lab',
   strategies: [],
@@ -803,9 +878,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   },
 
   enterSettings: () => {
-    if (inDesktopApp()) {
-      set({ settingsReturnScreen: get().screen, screen: 'settings' })
-    }
+    set({ settingsReturnScreen: get().screen, screen: 'settings' })
   },
 
   leaveSettings: () => {
@@ -1538,6 +1611,10 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       sourceHasOlder: sourceCandles.length === INITIAL_VIEW_CANDLES,
       loadingOlderCandles: false,
       pendingRangeShift: null,
+      historyStreaming: false,
+      historyStreamProgress: null,
+      historyScrollTargetIndex: null,
+      historyViewTarget: null,
       mode: 'view',
       replayIndex: Math.max(0, displayCandles.length - 1),
       replayFromTs: displayCandles[0]?.timestamp ?? null,
@@ -1560,22 +1637,23 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
     }
   },
 
-  loadOlderCandles: async () => {
+  loadOlderCandles: async (batchSize?: number): Promise<boolean> => {
     const s = get()
     if (s.loadingOlderCandles || !s.sourceHasOlder || s.sourceCandles.length === 0 || s.datasetId == null) {
-      return
+      return false
     }
     const datasetId = s.datasetId
     const beforeTs = s.sourceCandles[0].timestamp
+    const pageSize = batchSize ?? CANDLE_PAGE_SIZE
     set({ loadingOlderCandles: true })
     try {
       const older = fromCandleBuffer(
-        await requireDesktop().datasets.candlesPage(datasetId, CANDLE_PAGE_SIZE, beforeTs)
+        await requireDesktop().datasets.candlesPage(datasetId, pageSize, beforeTs)
       )
-      if (get().datasetId !== datasetId) return
+      if (get().datasetId !== datasetId) return false
       if (older.length === 0) {
         set({ sourceHasOlder: false, loadingOlderCandles: false })
-        return
+        return false
       }
       const next = get()
       const sourceCandles = [...older, ...next.sourceCandles]
@@ -1584,14 +1662,94 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       set({
         sourceCandles,
         displayCandles,
-        sourceHasOlder: older.length === CANDLE_PAGE_SIZE,
+        sourceHasOlder: older.length === pageSize,
         loadingOlderCandles: false,
         pendingRangeShift: addedCount
       })
+      return older.length === pageSize
     } catch (error) {
       set({ loadingOlderCandles: false })
       notifyError('Could not load older candles.', error)
+      return false
     }
+  },
+
+  displayEntireHistory: async (options?: { progressive?: boolean }) => {
+    const s = get()
+    if (s.isPlaying) clearTimer()
+    set({
+      mode: 'view',
+      isPlaying: false,
+      followReplay: false
+    })
+
+    const progressive = options?.progressive ?? false
+    if (!progressive) {
+      return
+    }
+
+    if (get().historyStreaming) return
+    set({ historyStreaming: true })
+
+    try {
+      while (get().historyStreaming && get().sourceHasOlder) {
+        const currentDataset = get().datasets.find((d) => d.id === get().datasetId)
+        const total = currentDataset?.candleCount ?? get().displayCandles.length
+        set({
+          historyStreamProgress: {
+            loaded: get().displayCandles.length,
+            total
+          }
+        })
+        const hasMore = await get().loadOlderCandles(2000)
+        if (!hasMore) break
+        // Smooth frame yield between chunks so user interaction remains fluid
+        await new Promise((resolve) => setTimeout(resolve, 36))
+      }
+    } finally {
+      const currentDataset = get().datasets.find((d) => d.id === get().datasetId)
+      const total = currentDataset?.candleCount ?? get().displayCandles.length
+      set({
+        historyStreaming: false,
+        historyStreamProgress: {
+          loaded: get().displayCandles.length,
+          total
+        }
+      })
+    }
+  },
+
+  stopHistoryStream: () => {
+    set({ historyStreaming: false })
+  },
+
+  exitReplayToEntireHistory: () => {
+    if (get().isPlaying) clearTimer()
+    set({
+      mode: 'view',
+      isPlaying: false,
+      followReplay: false
+    })
+  },
+
+  setHistoryScrollTargetIndex: (index: number | null) => {
+    set({ historyScrollTargetIndex: index })
+  },
+
+  setHistoryViewTarget: (target: 'oldest' | 'latest' | null) => {
+    set({ historyViewTarget: target })
+  },
+
+  jumpToHistoryEdge: async (edge: 'oldest' | 'latest') => {
+    if (edge === 'latest') {
+      set({ historyViewTarget: 'latest' })
+      return
+    }
+    // edge === 'oldest'
+    if (get().sourceHasOlder) {
+      await get().loadOlderCandles(2000)
+    }
+    set({ historyViewTarget: 'oldest' })
   },
 
   loadReplayRange: async (fromTs, toTs) => {
@@ -1717,15 +1875,35 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       const current = get()
       if (!current.isPlaying || current.pendingSetup || current.draft) {
         raf = 0
+        formAnim = null
         return
       }
+
+      // Keep floating PnL / tip candle moving every frame while a bar forms.
+      if (formAnim) {
+        const stillForming = paintFormFrame(set, now)
+        if (!stillForming) {
+          get().step(1)
+          if (get().isPlaying && !get().pendingSetup && !get().draft) {
+            beginBarFormation(get, set)
+          }
+        }
+        lastTick = now
+        raf = requestAnimationFrame(loop)
+        return
+      }
+
       accMs += now - lastTick
       lastTick = now
       const stepMs = Math.max(48, BASE_TICK_MS / current.speed)
       if (accMs >= stepMs) {
-        accMs -= stepMs
-        if (accMs > stepMs) accMs = 0
+        accMs = 0
         get().step(1)
+        if (!get().isPlaying || get().pendingSetup || get().draft) {
+          raf = 0
+          return
+        }
+        beginBarFormation(get, set)
       }
       raf = requestAnimationFrame(loop)
     }
@@ -1734,13 +1912,24 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
 
   pause: () => {
     clearTimer()
-    set({ isPlaying: false })
+    const tip = get().displayCandles[get().replayIndex]
+    set({
+      isPlaying: false,
+      formingCandle: null,
+      liveMark: tip?.close ?? get().liveMark
+    })
     get().autosaveProgress()
   },
 
   softPause: () => {
     clearTimer()
-    set({ isPlaying: false, followReplay: false })
+    const tip = get().displayCandles[get().replayIndex]
+    set({
+      isPlaying: false,
+      followReplay: false,
+      formingCandle: null,
+      liveMark: tip?.close ?? get().liveMark
+    })
   },
 
   togglePlay: () => {
@@ -1915,6 +2104,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       }
     }
 
+    const tip = tape[index]
     set({
       replayIndex: index,
       activeTrade: active,
@@ -1926,7 +2116,12 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         : null,
       isPlaying: pending ? false : get().isPlaying,
       rightTab: pending ? 'trade' : get().rightTab,
-      status: pending ? 'Setup detected. Replay paused.' : get().status
+      status: pending ? 'Setup detected. Replay paused.' : get().status,
+      // Start mark at open so floating PnL moves through the bar (Play morph fills close).
+      liveMark: tip?.open ?? tip?.close ?? null,
+      formingCandle: tip
+        ? { ...tip, high: tip.open, low: tip.open, close: tip.open }
+        : null
     })
     if (pending) clearTimer()
   },

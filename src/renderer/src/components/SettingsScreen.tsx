@@ -17,9 +17,14 @@ export function SettingsScreen(): React.JSX.Element {
   const leaveSettings = useAppStore((s) => s.leaveSettings)
   const settingsReturnScreen = useAppStore((s) => s.settingsReturnScreen)
   const [category, setCategory] = useState<SettingsCategory>('appearance')
-  const backLabel = labCopy(
-    settingsReturnScreen === 'indicator-lab' ? 'indicator' : 'ea'
-  ).settingsBack
+  const backLabel =
+    settingsReturnScreen === 'workspace'
+      ? 'Back to Workspace'
+      : settingsReturnScreen === 'library'
+        ? 'Back to Strategy Lab'
+        : settingsReturnScreen === 'welcome'
+          ? 'Back to Home'
+          : labCopy(settingsReturnScreen === 'indicator-lab' ? 'indicator' : 'ea').settingsBack
 
   return (
     <div className="app" data-frame="settings">

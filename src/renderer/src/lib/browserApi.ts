@@ -357,6 +357,20 @@ async function fetchGcsCandles(filename: string): Promise<Candle[]> {
   return []
 }
 
+function bisectLeftCandles(candles: Candle[], ts: number): number {
+  let low = 0
+  let high = candles.length
+  while (low < high) {
+    const mid = (low + high) >>> 1
+    if (candles[mid].timestamp < ts) {
+      low = mid + 1
+    } else {
+      high = mid
+    }
+  }
+  return low
+}
+
 export function createBrowserApi() {
   let ensureDemoPromise: Promise<void> | null = null
   const inFlightLoads = new Map<number, Promise<Candle[]>>()
@@ -496,13 +510,9 @@ export function createBrowserApi() {
           stored = { datasetId, candles: loaded, gaps: [] }
         }
         const all = stored?.candles ?? []
-        let slice: Candle[]
-        if (beforeTs !== undefined) {
-          const matched = all.filter((c) => c.timestamp < beforeTs)
-          slice = matched.slice(-limit)
-        } else {
-          slice = all.slice(-limit)
-        }
+        const end = beforeTs !== undefined ? bisectLeftCandles(all, beforeTs) : all.length
+        const start = Math.max(0, end - limit)
+        const slice = all.slice(start, end)
         return toCandleBuffer(slice)
       },
 

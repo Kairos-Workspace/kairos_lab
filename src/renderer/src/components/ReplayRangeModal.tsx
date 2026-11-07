@@ -18,6 +18,7 @@ export function ReplayRangeModal({
   const setReplayRange = useAppStore((s) => s.setReplayRange)
   const startReplay = useAppStore((s) => s.startReplay)
   const loadReplayRange = useAppStore((s) => s.loadReplayRange)
+  const displayEntireHistory = useAppStore((s) => s.displayEntireHistory)
 
   const [from, setFrom] = useState(() => toReplayInput(replayFromTs ?? dataset?.startTs))
   const [to, setTo] = useState(() => toReplayInput(replayToTs ?? dataset?.endTs))
@@ -51,8 +52,20 @@ export function ReplayRangeModal({
           <Button variant="ghost" type="button" onClick={onClose}>
             Cancel
           </Button>
+          <Button
+            variant="secondary"
+            icon="history"
+            type="button"
+            onClick={() => {
+              onClose()
+              void displayEntireHistory({ progressive: true })
+            }}
+            title="Display entire history step-by-step without replay"
+          >
+            Entire History (No Replay)
+          </Button>
           <Button variant="primary" icon="play" type="submit" form="replay-range-form">
-            Start
+            Start Replay
           </Button>
         </>
       }

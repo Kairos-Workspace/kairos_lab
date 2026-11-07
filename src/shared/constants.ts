@@ -35,7 +35,8 @@ export const DEFAULT_STRATEGY_SETTINGS: StrategySettings = {
 
 export const DEFAULT_BALANCE = 10_000
 export const DEFAULT_RISK_PCT = 1
-export const BASE_TICK_MS = 280
+/** Time per replay bar at 1× — long enough for tip-candle morph to read as formation. */
+export const BASE_TICK_MS = 420
 export const WARMUP_BARS = 50
 export const INITIAL_VIEW_CANDLES = 2000
 export const CANDLE_PAGE_SIZE = 1000

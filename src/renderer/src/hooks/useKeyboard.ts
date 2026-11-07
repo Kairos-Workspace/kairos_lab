@@ -31,6 +31,21 @@ export function useKeyboard(): void {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement
       const store = useAppStore.getState()
+
+      if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
+        if (!isTextEntryTarget(target)) {
+          event.preventDefault()
+          store.setShortcutsModalOpen(!store.shortcutsModalOpen)
+          return
+        }
+      }
+
+      if (event.key === 'Escape' && store.shortcutsModalOpen) {
+        event.preventDefault()
+        store.setShortcutsModalOpen(false)
+        return
+      }
+
       if (store.screen !== 'workspace') {
         if (event.key === 'Escape') return
         return

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { formatReplayClock } from '@core/candles/session'
 import type { Trade } from '@shared/types'
+import { Icon } from './Icon'
 import { useAppStore, type HistoryFilter } from '../store/useAppStore'
 
 const FILTERS: { id: HistoryFilter; label: string }[] = [
@@ -51,6 +52,57 @@ export function TradeHistory(): React.JSX.Element {
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }, [selected, rows.length])
 
+  function exportTrades(): void {
+    if (trades.length === 0) return
+    const symbol = useAppStore.getState().symbol || 'XAUUSD'
+    const headers = [
+      'Trade ID',
+      'Symbol',
+      'Direction',
+      'Open Time',
+      'Close Time',
+      'Entry Price',
+      'Stop Loss',
+      'Take Profit',
+      'Position Size (Lots)',
+      'Risk ($)',
+      'Result',
+      'P&L ($)',
+      'Return (R)',
+      'Reason'
+    ]
+    const lines = [headers.join(',')]
+    for (const t of trades) {
+      lines.push(
+        [
+          t.id,
+          t.symbol || symbol,
+          t.direction,
+          new Date(t.openedAt).toISOString(),
+          t.closedAt ? new Date(t.closedAt).toISOString() : '',
+          t.entry.toFixed(2),
+          t.stopLoss.toFixed(2),
+          t.takeProfit.toFixed(2),
+          t.positionSize.toFixed(2),
+          t.riskAmount.toFixed(2),
+          t.result ?? 'OPEN',
+          (t.pnl ?? 0).toFixed(2),
+          t.rMultiple != null ? t.rMultiple.toFixed(2) : '',
+          `"${(t.reason ?? '').replace(/"/g, '""')}"`
+        ].join(',')
+      )
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `kairos-trades-${symbol.toLowerCase()}-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <section className="history-panel">
       <header className="history-head">
@@ -64,6 +116,18 @@ export function TradeHistory(): React.JSX.Element {
               <span className={closedNet >= 0 ? 'up' : 'down'}>{money(closedNet)}</span>
             ) : null}
             {skipped.length > 0 ? <span className="muted">· {skipped.length} skipped</span> : null}
+            {trades.length > 0 ? (
+              <button
+                type="button"
+                className="export-csv-btn"
+                onClick={exportTrades}
+                title="Export trades as CSV"
+                aria-label="Export trades as CSV"
+              >
+                <Icon name="download" size={12} />
+                <span>Export CSV</span>
+              </button>
+            ) : null}
           </div>
         </div>
         <div className="history-filters" role="tablist" aria-label="Filter trades">

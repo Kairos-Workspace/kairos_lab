@@ -23,7 +23,10 @@ import {
 import { previewPineScript } from '@core/indicators/pinePreview'
 import type { PinePreviewFill, PinePreviewLine, PinePreviewShape } from '@core/indicators/pinePreview'
 import { PineOverlayPrimitive } from '../lib/pineChartPrimitive'
+import { buildCandleFormPath, formFrameCount } from '@core/candles/formPath'
 import { shouldLoadOlder, shiftedVisibleRange } from '@core/candles/pagination'
+import { lowerTimeframeWindow } from '@core/trade/simulation'
+import { BASE_TICK_MS } from '@shared/constants'
 import type { Candle, StrategySettings, Trade } from '@shared/types'
 import { Icon } from './Icon'
 import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
@@ -202,7 +205,10 @@ export function ChartPanel(): React.JSX.Element {
   const lastVisibleRangeRef = useRef<{ from: number; to: number } | null>(null)
   const seriesLookbackRef = useRef(SERIES_WINDOW)
   const seriesStartRef = useRef(0)
-  const pineApplySkipRef = useRef(0)
+  /** Cancels in-flight tip morph when a new bar / full paint / unmount wins. */
+  const morphGenRef = useRef(0)
+  const morphRafRef = useRef(0)
+  const morphTargetRef = useRef<Candle | null>(null)
   const pineCacheRef = useRef<{
     key: string
     fills: PinePreviewFill[]
@@ -218,6 +224,16 @@ export function ChartPanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const levels = useAppStore((s) => s.horizontalLevels)
   const mode = useAppStore((s) => s.mode)
+  const datasetId = useAppStore((s) => s.datasetId)
+  const symbol = useAppStore((s) => s.symbol)
+  const displayTimeframe = useAppStore((s) => s.displayTimeframe)
+  const historyStreaming = useAppStore((s) => s.historyStreaming)
+  const loadingOlderCandles = useAppStore((s) => s.loadingOlderCandles)
+  const stopHistoryStream = useAppStore((s) => s.stopHistoryStream)
+  const historyScrollTargetIndex = useAppStore((s) => s.historyScrollTargetIndex)
+  const historyViewTarget = useAppStore((s) => s.historyViewTarget)
+  const setHistoryViewTarget = useAppStore((s) => s.setHistoryViewTarget)
+  const dataset = useAppStore((s) => s.datasets.find((d) => d.id === s.datasetId))
   const replayIndex = useAppStore((s) => s.replayIndex)
   const isPlaying = useAppStore((s) => s.isPlaying)
   const followReplay = useAppStore((s) => s.followReplay)
@@ -396,7 +412,30 @@ export function ChartPanel(): React.JSX.Element {
     prevCount.current = 0
     lastPlottedTimeRef.current = null
     fullPaintPendingRef.current = false
-  }, [displayCandles])
+  }, [datasetId, symbol, displayTimeframe])
+
+  useEffect(() => {
+    if (historyScrollTargetIndex == null || !chartApi) return
+    const half = Math.floor(VIEW_BARS / 2)
+    chartApi.timeScale().setVisibleLogicalRange({
+      from: historyScrollTargetIndex - half,
+      to: historyScrollTargetIndex + half
+    })
+    useAppStore.setState({ historyScrollTargetIndex: null })
+  }, [chartApi, historyScrollTargetIndex])
+
+  useEffect(() => {
+    if (!historyViewTarget || !chartApi) return
+    const count = candlesRef.current.length
+    if (count > 0) {
+      if (historyViewTarget === 'oldest') {
+        chartApi.timeScale().setVisibleLogicalRange({ from: 0, to: Math.min(count - 1, VIEW_BARS) })
+      } else if (historyViewTarget === 'latest') {
+        chartApi.timeScale().setVisibleLogicalRange(trailingRange(count))
+      }
+    }
+    setHistoryViewTarget(null)
+  }, [chartApi, historyViewTarget, setHistoryViewTarget])
 
   useEffect(() => {
     if (!chartApi || !followReplay) return
@@ -513,7 +552,74 @@ export function ChartPanel(): React.JSX.Element {
         markers.setMarkers(tradeMarkersForBars(bars, s.trades, s.activeTrade))
       }
 
+      const snapMorphTarget = (): void => {
+        const target = morphTargetRef.current
+        morphTargetRef.current = null
+        if (!target || !candleRef.current) return
+        try {
+          candleRef.current.update(toBar(target))
+        } catch {
+          // Series may have been reset mid-morph.
+        }
+      }
+
+      const cancelMorph = (snap = true): void => {
+        morphGenRef.current += 1
+        if (morphRafRef.current) {
+          cancelAnimationFrame(morphRafRef.current)
+          morphRafRef.current = 0
+        }
+        if (snap) snapMorphTarget()
+        else morphTargetRef.current = null
+      }
+
+      const morphTip = (target: Candle, prior: Candle | undefined, durationMs: number): void => {
+        const seriesApi = candleRef.current
+        if (!seriesApi) return
+        cancelMorph(true)
+        const gen = morphGenRef.current
+        morphTargetRef.current = target
+        const store = useAppStore.getState()
+        const ticks =
+          store.sourceTimeframe !== store.displayTimeframe && prior
+            ? lowerTimeframeWindow(store.sourceCandles, prior.timestamp, target.timestamp)
+            : []
+        const frames = buildCandleFormPath(target, ticks, formFrameCount(durationMs))
+        const started = performance.now()
+
+        const paintFrame = (frame: Candle): void => {
+          try {
+            seriesApi.update(toBar(frame))
+            useAppStore.setState({ liveMark: frame.close, formingCandle: frame })
+          } catch {
+            cancelMorph(false)
+          }
+        }
+
+        paintFrame(frames[0] ?? target)
+
+        const tick = (now: number): void => {
+          if (gen !== morphGenRef.current || candleRef.current !== seriesApi) {
+            morphRafRef.current = 0
+            return
+          }
+          const t = Math.min(1, (now - started) / Math.max(16, durationMs))
+          const idx = Math.min(frames.length - 1, Math.floor(t * (frames.length - 1)))
+          paintFrame(frames[idx] ?? target)
+          if (t < 1) {
+            morphRafRef.current = requestAnimationFrame(tick)
+            return
+          }
+          paintFrame(target)
+          morphTargetRef.current = null
+          morphRafRef.current = 0
+          useAppStore.setState({ liveMark: target.close, formingCandle: null })
+        }
+        morphRafRef.current = requestAnimationFrame(tick)
+      }
+
       const applySeriesData = (bars: Candle[]): void => {
+        cancelMorph(false)
         series.setData(bars.map(toBar))
         for (const line of strategyIndicatorLines(settings, bars)) {
           indicatorsRef.current.get(line.id)?.setData(line.points.map(toLinePoint))
@@ -541,7 +647,18 @@ export function ChartPanel(): React.JSX.Element {
 
       if (incremental && last && lastTimeSec != null) {
         try {
-          series.update(toBar(last))
+          const store = useAppStore.getState()
+          const prior = visible[count - 2] ?? displayCandles[replayIndex - 1]
+          if (store.isPlaying) {
+            // Play loop owns tip morph + liveMark; seed the new bar at open.
+            const tip =
+              store.formingCandle && store.formingCandle.timestamp === last.timestamp
+                ? store.formingCandle
+                : { ...last, high: last.open, low: last.open, close: last.open }
+            series.update(toBar(tip))
+          } else {
+            morphTip(last, prior, 140)
+          }
           for (const point of strategyIndicatorLast(settings, visible)) {
             indicatorsRef.current.get(point.id)?.update(toLinePoint(point))
           }
@@ -575,39 +692,49 @@ export function ChartPanel(): React.JSX.Element {
       }
 
       const tapeChanged = displayCandles !== prevDisplayCandlesRef.current
+      const isPaginationOrStream =
+        useAppStore.getState().pendingRangeShift != null ||
+        useAppStore.getState().historyStreaming ||
+        (mode === 'view' && prevDisplayCandlesRef.current != null && prevDisplayCandlesRef.current.length > 0)
       const token = ++paintTokenRef.current
       fullPaintPendingRef.current = true
       prevCount.current = count
       lastPlottedTimeRef.current = lastTimeSec
-      if (tapeChanged) useAppStore.setState({ busy: true, status: 'Rendering chart…' })
+      const shouldShowInitialBusy = tapeChanged && !isPaginationOrStream && prevDisplayCandlesRef.current === null
+      if (shouldShowInitialBusy) useAppStore.setState({ busy: true, status: 'Rendering chart…' })
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           if (paintTokenRef.current !== token) return
           if (chartRef.current !== chart || candleRef.current !== series) {
             fullPaintPendingRef.current = false
-            if (tapeChanged) useAppStore.setState({ busy: false })
+            if (shouldShowInitialBusy) useAppStore.setState({ busy: false })
             return
           }
           const pendingShift = useAppStore.getState().pendingRangeShift
           const followReplay = useAppStore.getState().followReplay
           prevDisplayCandlesRef.current = displayCandles
           const preserveReplayView = mode === 'replay' && !followReplay && !tapeChanged
-          const preserveRange = pendingShift != null || preserveReplayView
+          const preserveViewHistory = mode === 'view' && (pendingShift != null || lastVisibleRangeRef.current != null)
+          const preserveRange = pendingShift != null || preserveReplayView || preserveViewHistory
           const priorRange = preserveRange
             ? (chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current)
             : null
           if (priorRange) lastVisibleRangeRef.current = priorRange
           applySeriesData(visible)
           if (pendingShift != null && priorRange) {
-            chart.timeScale().setVisibleLogicalRange(shiftedVisibleRange(priorRange, pendingShift))
+            const shifted = shiftedVisibleRange(priorRange, pendingShift)
+            lastVisibleRangeRef.current = shifted
+            chart.timeScale().setVisibleLogicalRange(shifted)
           } else if (preserveReplayView && priorRange) {
             chart.timeScale().setVisibleLogicalRange(priorRange)
           } else if (mode === 'replay' && followReplay) {
             syncReplayFollowViewport(chart, count)
+          } else if (preserveViewHistory && priorRange) {
+            chart.timeScale().setVisibleLogicalRange(priorRange)
           } else {
             chart.timeScale().setVisibleLogicalRange(trailingRange(count))
           }
-          if (tapeChanged) useAppStore.setState({ pendingRangeShift: null, busy: false })
+          if (shouldShowInitialBusy) useAppStore.setState({ pendingRangeShift: null, busy: false })
           else useAppStore.setState({ pendingRangeShift: null })
         })
       })
@@ -619,7 +746,7 @@ export function ChartPanel(): React.JSX.Element {
     let prevMode = first.mode
     let prevTape = first.displayCandles
     let prevKey = overlayKey(first.settings)
-    return useAppStore.subscribe((state) => {
+    const unsubscribe = useAppStore.subscribe((state) => {
       const key = overlayKey(state.settings)
       if (
         state.replayIndex === prevIndex &&
@@ -635,6 +762,49 @@ export function ChartPanel(): React.JSX.Element {
       prevKey = key
       paint(state.displayCandles, state.mode, state.replayIndex, state.settings)
     })
+    let prevForming = useAppStore.getState().formingCandle
+    const unsubForming = useAppStore.subscribe((state) => {
+      const forming = state.formingCandle
+      if (forming === prevForming) return
+      prevForming = forming
+      const seriesApi = candleRef.current
+      if (!forming || !seriesApi || state.mode !== 'replay') return
+      try {
+        seriesApi.update(toBar(forming))
+        // Keep strategy overlays on the same tip as the forming candle.
+        const end = Math.min(state.displayCandles.length, Math.max(0, state.replayIndex) + 1)
+        const start = seriesStartRef.current
+        const bars = state.displayCandles.slice(start, end)
+        if (bars.length > 0) {
+          const tipped =
+            bars[bars.length - 1]?.timestamp === forming.timestamp
+              ? [...bars.slice(0, -1), forming]
+              : bars
+          for (const point of strategyIndicatorLast(state.settings, tipped)) {
+            indicatorsRef.current.get(point.id)?.update(toLinePoint(point))
+          }
+        }
+        if (state.followReplay) {
+          const chartApiLive = chartRef.current
+          if (chartApiLive) {
+            syncReplayFollowViewport(chartApiLive, Math.max(1, end - start))
+          }
+        }
+      } catch {
+        // Series may be mid-reset.
+      }
+    })
+
+    return () => {
+      morphGenRef.current += 1
+      if (morphRafRef.current) {
+        cancelAnimationFrame(morphRafRef.current)
+        morphRafRef.current = 0
+      }
+      morphTargetRef.current = null
+      unsubForming()
+      unsubscribe()
+    }
   }, [chartApi])
 
   useEffect(() => {
@@ -719,15 +889,6 @@ export function ChartPanel(): React.JSX.Element {
     }
 
     if (displayCandles.length === 0) return
-
-    // During playback, applying pine overlays every bar dominates the main thread.
-    if (isPlaying) {
-      pineApplySkipRef.current += 1
-      if (pineApplySkipRef.current < 8 && pineCacheRef.current) return
-      pineApplySkipRef.current = 0
-    } else {
-      pineApplySkipRef.current = 0
-    }
 
     // Cap history so large LuxAlgo-style scripts stay interactive on attach.
     // During replay, the window must END at the playhead — using the tape's last
@@ -829,7 +990,7 @@ export function ChartPanel(): React.JSX.Element {
       }
     }
     pineLinesRef.current = next
-  }, [chartApi, displayCandles, mode, replayIndex, pineIndicators, isPlaying])
+  }, [chartApi, displayCandles, mode, replayIndex, pineIndicators])
 
   return (
     <section className="chart-shell" ref={shellRef}>
@@ -881,6 +1042,28 @@ export function ChartPanel(): React.JSX.Element {
             <span>Follow</span>
             <Icon name="arrowRight" size={14} />
           </button>
+        ) : null}
+        {historyStreaming ? (
+          <div className="chart-history-stream-pill" role="status" aria-live="polite">
+            <span className="chart-stream-pulse" />
+            <span>
+              Rendering step by step: {displayCandles.length.toLocaleString()}{' '}
+              {dataset ? `/ ${dataset.candleCount.toLocaleString()}` : ''} bars
+            </span>
+            <button
+              type="button"
+              className="chart-stream-stop"
+              onClick={stopHistoryStream}
+              title="Pause step-by-step rendering"
+            >
+              Pause
+            </button>
+          </div>
+        ) : loadingOlderCandles && mode === 'view' ? (
+          <div className="chart-history-stream-pill" role="status" aria-live="polite">
+            <span className="chart-stream-pulse" />
+            <span>Loading older history…</span>
+          </div>
         ) : null}
         <DrawingToolbar />
         <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
