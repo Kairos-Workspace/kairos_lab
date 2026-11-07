@@ -10,7 +10,7 @@ import {
 } from '@core/ea/headlessBacktest'
 import { createAccount, applyClosedTrade } from '@core/trade/account'
 import { defaultStopTarget } from '@core/trade/stops'
-import { calculatePositionSize, riskReward } from '@core/trade/sizing'
+import { calculatePositionSize, riskReward, roundLot } from '@core/trade/sizing'
 import { buildCandleFormPath, formFrameCount } from '@core/candles/formPath'
 import { evaluateTradeOnCandle, lowerTimeframeWindow } from '@core/trade/simulation'
 import { fromCandleBuffer } from '@shared/candleBuffer'
@@ -71,6 +71,8 @@ export interface DraftTrade {
   stopLoss: string
   takeProfit: string
   riskPercent: string
+  /** Manual lot size override shown on the chart ticket. */
+  lots: string
   timestamp: number
 }
 
@@ -349,11 +351,31 @@ function newId(): string {
   return crypto.randomUUID()
 }
 
+function draftLotsFor(
+  balance: number,
+  riskPercent: number,
+  entry: number,
+  stopLoss: number,
+  costs: CostConfig,
+  leverage: number
+): string {
+  return calculatePositionSize({
+    balance,
+    riskPercent,
+    entry,
+    stopLoss,
+    costs,
+    leverage
+  }).positionSize.toFixed(2)
+}
+
 function draftFromSignal(
   signal: StrategySignal,
   costs: CostConfig,
   settings: StrategySettings,
-  riskPercent: number
+  riskPercent: number,
+  balance: number,
+  leverage: number
 ): DraftTrade {
   const direction: Direction = signal.type === 'LONG' ? 'BUY' : 'SELL'
   const entry = signal.price
@@ -364,6 +386,7 @@ function draftFromSignal(
     stopLoss: stopLoss.toFixed(2),
     takeProfit: takeProfit.toFixed(2),
     riskPercent: String(riskPercent),
+    lots: draftLotsFor(balance, riskPercent, entry, stopLoss, costs, leverage),
     timestamp: signal.timestamp
   }
 }
@@ -1986,7 +2009,14 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
           account,
           pendingSetup: pending,
           draft: pending
-            ? draftFromSignal(pending, next.costs, next.settings, account.riskPerTrade)
+            ? draftFromSignal(
+                pending,
+                next.costs,
+                next.settings,
+                account.riskPerTrade,
+                account.balance,
+                account.leverage
+              )
             : null,
           status: 'End of selected range.'
         })
@@ -2112,7 +2142,14 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       account,
       pendingSetup: pending,
       draft: pending
-        ? draftFromSignal(pending, next.costs, next.settings, account.riskPerTrade)
+        ? draftFromSignal(
+            pending,
+            next.costs,
+            next.settings,
+            account.riskPerTrade,
+            account.balance,
+            account.leverage
+          )
         : null,
       isPlaying: pending ? false : get().isPlaying,
       rightTab: pending ? 'trade' : get().rightTab,
@@ -2167,6 +2204,14 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
         stopLoss: stopLoss.toFixed(2),
         takeProfit: takeProfit.toFixed(2),
         riskPercent: String(s.account.riskPerTrade),
+        lots: draftLotsFor(
+          s.account.balance,
+          s.account.riskPerTrade,
+          candle.close,
+          stopLoss,
+          s.costs,
+          s.account.leverage
+        ),
         timestamp: candle.timestamp
       }
     })
@@ -2211,19 +2256,27 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
     const stopLoss = Number(draft.stopLoss)
     const takeProfit = Number(draft.takeProfit)
     const riskPercent = Number(draft.riskPercent)
-    if (![entry, stopLoss, takeProfit, riskPercent].every(Number.isFinite)) {
-      set({ status: 'Entry, SL, TP, and risk must be numbers.' })
-      notifyError('Entry, SL, TP, and risk must be numbers.')
+    const lotsRaw = Number(draft.lots)
+    if (![entry, stopLoss, takeProfit].every(Number.isFinite)) {
+      set({ status: 'Entry, SL, and TP must be numbers.' })
+      notifyError('Entry, SL, and TP must be numbers.')
       return
     }
     const sized = calculatePositionSize({
       balance: account.balance,
-      riskPercent,
+      riskPercent: Number.isFinite(riskPercent) ? riskPercent : account.riskPerTrade,
       entry,
       stopLoss,
       costs,
       leverage: account.leverage
     })
+    const positionSize =
+      Number.isFinite(lotsRaw) && lotsRaw > 0
+        ? roundLot(lotsRaw, costs.minLot, costs.lotStep)
+        : sized.positionSize
+    const stopDistance = Math.abs(entry - stopLoss)
+    const riskAmount =
+      stopDistance > 0 ? positionSize * stopDistance * costs.contractSize : sized.riskAmount
     const trade: Trade = {
       id: newId(),
       sessionId,
@@ -2232,8 +2285,8 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       entry,
       stopLoss,
       takeProfit,
-      positionSize: sized.positionSize,
-      riskAmount: sized.riskAmount,
+      positionSize,
+      riskAmount,
       openedAt: draft.timestamp,
       strategy: pendingSetup?.strategy,
       reason: pendingSetup?.reason
@@ -2242,7 +2295,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       activeTrade: trade,
       pendingSetup: null,
       draft: null,
-      status: `${draft.direction} opened · RR ${riskReward(entry, stopLoss, takeProfit).toFixed(2)}`
+      status: `${draft.direction} ${positionSize.toFixed(2)} lot · RR ${riskReward(entry, stopLoss, takeProfit).toFixed(2)}`
     })
     requestAnimationFrame(() => get().play())
   },

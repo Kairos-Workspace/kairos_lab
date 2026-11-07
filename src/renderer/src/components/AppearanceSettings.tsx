@@ -2,8 +2,8 @@ import type { DeskTheme } from '@shared/types'
 import { useAppStore } from '../store/useAppStore'
 
 const THEME_OPTIONS: { value: DeskTheme; label: string }[] = [
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' }
+  { value: 'dark', label: 'Mono' },
+  { value: 'light', label: 'Paper' }
 ]
 
 export function AppearanceSettings(): React.JSX.Element {
@@ -19,7 +19,7 @@ export function AppearanceSettings(): React.JSX.Element {
         </div>
       </header>
 
-      <p className="composer-hint">Choose how Kairos looks. Applies immediately, everywhere.</p>
+      <p className="composer-hint">Quiet mono shell, clear green/red on the tape and PnL.</p>
 
       <div className="appearance-options">
         {THEME_OPTIONS.map((option) => (

@@ -299,12 +299,14 @@ export function ChartPanel(): React.JSX.Element {
     })
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: skin.bull,
+      // Hollow ups + solid downs — clearer on the dark mono shell.
+      upColor: skin.background,
       downColor: skin.bear,
       borderUpColor: skin.bull,
       borderDownColor: skin.bear,
       wickUpColor: skin.bull,
       wickDownColor: skin.bear,
+      borderVisible: true,
       priceScaleId: 'right',
       priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
       lastValueVisible: true,
@@ -1036,11 +1038,11 @@ export function ChartPanel(): React.JSX.Element {
             type="button"
             className="chart-follow-btn"
             onClick={() => setFollowReplay(true)}
-            title="Jump chart back to the playhead"
+            title="Re-center on the playhead"
             aria-label="Follow playhead"
           >
-            <span>Follow</span>
-            <Icon name="arrowRight" size={14} />
+            <Icon name="crosshair" size={13} />
+            <span>Follow playhead</span>
           </button>
         ) : null}
         {historyStreaming ? (

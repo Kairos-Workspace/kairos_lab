@@ -20,12 +20,12 @@ export function chartSkin(): {
   warn: string
 } {
   return {
-    background: readCssToken('--ink', '#101317'),
-    text: readCssToken('--muted', '#8c96a3'),
-    grid: readCssToken('--rule', '#262d35'),
-    bull: readCssToken('--bull', '#4cc98a'),
-    bear: readCssToken('--bear', '#e2604a'),
-    brand: readCssToken('--brand', '#e0a63e'),
-    warn: readCssToken('--warn', '#c9863a')
+    background: readCssToken('--ink', '#0b0d10'),
+    text: readCssToken('--muted', '#9aa3ad'),
+    grid: readCssToken('--rule', '#2f353d'),
+    bull: readCssToken('--bull', '#3dd68c'),
+    bear: readCssToken('--bear', '#f07167'),
+    brand: readCssToken('--brand', '#f4f4f5'),
+    warn: readCssToken('--warn', '#e0b35c')
   }
 }

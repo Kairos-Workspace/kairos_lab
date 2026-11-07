@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts'
 import { unrealizedPnl } from '@core/trade/simulation'
+import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 import { useCurrentCandle } from '../store/selectors'
 
@@ -45,6 +46,7 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
   const trades = useAppStore((s) => s.trades)
   const costs = useAppStore((s) => s.costs)
   const confirmTrade = useAppStore((s) => s.confirmTrade)
+  const updateDraft = useAppStore((s) => s.updateDraft)
   const skipSetup = useAppStore((s) => s.skipSetup)
   const candle = useCurrentCandle()
   const liveMark = useAppStore((s) => s.liveMark)
@@ -225,19 +227,51 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
             onDrag={(edge, event, resizeWidth) => startDrag(frame.id, edge, event, resizeWidth)}
             onResize={(event) => startWidthDrag(frame.id, event)}
             actions={
-              showActions ? (
+              showActions && draft ? (
                 <div
-                  className="pos-actions"
+                  className="pos-ticket"
+                  data-side={draft.direction === 'BUY' ? 'long' : 'short'}
                   style={{
                     left: box.left + box.width / 2,
                     top: Math.max(8, zoneTop - 10)
                   }}
                 >
-                  <button type="button" className="primary" onClick={confirmTrade}>
-                    Confirm
+                  <span className="pos-ticket-side">{draft.direction}</span>
+                  <label className="pos-ticket-lots">
+                    <span>Lots</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={costs.minLot}
+                      step={costs.lotStep}
+                      value={draft.lots}
+                      aria-label="Lot size"
+                      onChange={(event) => updateDraft({ lots: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          confirmTrade()
+                        }
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="pos-ticket-enter"
+                    onClick={confirmTrade}
+                    title="Place order"
+                  >
+                    <Icon name="check" size={13} />
+                    Place
                   </button>
-                  <button type="button" className="ghost" onClick={cancelDraft}>
-                    Cancel
+                  <button
+                    type="button"
+                    className="pos-ticket-dismiss"
+                    onClick={cancelDraft}
+                    title="Dismiss setup"
+                  >
+                    <Icon name="close" size={12} />
+                    Dismiss
                   </button>
                 </div>
               ) : null

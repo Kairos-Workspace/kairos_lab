@@ -1,6 +1,5 @@
 import { BrandMark } from './BrandMark'
 import { ThemeToggle } from './ThemeToggle'
-import { WelcomeChartBackdrop } from './WelcomeChartBackdrop'
 import { inDesktopApp } from '../lib/desktop'
 import { useAppStore } from '../store/useAppStore'
 
@@ -12,7 +11,6 @@ export function Welcome(): React.JSX.Element {
   return (
     <div className="app" data-frame="welcome">
       <div className="welcome-screen">
-        <WelcomeChartBackdrop />
         <div className="welcome-theme-toggle">
           <ThemeToggle />
         </div>

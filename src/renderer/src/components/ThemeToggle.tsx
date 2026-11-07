@@ -11,8 +11,8 @@ export function ThemeToggle(): React.JSX.Element {
       type="button"
       className="icon-btn"
       onClick={() => setTheme(next)}
-      title={next === 'light' ? 'Light mode' : 'Dark mode'}
-      aria-label={next === 'light' ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={next === 'light' ? 'Paper mode' : 'Mono mode'}
+      aria-label={next === 'light' ? 'Switch to paper mode' : 'Switch to mono mode'}
     >
       <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
     </button>
