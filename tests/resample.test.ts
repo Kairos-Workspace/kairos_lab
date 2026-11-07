@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { intervalMs, resample } from '@core/candles/resample'
+import { buildCompanionCandles, intervalMs, resample } from '@core/candles/resample'
 import { candle } from './helpers'
 
 const MIN = 60_000
@@ -52,5 +52,80 @@ describe('resample', () => {
     const out = resample(bars, '1M')
     expect(out).toEqual(bars)
     expect(out).not.toBe(bars)
+  })
+
+  describe('buildCompanionCandles', () => {
+    const start = Date.UTC(2025, 5, 10, 8, 0, 0)
+    const m1Bars = [
+      candle(start + 0 * MIN, 100, 101, 99, 100.5, 10),
+      candle(start + 1 * MIN, 100.5, 102, 100, 101, 20),
+      candle(start + 2 * MIN, 101, 103, 100.5, 102, 15),
+      candle(start + 3 * MIN, 102, 102.5, 101, 101.5, 5),
+      candle(start + 4 * MIN, 101.5, 102, 101, 101.2, 8),
+      candle(start + 5 * MIN, 101.2, 105, 101, 104, 30),
+      candle(start + 6 * MIN, 104, 106, 103, 105, 25)
+    ]
+
+    it('returns empty array when source is empty', () => {
+      const res = buildCompanionCandles({
+        sourceCandles: [],
+        sourceTimeframe: '1M',
+        companionTimeframe: '5M',
+        mode: 'view'
+      })
+      expect(res).toEqual([])
+    })
+
+    it('resamples all candles in view mode without look-ahead truncation', () => {
+      const res = buildCompanionCandles({
+        sourceCandles: m1Bars,
+        sourceTimeframe: '1M',
+        companionTimeframe: '5M',
+        mode: 'view'
+      })
+      expect(res).toHaveLength(2)
+      expect(res[0].timestamp).toBe(start)
+      expect(res[0].close).toBe(101.2)
+      expect(res[1].timestamp).toBe(start + 5 * MIN)
+      expect(res[1].close).toBe(105)
+    })
+
+    it('strictly hides future candles during replay mode', () => {
+      // Replaying on 1M chart, currently at candle 3 (start + 3 * MIN)
+      const currentCandle = m1Bars[3]
+      const res = buildCompanionCandles({
+        sourceCandles: m1Bars,
+        sourceTimeframe: '1M',
+        companionTimeframe: '5M',
+        mode: 'replay',
+        currentCandle,
+        currentTimeframe: '1M'
+      })
+      // Only candles 0, 1, 2, 3 have occurred.
+      // They all belong to the first 5M bucket [start, start + 5*MIN)
+      expect(res).toHaveLength(1)
+      expect(res[0].timestamp).toBe(start)
+      expect(res[0].open).toBe(100)
+      expect(res[0].high).toBe(103)
+      expect(res[0].low).toBe(99)
+      expect(res[0].close).toBe(101.5) // candle 3's close
+      // Candle 4 (101.2), Candle 5 (104), Candle 6 (105) must NOT leak into the companion chart!
+    })
+
+    it('updates in-progress companion bar when liveMark tick is supplied', () => {
+      const currentCandle = m1Bars[3]
+      const res = buildCompanionCandles({
+        sourceCandles: m1Bars,
+        sourceTimeframe: '1M',
+        companionTimeframe: '5M',
+        mode: 'replay',
+        currentCandle,
+        currentTimeframe: '1M',
+        liveMark: 108.5
+      })
+      expect(res).toHaveLength(1)
+      expect(res[0].close).toBe(108.5)
+      expect(res[0].high).toBe(108.5)
+    })
   })
 })

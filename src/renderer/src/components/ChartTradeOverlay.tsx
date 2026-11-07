@@ -48,6 +48,10 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
   const confirmTrade = useAppStore((s) => s.confirmTrade)
   const updateDraft = useAppStore((s) => s.updateDraft)
   const skipSetup = useAppStore((s) => s.skipSetup)
+  const moveToBreakEven = useAppStore((s) => s.moveToBreakEven)
+  const partialClose = useAppStore((s) => s.partialClose)
+  const closeActiveTradeNow = useAppStore((s) => s.closeActiveTradeNow)
+  const setDraftRiskReward = useAppStore((s) => s.setDraftRiskReward)
   const candle = useCurrentCandle()
   const liveMark = useAppStore((s) => s.liveMark)
   const [boxes, setBoxes] = useState<Record<string, Box>>({})
@@ -221,11 +225,15 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
             key={frame.id}
             box={box}
             live={frame.live}
+            isLiveActive={frame.live && activeFrameId === frame.id}
             floatingPnl={
               frame.live && activeFrameId === frame.id && floatingPnl != null ? floatingPnl : null
             }
             onDrag={(edge, event, resizeWidth) => startDrag(frame.id, edge, event, resizeWidth)}
             onResize={(event) => startWidthDrag(frame.id, event)}
+            onMoveToBreakEven={() => moveToBreakEven(0)}
+            onPartialClose={(pct) => partialClose(pct)}
+            onCloseNow={closeActiveTradeNow}
             actions={
               showActions && draft ? (
                 <div
@@ -255,6 +263,24 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
                       }}
                     />
                   </label>
+                  <div className="pos-ticket-rr-row">
+                    <span className="pos-ticket-rr-label">RR</span>
+                    {[1.5, 2.0, 3.0].map((rrVal) => (
+                      <button
+                        key={rrVal}
+                        type="button"
+                        className="pos-ticket-rr-chip"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          setDraftRiskReward(rrVal)
+                        }}
+                        title={`Set Take Profit to 1:${rrVal} RR`}
+                      >
+                        1:{rrVal}
+                      </button>
+                    ))}
+                  </div>
                   <button
                     type="button"
                     className="pos-ticket-enter"
@@ -286,13 +312,18 @@ export function ChartTradeOverlay({ chart, series, host }: Props): React.JSX.Ele
 function PositionFrame({
   box,
   live,
+  isLiveActive,
   floatingPnl,
   onDrag,
   onResize,
+  onMoveToBreakEven,
+  onPartialClose,
+  onCloseNow,
   actions
 }: {
   box: Box
   live: boolean
+  isLiveActive?: boolean
   floatingPnl?: number | null
   onDrag: (
     edge: DragEdge,
@@ -300,6 +331,9 @@ function PositionFrame({
     resizeWidth?: boolean
   ) => void
   onResize: (event: React.PointerEvent<HTMLButtonElement>) => void
+  onMoveToBreakEven?: () => void
+  onPartialClose?: (pct: number) => void
+  onCloseNow?: () => void
   actions?: React.ReactNode
 }): React.JSX.Element {
   const profitTop = Math.min(box.tpY, box.entryY)
@@ -325,6 +359,47 @@ function PositionFrame({
           style={{ left: box.left + box.width + 10, top: box.entryY }}
         >
           {formatFloating(floatingPnl)}
+        </div>
+      ) : null}
+
+      {isLiveActive ? (
+        <div
+          className="pos-quick-mgmt"
+          style={{ left: box.left + box.width + 10, top: box.entryY + 28 }}
+        >
+          <button
+            type="button"
+            className="pos-mgmt-btn be"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMoveToBreakEven?.()
+            }}
+            title="Move Stop Loss to Break-Even (entry)"
+          >
+            BE
+          </button>
+          <button
+            type="button"
+            className="pos-mgmt-btn partial"
+            onClick={(e) => {
+              e.stopPropagation()
+              onPartialClose?.(50)
+            }}
+            title="Close 50% at market"
+          >
+            50%
+          </button>
+          <button
+            type="button"
+            className="pos-mgmt-btn close"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCloseNow?.()
+            }}
+            title="Close position immediately at market"
+          >
+            ✕
+          </button>
         </div>
       ) : null}
 

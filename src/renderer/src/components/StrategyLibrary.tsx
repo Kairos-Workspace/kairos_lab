@@ -8,7 +8,6 @@ import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
 import { Button, FormField, Modal } from './ui'
-import { inDesktopApp } from '../lib/desktop'
 import { withoutSeeds } from '../store/strategyVault'
 import { useAppStore } from '../store/useAppStore'
 
@@ -86,8 +85,7 @@ export function StrategyLibrary(): React.JSX.Element {
   const [filterQuery, setFilterQuery] = useState('')
   const datasets = useAppStore((s) => s.datasets)
   const fundamentalsSource = useAppStore((s) => s.fundamentalsSource)
-  const isDesktop = inDesktopApp()
-  const activeDesk: LibraryDesk = !isDesktop && desk === 'fundamentals' ? 'strategies' : desk
+  const activeDesk: LibraryDesk = desk
   const tapeCount = new Set(datasets.filter((row) => row.candleCount > 0).map((row) => row.symbol)).size
   const chipLabel =
     activeDesk === 'market'
@@ -183,51 +181,45 @@ export function StrategyLibrary(): React.JSX.Element {
             >
               Market
             </button>
-            {isDesktop && (
-              <button
-                type="button"
-                className="tab"
-                data-active={activeDesk === 'fundamentals'}
-                onClick={() => setDesk('fundamentals')}
-              >
-                Fundamental
-              </button>
-            )}
+            <button
+              type="button"
+              className="tab"
+              data-active={activeDesk === 'fundamentals'}
+              onClick={() => setDesk('fundamentals')}
+            >
+              Fundamental
+            </button>
           </div>
           <span className="chip library-status">{chipLabel}</span>
         </div>
         <div className="session-chip">
-          {isDesktop && (
-            <>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={goHome}
-                title="Home"
-                aria-label="Home"
-              >
-                <Icon name="home" />
-              </button>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={enterEaLab}
-                title="Bot Lab"
-                aria-label="Bot Lab"
-              >
-                <Icon name="chat" />
-              </button>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={enterIndicatorLab}
-                title="Indicator Lab"
-                aria-label="Indicator Lab"
-              >
-                <Icon name="indicators" />
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={goHome}
+            title="Home"
+            aria-label="Home"
+          >
+            <Icon name="home" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={enterEaLab}
+            title="Bot Lab"
+            aria-label="Bot Lab"
+          >
+            <Icon name="chat" />
+          </button>
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={enterIndicatorLab}
+            title="Indicator Lab"
+            aria-label="Indicator Lab"
+          >
+            <Icon name="indicators" />
+          </button>
           <button
             type="button"
             className="icon-btn"

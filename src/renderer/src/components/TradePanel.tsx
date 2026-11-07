@@ -14,6 +14,11 @@ export function TradePanel(): React.JSX.Element {
   const trades = useAppStore((s) => s.trades)
   const account = useAppStore((s) => s.account)
   const costs = useAppStore((s) => s.costs)
+  const draft = useAppStore((s) => s.draft)
+  const moveToBreakEven = useAppStore((s) => s.moveToBreakEven)
+  const partialClose = useAppStore((s) => s.partialClose)
+  const closeActiveTradeNow = useAppStore((s) => s.closeActiveTradeNow)
+  const setDraftRiskReward = useAppStore((s) => s.setDraftRiskReward)
   const candle = useCurrentCandle()
   const liveMark = useAppStore((s) => s.liveMark)
   const reviewed = trades.find((t) => t.id === selectedId)
@@ -23,10 +28,34 @@ export function TradePanel(): React.JSX.Element {
     return (
       <>
         <h3>Trade</h3>
-        <p className="muted">
-          No open position. Take a strategy setup when one prints, or use Buy / Sell on the chart
-          to start a trade yourself.
-        </p>
+        {draft ? (
+          <>
+            <p className="muted">
+              Draft {draft.direction} setup ready to place.
+            </p>
+            <div className="trade-management-actions">
+              <div className="trade-management-title">Target R:R Presets</div>
+              <div className="rr-presets-row">
+                {[1.5, 2.0, 2.5, 3.0, 4.0].map((rrVal) => (
+                  <button
+                    key={rrVal}
+                    type="button"
+                    className="rr-preset-btn"
+                    onClick={() => setDraftRiskReward(rrVal)}
+                    title={`Set Take Profit to 1:${rrVal} RR`}
+                  >
+                    1:{rrVal}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="muted">
+            No open position. Take a strategy setup when one prints, or use Buy / Sell on the chart
+            to start a trade yourself.
+          </p>
+        )}
         <div className="stat">
           <span>Virtual account</span>
           <b>${account.balance.toFixed(2)}</b>
@@ -88,6 +117,45 @@ export function TradePanel(): React.JSX.Element {
         <span>{floating != null ? 'Equity' : 'Balance'}</span>
         <b>${equity.toFixed(2)}</b>
       </div>
+      {active ? (
+        <div className="trade-management-actions">
+          <div className="trade-management-title">Position Management</div>
+          <div className="trade-management-grid">
+            <button
+              type="button"
+              className="trade-action-btn be-btn"
+              onClick={() => moveToBreakEven(0)}
+              title="Move Stop Loss to Entry (Break-Even)"
+            >
+              Move SL to BE
+            </button>
+            <button
+              type="button"
+              className="trade-action-btn partial-btn"
+              onClick={() => partialClose(50)}
+              title="Close 50% of position at market price"
+            >
+              Close 50%
+            </button>
+            <button
+              type="button"
+              className="trade-action-btn partial-btn"
+              onClick={() => partialClose(25)}
+              title="Close 25% of position at market price"
+            >
+              Close 25%
+            </button>
+            <button
+              type="button"
+              className="trade-action-btn market-close-btn"
+              onClick={closeActiveTradeNow}
+              title="Close remaining position immediately at market"
+            >
+              Market Close
+            </button>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }

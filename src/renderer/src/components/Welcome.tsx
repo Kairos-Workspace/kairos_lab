@@ -1,6 +1,5 @@
 import { BrandMark } from './BrandMark'
 import { ThemeToggle } from './ThemeToggle'
-import { inDesktopApp } from '../lib/desktop'
 import { useAppStore } from '../store/useAppStore'
 
 export function Welcome(): React.JSX.Element {
@@ -23,20 +22,16 @@ export function Welcome(): React.JSX.Element {
             <strong>Strategy Lab</strong>
             <span>Backtest and manage strategies</span>
           </button>
-          {inDesktopApp() && (
-            <>
-              <button type="button" className="welcome-lab-card" onClick={enterEaLab}>
-                <span className="stamp">Bots</span>
-                <strong>Bot Lab</strong>
-                <span>Build bots with AI and backtest them here</span>
-              </button>
-              <button type="button" className="welcome-lab-card" onClick={enterIndicatorLab}>
-                <span className="stamp">Editor</span>
-                <strong>Indicator Development Lab</strong>
-                <span>Build MQL5 and Pine Script indicators</span>
-              </button>
-            </>
-          )}
+          <button type="button" className="welcome-lab-card" onClick={enterEaLab}>
+            <span className="stamp">Bots</span>
+            <strong>Bot Lab</strong>
+            <span>Build bots with AI and backtest them here</span>
+          </button>
+          <button type="button" className="welcome-lab-card" onClick={enterIndicatorLab}>
+            <span className="stamp">Editor</span>
+            <strong>Indicator Development Lab</strong>
+            <span>Build MQL5 and Pine Script indicators</span>
+          </button>
         </div>
       </div>
     </div>

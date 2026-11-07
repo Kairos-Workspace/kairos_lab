@@ -969,6 +969,194 @@ button:focus-visible {
   position: relative;
 }
 
+/* Multi-chart / Multi-timeframe synchronized grid */
+.multi-chart-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  gap: 3px;
+  background: var(--ink);
+  overflow: hidden;
+  position: relative;
+}
+
+.multi-chart-grid[data-layout='1'] {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.multi-chart-grid[data-layout='2'] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+}
+
+.multi-chart-grid[data-layout='3'] {
+  grid-template-columns: 1.25fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.multi-chart-grid[data-layout='3'] .primary-pane {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.multi-chart-grid[data-layout='4'] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.chart-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
+  position: relative;
+  background: var(--vault);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+}
+
+.primary-pane .chart {
+  flex: 1;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  position: relative;
+}
+
+.primary-pane-header,
+.companion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  background: color-mix(in srgb, var(--ink) 85%, var(--steel));
+  border-bottom: 1px solid var(--rule);
+  flex-shrink: 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  z-index: 5;
+  user-select: none;
+}
+
+.companion-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.companion-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--steel) 80%, var(--rule));
+  color: var(--muted);
+  border: 1px solid var(--rule);
+}
+
+.primary-badge {
+  background: color-mix(in srgb, var(--bull) 15%, var(--steel));
+  color: var(--bull);
+  border-color: color-mix(in srgb, var(--bull) 35%, var(--rule));
+}
+
+.primary-pane-info,
+.companion-symbol {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--parchment);
+}
+
+.companion-tf-dropdown .trigger-btn {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--steel);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-xs);
+  color: var(--parchment);
+}
+
+.companion-ohlc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.ohlc-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.ohlc-label {
+  color: var(--rule);
+  font-weight: 600;
+}
+
+.ohlc-val {
+  color: var(--parchment);
+}
+
+.ohlc-pct {
+  font-size: 10px;
+  margin-left: 2px;
+}
+
+.text-bull {
+  color: var(--bull) !important;
+}
+
+.text-bear {
+  color: var(--bear) !important;
+}
+
+.companion-chart-host {
+  flex: 1;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Adjust overlay controls in multi-pane mode */
+.chart-shell[data-layout='2'] .primary-pane .chart-fx-btn,
+.chart-shell[data-layout='3'] .primary-pane .chart-fx-btn,
+.chart-shell[data-layout='4'] .primary-pane .chart-fx-btn {
+  top: 38px;
+}
+
+.chart-shell[data-layout='2'] .primary-pane .chart-frame-btn,
+.chart-shell[data-layout='3'] .primary-pane .chart-frame-btn,
+.chart-shell[data-layout='4'] .primary-pane .chart-frame-btn {
+  top: 38px;
+}
+
+.chart-shell[data-layout='2'] .primary-pane .chart-trade-actions,
+.chart-shell[data-layout='3'] .primary-pane .chart-trade-actions,
+.chart-shell[data-layout='4'] .primary-pane .chart-trade-actions {
+  top: 38px;
+}
+
+.chart-shell[data-layout='2'] .primary-pane .drawing-toolbar,
+.chart-shell[data-layout='3'] .primary-pane .drawing-toolbar,
+.chart-shell[data-layout='4'] .primary-pane .drawing-toolbar {
+  top: 80px;
+}
+
 .chart-frame-btn {
   position: absolute;
   top: 10px;
@@ -5281,5 +5469,165 @@ button:focus-visible {
   border-radius: var(--radius-xs);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
+
+/* -------------------------------------------------------------------------- */
+/* Position Management & R:R Presets                                          */
+/* -------------------------------------------------------------------------- */
+
+.trade-management-actions {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trade-management-title {
+  font-size: var(--font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+
+.trade-management-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.trade-action-btn {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-xs);
+  background: var(--steel);
+  border: 1px solid var(--rule);
+  color: var(--parchment);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trade-action-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.trade-action-btn.be-btn:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.trade-action-btn.market-close-btn {
+  color: var(--bear);
+  border-color: color-mix(in srgb, var(--bear) 40%, var(--rule));
+}
+
+.trade-action-btn.market-close-btn:hover {
+  background: var(--bear-soft);
+  border-color: var(--bear);
+}
+
+.rr-presets-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rr-preset-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+  background: var(--steel);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-xs);
+  color: var(--parchment);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rr-preset-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* On-Chart Quick Position Controls */
+.pos-quick-mgmt {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  background: var(--vault);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-xs);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.pos-mgmt-btn {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'IBM Plex Mono', monospace;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: var(--steel);
+  color: var(--parchment);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pos-mgmt-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.pos-mgmt-btn.be:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+}
+
+.pos-mgmt-btn.close:hover {
+  background: var(--bear-soft);
+  border-color: var(--bear);
+  color: var(--bear);
+}
+
+.pos-ticket-rr-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.pos-ticket-rr-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.pos-ticket-rr-chip {
+  padding: 2px 5px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: 'IBM Plex Mono', monospace;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--steel);
+  color: var(--parchment);
+  cursor: pointer;
+}
+
+.pos-ticket-rr-chip:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
 
 

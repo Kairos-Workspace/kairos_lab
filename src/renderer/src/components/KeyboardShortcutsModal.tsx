@@ -33,6 +33,8 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
     items: [
       { keys: ['T'], desc: 'Take pending setup' },
       { keys: ['S'], desc: 'Skip pending setup' },
+      { keys: ['B'], desc: 'Move Stop Loss to Break-Even (BE)' },
+      { keys: ['C'], desc: 'Close open position at market' },
       { keys: ['1'], desc: 'Strategy panel tab' },
       { keys: ['2'], desc: 'Indicators panel tab' },
       { keys: ['3'], desc: 'Trade panel tab' },
@@ -43,6 +45,7 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
     title: 'Chart & Layout',
     items: [
       { keys: ['F'], desc: 'Toggle Fullscreen chart vs Desk layout' },
+      { keys: ['Alt', '1-4'], desc: 'Switch 1, 2 (Dual), 3, or 4 (Quad) chart layout' },
       { keys: ['Esc'], desc: 'Clear tool / Close modal / Exit fullscreen' },
       { keys: ['?'], desc: 'Open / close this shortcuts help' }
     ]

@@ -11,6 +11,11 @@ import {
 import { createAccount, applyClosedTrade } from '@core/trade/account'
 import { defaultStopTarget } from '@core/trade/stops'
 import { calculatePositionSize, riskReward, roundLot } from '@core/trade/sizing'
+import {
+  calculateTargetPriceFromRr,
+  moveToBreakEven,
+  partialCloseTrade
+} from '@core/trade/management'
 import { buildCandleFormPath, formFrameCount } from '@core/candles/formPath'
 import { evaluateTradeOnCandle, lowerTimeframeWindow } from '@core/trade/simulation'
 import { fromCandleBuffer } from '@shared/candleBuffer'
@@ -50,7 +55,6 @@ import { FUNDAMENTALS_BUNDLE } from '@core/fundamentals/bundle'
 import {
   desktop,
   desktopMissingMessage,
-  inDesktopApp,
   ipcRestartMessage,
   isIpcHandlerMissing,
   loadDeskPrefs,
@@ -64,6 +68,7 @@ import { DEFAULT_DRAWING_STYLE, DRAWING_TOOLS } from '@core/drawings/model'
 export type AppScreen = 'welcome' | 'library' | 'workspace' | 'ea-lab' | 'indicator-lab' | 'settings'
 export type RightTab = 'strategy' | 'indicators' | 'trade' | 'costs'
 export type HistoryFilter = 'ALL' | 'WIN' | 'LOSS' | 'BUY' | 'SELL'
+export type MultiChartLayout = 1 | 2 | 3 | 4
 
 export interface DraftTrade {
   direction: Direction
@@ -138,6 +143,8 @@ interface AppState {
   drawingUndoStack: Drawing[][]
   drawingRedoStack: Drawing[][]
   chartFull: boolean
+  chartLayout: MultiChartLayout
+  companionTimeframes: [Timeframe, Timeframe, Timeframe]
   shortcutsModalOpen: boolean
   setShortcutsModalOpen: (open: boolean) => void
   screen: AppScreen
@@ -208,6 +215,8 @@ interface AppState {
   purgeSeededStrategies: () => void
   setChartFull: (full: boolean) => void
   toggleChartFull: () => void
+  setChartLayout: (layout: MultiChartLayout) => void
+  setCompanionTimeframe: (index: number, tf: Timeframe) => void
   setRightTab: (tab: RightTab) => void
   setHistoryFilter: (filter: HistoryFilter) => void
   setSpeed: (speed: number) => void
@@ -264,6 +273,10 @@ interface AppState {
   startManualTrade: (direction: Direction) => void
   updateDraft: (patch: Partial<DraftTrade>) => void
   confirmTrade: () => void
+  moveToBreakEven: (offset?: number) => void
+  partialClose: (percent: number) => void
+  closeActiveTradeNow: () => void
+  setDraftRiskReward: (targetRr: number) => void
   selectTrade: (id: string | null) => void
   addHorizontal: (price: number) => void
   setActiveTool: (tool: ChartTool | null) => void
@@ -564,9 +577,11 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   drawingUndoStack: [],
   drawingRedoStack: [],
   chartFull: false,
+  chartLayout: 1,
+  companionTimeframes: ['1H', '4H', '1D'],
   shortcutsModalOpen: false,
   setShortcutsModalOpen: (open) => set({ shortcutsModalOpen: open }),
-  screen: inDesktopApp() ? 'welcome' : 'library',
+  screen: 'welcome',
   settingsReturnScreen: 'ea-lab',
   strategies: [],
   activeStrategyId: null,
@@ -893,11 +908,11 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   },
 
   enterEaLab: () => {
-    if (inDesktopApp()) set({ screen: 'ea-lab' })
+    set({ screen: 'ea-lab' })
   },
 
   enterIndicatorLab: () => {
-    if (inDesktopApp()) set({ screen: 'indicator-lab' })
+    set({ screen: 'indicator-lab' })
   },
 
   enterSettings: () => {
@@ -910,7 +925,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   },
 
   goHome: () => {
-    set({ screen: inDesktopApp() ? 'welcome' : 'library' })
+    set({ screen: 'welcome' })
   },
 
   createStrategy: async (input) => {
@@ -982,6 +997,16 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
 
   setChartFull: (chartFull) => set({ chartFull }),
   toggleChartFull: () => set({ chartFull: !get().chartFull }),
+  setChartLayout: (chartLayout) => set({ chartLayout }),
+  setCompanionTimeframe: (index, tf) => {
+    set((state) => {
+      const next = [...state.companionTimeframes] as [Timeframe, Timeframe, Timeframe]
+      if (index >= 0 && index < 3) {
+        next[index] = tf
+      }
+      return { companionTimeframes: next }
+    })
+  },
   setRightTab: (rightTab) => set({ rightTab }),
   setPineIndicatorCode: (pineIndicatorCode) => {
     const { pineIndicators, activePineIndicatorId } = get()
@@ -2298,6 +2323,70 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       status: `${draft.direction} ${positionSize.toFixed(2)} lot · RR ${riskReward(entry, stopLoss, takeProfit).toFixed(2)}`
     })
     requestAnimationFrame(() => get().play())
+  },
+
+  moveToBreakEven: (offset = 0) => {
+    const active = get().activeTrade
+    if (!active) return
+    const updated = moveToBreakEven(active, offset)
+    set({
+      activeTrade: updated,
+      status: `Stop Loss moved to Break-Even at ${updated.stopLoss.toFixed(2)}`
+    })
+    notifySuccess(`Stop Loss moved to Break-Even (${updated.stopLoss.toFixed(2)})`)
+  },
+
+  partialClose: (percent: number) => {
+    const { activeTrade, costs, liveMark, displayCandles, replayIndex, account, trades } = get()
+    if (!activeTrade) return
+    const currentBar = displayCandles[replayIndex]
+    const currentPrice = liveMark ?? currentBar?.close ?? activeTrade.entry
+    const currentTs = currentBar?.timestamp ?? Date.now()
+
+    const result = partialCloseTrade(
+      activeTrade,
+      percent,
+      currentPrice,
+      costs,
+      currentTs,
+      newId
+    )
+
+    const updatedAccount = applyClosedTrade(account, result.realizedPnl)
+    const updatedTrades = [...trades, result.closedTrade]
+
+    set({
+      activeTrade: result.remainingTrade,
+      trades: updatedTrades,
+      account: updatedAccount,
+      status: result.remainingTrade
+        ? `Partially closed ${result.closedLots.toFixed(2)} lots (${percent}%) at ${currentPrice.toFixed(2)} (${result.realizedPnl >= 0 ? '+' : ''}$${result.realizedPnl.toFixed(2)})`
+        : `Closed position at ${currentPrice.toFixed(2)} (${result.realizedPnl >= 0 ? '+' : ''}$${result.realizedPnl.toFixed(2)})`
+    })
+
+    if (result.realizedPnl >= 0) {
+      notifySuccess(
+        `Closed ${result.closedLots.toFixed(2)} lot (${percent}%) · +$${result.realizedPnl.toFixed(2)}`
+      )
+    } else {
+      notifyInfo(
+        `Closed ${result.closedLots.toFixed(2)} lot (${percent}%) · -$${Math.abs(result.realizedPnl).toFixed(2)}`
+      )
+    }
+  },
+
+  closeActiveTradeNow: () => {
+    get().partialClose(100)
+  },
+
+  setDraftRiskReward: (targetRr: number) => {
+    const draft = get().draft
+    if (!draft) return
+    const entry = Number(draft.entry)
+    const stopLoss = Number(draft.stopLoss)
+    if (![entry, stopLoss].every(Number.isFinite) || entry === stopLoss) return
+    const newTp = calculateTargetPriceFromRr(entry, stopLoss, draft.direction, targetRr)
+    get().updateDraft({ takeProfit: newTp.toFixed(2) })
   },
 
   selectTrade: (id) => {

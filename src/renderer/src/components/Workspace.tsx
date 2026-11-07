@@ -5,7 +5,6 @@ import { RightPanel } from './RightPanel'
 import { PerformancePanel } from './PerformancePanel'
 import { EquityCurve } from './EquityCurve'
 import { TradeHistory } from './TradeHistory'
-import { inDesktopApp } from '../lib/desktop'
 import { useAppStore } from '../store/useAppStore'
 
 const FundamentalsPanel = lazy(() =>
@@ -14,7 +13,7 @@ const FundamentalsPanel = lazy(() =>
 
 export function Workspace(): React.JSX.Element {
   const chartFull = useAppStore((s) => s.chartFull)
-  const showFundamentals = inDesktopApp() && useAppStore((s) => s.showFundamentals)
+  const showFundamentals = useAppStore((s) => s.showFundamentals)
 
   return (
     <div className="app" data-frame={chartFull ? 'full' : 'desk'}>

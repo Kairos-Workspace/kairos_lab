@@ -20,19 +20,16 @@ export function requireDesktop(): DesktopApi {
 
 /** True when the UI is running inside the Kairos desktop shell. */
 export function inDesktopApp(): boolean {
-  if (typeof navigator === 'undefined') return false
-  return navigator.userAgent.includes('Electron')
+  return true
 }
 
 /** @deprecated Prefer inDesktopApp() */
 export function inElectron(): boolean {
-  return inDesktopApp()
+  return true
 }
 
 export function desktopMissingMessage(): string {
-  return inDesktopApp()
-    ? `Restart ${PRODUCT_NAME} so it can reconnect to the local database.`
-    : `Open ${PRODUCT_NAME} as the desktop app so the local database can connect.`
+  return `Restart ${PRODUCT_NAME} so it can reconnect to the local database.`
 }
 
 /** Main process was restarted without IPC handlers (stale desktop session). */

@@ -33,6 +33,7 @@ import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
 import { DrawingLayer } from './DrawingLayer'
 import { DrawingToolbar } from './DrawingToolbar'
 import { ReplayControls } from './ReplayControls'
+import { CompanionChartPane } from './CompanionChartPane'
 import { chartSkin } from '@core/desk/theme'
 import { useAppStore } from '../store/useAppStore'
 
@@ -243,6 +244,7 @@ export function ChartPanel(): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const theme = useAppStore((s) => s.theme)
   const chartFull = useAppStore((s) => s.chartFull)
+  const chartLayout = useAppStore((s) => s.chartLayout)
   const toggleChartFull = useAppStore((s) => s.toggleChartFull)
   const pineIndicators = useAppStore((s) => s.pineIndicators)
   const activeTool = useAppStore((s) => s.activeTool)
@@ -415,6 +417,14 @@ export function ChartPanel(): React.JSX.Element {
     lastPlottedTimeRef.current = null
     fullPaintPendingRef.current = false
   }, [datasetId, symbol, displayTimeframe])
+
+  useEffect(() => {
+    if (!chartApi) return
+    const id = setTimeout(() => {
+      chartApi.timeScale().scrollToRealTime()
+    }, 60)
+    return () => clearTimeout(id)
+  }, [chartLayout, chartApi])
 
   useEffect(() => {
     if (historyScrollTargetIndex == null || !chartApi) return
@@ -995,81 +1005,97 @@ export function ChartPanel(): React.JSX.Element {
   }, [chartApi, displayCandles, mode, replayIndex, pineIndicators])
 
   return (
-    <section className="chart-shell" ref={shellRef}>
-      <button
-        className="icon-btn chart-fx-btn"
-        data-active={rightTab === 'indicators' || pineIndicators.some((i) => i.enabled)}
-        onClick={() => setRightTab('indicators')}
-        title="Custom Pine Script Indicator (fx)"
-        aria-label="Pine Script Indicator"
-      >
-        <span className="fx-pill">fx</span>
-      </button>
-      <button
-        className="icon-btn chart-frame-btn"
-        data-active={chartFull}
-        onClick={toggleChartFull}
-        title={chartFull ? 'Desk layout (F)' : 'Full frame (F)'}
-        aria-label={chartFull ? 'Desk layout' : 'Full frame'}
-      >
-        <Icon name={chartFull ? 'compress' : 'expand'} />
-      </button>
-      {canStartManualTrade ? (
-        <div className="chart-trade-actions">
-          <button className="buy icon-label direction-btn" onClick={() => startManualTrade('BUY')}>
-            <Icon name="arrowUp" size={13} />
-            Buy
-          </button>
-          <button className="sell icon-label direction-btn" onClick={() => startManualTrade('SELL')}>
-            <Icon name="arrowDown" size={13} />
-            Sell
-          </button>
-        </div>
-      ) : null}
-      <div className="chart" data-drawing-active={activeTool !== null} ref={hostRef}>
-        {hasTape ? null : (
-          <div className="chart-empty">
-            <h2>Pick a pair</h2>
-            <p>Choose a symbol in the top bar. The chart loads from the local database.</p>
-          </div>
-        )}
-        {mode === 'replay' && isPlaying && !followReplay ? (
+    <section className="chart-shell panel" ref={shellRef} data-layout={chartLayout}>
+      <div className="multi-chart-grid" data-layout={chartLayout}>
+        <div className="chart-pane primary-pane">
+          {chartLayout > 1 ? (
+            <div className="primary-pane-header">
+              <span className="companion-badge primary-badge">PANE 1 · PRIMARY</span>
+              <span className="primary-pane-info">
+                {symbol} · {displayTimeframe}
+              </span>
+            </div>
+          ) : null}
           <button
-            type="button"
-            className="chart-follow-btn"
-            onClick={() => setFollowReplay(true)}
-            title="Re-center on the playhead"
-            aria-label="Follow playhead"
+            className="icon-btn chart-fx-btn"
+            data-active={rightTab === 'indicators' || pineIndicators.some((i) => i.enabled)}
+            onClick={() => setRightTab('indicators')}
+            title="Custom Pine Script Indicator (fx)"
+            aria-label="Pine Script Indicator"
           >
-            <Icon name="crosshair" size={13} />
-            <span>Follow playhead</span>
+            <span className="fx-pill">fx</span>
           </button>
-        ) : null}
-        {historyStreaming ? (
-          <div className="chart-history-stream-pill" role="status" aria-live="polite">
-            <span className="chart-stream-pulse" />
-            <span>
-              Rendering step by step: {displayCandles.length.toLocaleString()}{' '}
-              {dataset ? `/ ${dataset.candleCount.toLocaleString()}` : ''} bars
-            </span>
-            <button
-              type="button"
-              className="chart-stream-stop"
-              onClick={stopHistoryStream}
-              title="Pause step-by-step rendering"
-            >
-              Pause
-            </button>
+          <button
+            className="icon-btn chart-frame-btn"
+            data-active={chartFull}
+            onClick={toggleChartFull}
+            title={chartFull ? 'Desk layout (F)' : 'Full frame (F)'}
+            aria-label={chartFull ? 'Desk layout' : 'Full frame'}
+          >
+            <Icon name={chartFull ? 'compress' : 'expand'} />
+          </button>
+          {canStartManualTrade ? (
+            <div className="chart-trade-actions">
+              <button className="buy icon-label direction-btn" onClick={() => startManualTrade('BUY')}>
+                <Icon name="arrowUp" size={13} />
+                Buy
+              </button>
+              <button className="sell icon-label direction-btn" onClick={() => startManualTrade('SELL')}>
+                <Icon name="arrowDown" size={13} />
+                Sell
+              </button>
+            </div>
+          ) : null}
+          <div className="chart" data-drawing-active={activeTool !== null} ref={hostRef}>
+            {hasTape ? null : (
+              <div className="chart-empty">
+                <h2>Pick a pair</h2>
+                <p>Choose a symbol in the top bar. The chart loads from the local database.</p>
+              </div>
+            )}
+            {mode === 'replay' && isPlaying && !followReplay ? (
+              <button
+                type="button"
+                className="chart-follow-btn"
+                onClick={() => setFollowReplay(true)}
+                title="Re-center on the playhead"
+                aria-label="Follow playhead"
+              >
+                <Icon name="crosshair" size={13} />
+                <span>Follow playhead</span>
+              </button>
+            ) : null}
+            {historyStreaming ? (
+              <div className="chart-history-stream-pill" role="status" aria-live="polite">
+                <span className="chart-stream-pulse" />
+                <span>
+                  Rendering step by step: {displayCandles.length.toLocaleString()}{' '}
+                  {dataset ? `/ ${dataset.candleCount.toLocaleString()}` : ''} bars
+                </span>
+                <button
+                  type="button"
+                  className="chart-stream-stop"
+                  onClick={stopHistoryStream}
+                  title="Pause step-by-step rendering"
+                >
+                  Pause
+                </button>
+              </div>
+            ) : loadingOlderCandles && mode === 'view' ? (
+              <div className="chart-history-stream-pill" role="status" aria-live="polite">
+                <span className="chart-stream-pulse" />
+                <span>Loading older history…</span>
+              </div>
+            ) : null}
+            <DrawingToolbar />
+            <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
+            <DrawingLayer chart={chartApi} series={seriesApi} host={hostRef.current} />
           </div>
-        ) : loadingOlderCandles && mode === 'view' ? (
-          <div className="chart-history-stream-pill" role="status" aria-live="polite">
-            <span className="chart-stream-pulse" />
-            <span>Loading older history…</span>
-          </div>
-        ) : null}
-        <DrawingToolbar />
-        <ChartTradeOverlay chart={chartApi} series={seriesApi} host={hostRef.current} />
-        <DrawingLayer chart={chartApi} series={seriesApi} host={hostRef.current} />
+        </div>
+
+        {chartLayout >= 2 ? <CompanionChartPane index={0} /> : null}
+        {chartLayout >= 3 ? <CompanionChartPane index={1} /> : null}
+        {chartLayout >= 4 ? <CompanionChartPane index={2} /> : null}
       </div>
       <ReplayControls />
     </section>

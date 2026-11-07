@@ -1,6 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react'
 import { applyDeskTheme } from '@core/desk/theme'
-import { inDesktopApp } from './lib/desktop'
 import { LoadingOverlay } from './components/LoadingOverlay'
 import { StrategyLibrary } from './components/StrategyLibrary'
 import { ToastHost } from './components/ToastHost'
@@ -31,18 +30,16 @@ export function App(): React.JSX.Element {
     void bootstrap()
   }, [bootstrap])
 
-  const isDesktop = inDesktopApp()
-
   return (
     <>
       <Suspense fallback={null}>
         {screen === 'workspace' ? (
           <Workspace />
-        ) : isDesktop && screen === 'welcome' ? (
+        ) : screen === 'welcome' ? (
           <Welcome />
-        ) : isDesktop && screen === 'ea-lab' ? (
+        ) : screen === 'ea-lab' ? (
           <EaLab kind="ea" />
-        ) : isDesktop && screen === 'indicator-lab' ? (
+        ) : screen === 'indicator-lab' ? (
           <EaLab kind="indicator" />
         ) : screen === 'settings' ? (
           <SettingsScreen />

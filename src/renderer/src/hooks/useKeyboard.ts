@@ -64,6 +64,29 @@ export function useKeyboard(): void {
         return
       }
 
+      if (event.altKey && !event.ctrlKey && !event.metaKey) {
+        if (event.key === '1') {
+          event.preventDefault()
+          store.setChartLayout(1)
+          return
+        }
+        if (event.key === '2') {
+          event.preventDefault()
+          store.setChartLayout(2)
+          return
+        }
+        if (event.key === '3') {
+          event.preventDefault()
+          store.setChartLayout(3)
+          return
+        }
+        if (event.key === '4') {
+          event.preventDefault()
+          store.setChartLayout(4)
+          return
+        }
+      }
+
       switch (event.key) {
         case 'ArrowRight':
           store.manualStep(event.shiftKey ? 10 : 1)
@@ -108,6 +131,14 @@ export function useKeyboard(): void {
         case 's':
         case 'S':
           if (store.pendingSetup) store.skipSetup()
+          break
+        case 'b':
+        case 'B':
+          if (store.activeTrade) store.moveToBreakEven(0)
+          break
+        case 'c':
+        case 'C':
+          if (store.activeTrade) store.closeActiveTradeNow()
           break
         case '+':
         case '=': {

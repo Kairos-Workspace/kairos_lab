@@ -6,12 +6,14 @@ import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { useCurrentCandle } from '../store/selectors'
-import { useAppStore } from '../store/useAppStore'
+import { useAppStore, type MultiChartLayout } from '../store/useAppStore'
 
 export function TopBar(): React.JSX.Element {
   const symbol = useAppStore((s) => s.symbol)
   const timeframe = useAppStore((s) => s.displayTimeframe)
   const setTimeframe = useAppStore((s) => s.setTimeframe)
+  const chartLayout = useAppStore((s) => s.chartLayout)
+  const setChartLayout = useAppStore((s) => s.setChartLayout)
   const selectSymbol = useAppStore((s) => s.selectSymbol)
   const speed = useAppStore((s) => s.speed)
   const setSpeed = useAppStore((s) => s.setSpeed)
@@ -69,6 +71,20 @@ export function TopBar(): React.JSX.Element {
               value={timeframe}
               onChange={(v) => void setTimeframe(v)}
               options={timeframeOptions.map((tf) => ({ value: tf, label: tf }))}
+            />
+          </label>
+          <label>
+            Layout
+            <Dropdown
+              ariaLabel="Chart layout"
+              value={chartLayout}
+              onChange={(v) => setChartLayout(v as MultiChartLayout)}
+              options={[
+                { value: 1, label: '1 Chart' },
+                { value: 2, label: '2 Charts (Dual)' },
+                { value: 3, label: '3 Charts' },
+                { value: 4, label: '4 Charts (Quad)' }
+              ]}
             />
           </label>
           <label>
