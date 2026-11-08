@@ -28,6 +28,7 @@ import { shouldLoadOlder, shiftedVisibleRange } from '@core/candles/pagination'
 import { lowerTimeframeWindow } from '@core/trade/simulation'
 import { BASE_TICK_MS } from '@shared/constants'
 import type { Candle, StrategySettings, Trade } from '@shared/types'
+import { Badge } from './ui'
 import { Icon } from './Icon'
 import { ChartTradeOverlay, resolvePositionLevels } from './ChartTradeOverlay'
 import { DrawingLayer } from './DrawingLayer'
@@ -1164,7 +1165,7 @@ export function ChartPanel(): React.JSX.Element {
           {chartLayout > 1 ? (
             <div className="primary-pane-header">
               <div className="companion-title-group">
-                <span className="companion-badge primary-badge">PANE 1 · PRIMARY</span>
+                <Badge variant="brand" size="sm" className="companion-badge primary-badge">PANE 1 · PRIMARY</Badge>
                 <span className="primary-pane-info">
                   {symbol} · {displayTimeframe}
                 </span>

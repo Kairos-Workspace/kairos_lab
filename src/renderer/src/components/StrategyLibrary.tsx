@@ -7,7 +7,7 @@ import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 import { ThemeToggle } from './ThemeToggle'
 import { MarketDesk } from './MarketDesk'
-import { Button, FormField, Modal } from './ui'
+import { Badge, Button, FormField, IconButton, Modal } from './ui'
 import { withoutSeeds } from '../store/strategyVault'
 import { useAppStore } from '../store/useAppStore'
 
@@ -101,7 +101,7 @@ export function StrategyLibrary(): React.JSX.Element {
       ? 'Market tapes'
       : activeDesk === 'fundamentals'
         ? 'Macro fundamentals'
-        : 'Strategy library'
+        : 'Strategy Lab'
   const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
   const [settings, setSettings] = useState<StrategySettings>({ ...DEFAULT_STRATEGY_SETTINGS })
@@ -190,82 +190,53 @@ export function StrategyLibrary(): React.JSX.Element {
               Fundamental
             </button>
           </div>
-          <span className="chip library-status">{chipLabel}</span>
+          <Badge variant="neutral" size="sm" className="library-status">{chipLabel}</Badge>
         </div>
         <div className="session-chip">
-          <button
-            type="button"
-            className="icon-btn"
+          <IconButton
+            icon="home"
+            label="Home"
             onClick={goHome}
-            title="Home"
-            aria-label="Home"
-          >
-            <Icon name="home" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
+          />
+          <IconButton
+            icon="chat"
+            label="Bot Lab"
             onClick={enterEaLab}
-            title="Bot Lab"
-            aria-label="Bot Lab"
-          >
-            <Icon name="chat" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
+          />
+          <IconButton
+            icon="indicators"
+            label="Indicator Lab"
             onClick={enterIndicatorLab}
-            title="Indicator Lab"
-            aria-label="Indicator Lab"
-          >
-            <Icon name="indicators" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
+          />
+          <IconButton
+            icon="help"
+            label="Keyboard Shortcuts"
             onClick={() => setShortcutsModalOpen(true)}
-            title="Keyboard shortcuts (?)"
-            aria-label="Keyboard shortcuts"
-          >
-            <Icon name="help" />
-          </button>
+          />
           <ThemeToggle />
-          <button
-            type="button"
-            className="icon-btn"
+          <IconButton
+            icon="settings"
+            label="Settings"
             onClick={enterSettings}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <Icon name="settings" />
-          </button>
+          />
           {activeDesk === 'market' ? (
-            <button
-              className="icon-btn"
+            <IconButton
+              icon="download"
+              label="Download market tape"
               onClick={() => setDesk('market')}
-              title="Download market tape"
-              aria-label="Market tapes"
-            >
-              <Icon name="download" />
-            </button>
+            />
           ) : activeDesk === 'fundamentals' ? (
-            <button
-              className="icon-btn"
+            <IconButton
+              icon="download"
+              label="Macro fundamentals"
               onClick={() => setDesk('fundamentals')}
-              title="Macro fundamentals"
-              aria-label="Macro fundamentals"
-            >
-              <Icon name="download" />
-            </button>
+            />
           ) : (
-            <button
-              className="icon-btn"
+            <IconButton
+              icon="plus"
+              label="Create strategy"
               onClick={openCreate}
-              title="Create strategy"
-              aria-label="Create strategy"
-            >
-              <Icon name="plus" />
-            </button>
+            />
           )}
         </div>
       </header>
@@ -320,29 +291,26 @@ export function StrategyLibrary(): React.JSX.Element {
               {filteredStrategies.map((s) => (
                 <article key={s.id} className="strategy-card">
                   <div className="strategy-card-header">
-                    <span className="stamp">{engineName(s.settings.strategyId)}</span>
+                    <Badge variant="stamp" size="sm">{engineName(s.settings.strategyId)}</Badge>
                     <div className="strategy-card-actions">
-                      <button
-                        type="button"
-                        className="icon-btn strategy-action-btn"
-                        title="Edit strategy"
-                        aria-label={`Edit ${s.name}`}
+                      <IconButton
+                        icon="edit"
+                        label={`Edit ${s.name}`}
+                        size="sm"
+                        className="strategy-action-btn"
                         onClick={() => openEdit(s)}
-                      >
-                        <Icon name="edit" />
-                      </button>
-                      <button
-                        type="button"
-                        className="icon-btn danger strategy-action-btn"
-                        title="Delete strategy"
-                        aria-label={`Delete ${s.name}`}
+                      />
+                      <IconButton
+                        icon="trash"
+                        label={`Delete ${s.name}`}
+                        variant="danger"
+                        size="sm"
+                        className="strategy-action-btn"
                         onClick={(e) => {
                           e.stopPropagation()
                           setDeletingStrategy(s)
                         }}
-                      >
-                        <Icon name="trash" />
-                      </button>
+                      />
                     </div>
                   </div>
 

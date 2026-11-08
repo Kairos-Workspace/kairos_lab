@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState } from 'react'
 import { SEALION_DEFAULT_MODEL, type AiProviderKind, type AiProviderProfile } from '@shared/types'
 import { Dropdown } from './Dropdown'
-import { Icon } from './Icon'
+import { Modal, Button, FormField } from './ui'
 import { fetchedModelsFor, modelLabel } from '../lib/aiProviders'
 import { useAiProvidersStore } from '../store/useAiProvidersStore'
 
@@ -85,68 +85,74 @@ export function AiProviderModal({
   }
 
   return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="ai-provider-modal-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose()
-      }}
+    <Modal
+      open={true}
+      onClose={onClose}
+      size="md"
+      stamp="AI"
+      title={profile ? 'Edit profile' : 'Add profile'}
+      footer={
+        <>
+          <Button
+            variant="ghost"
+            type="button"
+            disabled={testing || !profile}
+            title={profile ? undefined : 'Save this profile first, then test it'}
+            onClick={() => void testConnection(id)}
+          >
+            {testing ? 'Testing…' : 'Test connection'}
+          </Button>
+          <Button
+            variant="primary"
+            icon="save"
+            type="submit"
+            form="ai-provider-form"
+          >
+            Save
+          </Button>
+        </>
+      }
     >
       <form
-        className="composer"
+        id="ai-provider-form"
         onSubmit={(event) => {
           event.preventDefault()
           void handleSave()
         }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
       >
-        <header>
-          <div>
-            <span className="stamp">AI</span>
-            <h2 id="ai-provider-modal-title">{profile ? 'Edit profile' : 'Add profile'}</h2>
-          </div>
-          <button type="button" className="icon-btn" onClick={onClose} title="Close">
-            <Icon name="close" />
-          </button>
-        </header>
-
-        <label className="field">
-          Name
+        <FormField label="Name">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Work OpenAI"
             autoFocus
           />
-        </label>
+        </FormField>
 
-        <label className="field">
-          Provider
+        <FormField
+          label="Provider"
+          hint={provider !== 'custom' ? 'Endpoint is set automatically. Choose a model below.' : undefined}
+        >
           <Dropdown
             ariaLabel="Provider"
             value={provider}
             onChange={handleProviderChange}
             options={PROVIDER_OPTIONS}
           />
-        </label>
-        {provider !== 'custom' ? (
-          <p className="composer-hint">Endpoint is set automatically. Choose a model below.</p>
-        ) : null}
+        </FormField>
 
         {provider === 'custom' ? (
-          <label className="field">
-            Base URL
+          <FormField label="Base URL">
             <input
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://your-endpoint/v1"
             />
-          </label>
+          </FormField>
         ) : null}
 
-        <label className="field">
-          Model
+        <FormField label="Model" error={modelsError[id]}>
           {modelOptions.length > 0 ? (
             <Dropdown ariaLabel="Model" value={model} onChange={setModel} options={modelOptions} />
           ) : (
@@ -158,46 +164,24 @@ export function AiProviderModal({
               }
             />
           )}
-        </label>
-        {modelsError[id] ? (
-          <p className="composer-hint" data-ok="false">
-            {modelsError[id]}
-          </p>
-        ) : null}
+        </FormField>
 
-        <label className="field">
-          API key
+        <FormField label="API key">
           <input
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder={profile?.hasApiKey ? 'Key saved — leave blank to keep it' : 'sk-...'}
           />
-        </label>
+        </FormField>
 
         {testResult ? (
           <p className="composer-hint" data-ok={testResult.ok}>
             {testResult.message}
           </p>
         ) : null}
-
-        <div className="composer-actions">
-          <button
-            type="button"
-            className="ghost"
-            disabled={testing || !profile}
-            title={profile ? undefined : 'Save this profile first, then test it'}
-            onClick={() => void testConnection(id)}
-          >
-            {testing ? 'Testing…' : 'Test connection'}
-          </button>
-          <button className="primary icon-label" type="submit">
-            <Icon name="save" />
-            Save
-          </button>
-        </div>
       </form>
-    </div>
+    </Modal>
   )
 }
 

@@ -1,5 +1,6 @@
 import { PRODUCT_NAME } from '@shared/constants'
 import { Dropdown } from './Dropdown'
+import { FormField } from './ui'
 import { useAppStore } from '../store/useAppStore'
 
 export function CostsPanel(): React.JSX.Element {
@@ -26,18 +27,16 @@ export function CostsPanel(): React.JSX.Element {
           ['tickSize', 'Tick size']
         ] as const
       ).map(([key, label]) => (
-        <label className="field" key={key}>
-          {label}
+        <FormField label={label} key={key}>
           <input
             type="number"
             step="0.01"
             value={costs[key]}
             onChange={(e) => setCosts({ [key]: Number(e.target.value) })}
           />
-        </label>
+        </FormField>
       ))}
-      <label className="field">
-        Same-bar SL and TP
+      <FormField label="Same-bar SL and TP">
         <Dropdown
           ariaLabel="Same-bar SL and TP"
           value={rule}
@@ -49,7 +48,7 @@ export function CostsPanel(): React.JSX.Element {
             { value: 'random', label: 'Random' }
           ]}
         />
-      </label>
+      </FormField>
       <p className="muted">
         If 1-minute data is stored, {PRODUCT_NAME} walks that path first. Starting balance $
         {account.initialBalance.toLocaleString()}.

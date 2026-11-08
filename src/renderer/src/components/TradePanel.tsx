@@ -34,7 +34,7 @@ export function TradePanel(): React.JSX.Element {
               Draft {draft.direction} setup ready to place.
             </p>
             <div className="trade-management-actions">
-              <div className="trade-management-title">Target R:R Presets</div>
+              <h4 className="trade-management-title">Target R:R Presets</h4>
               <div className="rr-presets-row">
                 {[1.5, 2.0, 2.5, 3.0, 4.0].map((rrVal) => (
                   <button
@@ -119,7 +119,7 @@ export function TradePanel(): React.JSX.Element {
       </div>
       {active ? (
         <div className="trade-management-actions">
-          <div className="trade-management-title">Position Management</div>
+          <h4 className="trade-management-title">Position Management</h4>
           <div className="trade-management-grid">
             <button
               type="button"

@@ -1,4 +1,5 @@
 import { useAppStore } from '../store/useAppStore'
+import { Badge } from './ui'
 
 export function LoadingOverlay(): React.JSX.Element | null {
   const busy = useAppStore((s) => s.busy)
@@ -10,7 +11,7 @@ export function LoadingOverlay(): React.JSX.Element | null {
   return (
     <div className="load-veil" role="status" aria-live="polite" aria-busy="true">
       <div className="load-plate">
-        <span className="stamp">Working</span>
+        <Badge variant="stamp" size="sm">Working</Badge>
         <div className="load-tape" aria-hidden="true">
           <i />
           <i />

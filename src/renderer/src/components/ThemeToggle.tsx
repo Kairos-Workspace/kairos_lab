@@ -1,20 +1,18 @@
-import { Icon } from './Icon'
+import { IconButton } from './ui/IconButton'
 import { useAppStore } from '../store/useAppStore'
 
-export function ThemeToggle(): React.JSX.Element {
+export function ThemeToggle({ className }: { className?: string } = {}): React.JSX.Element {
   const theme = useAppStore((s) => s.theme)
   const setTheme = useAppStore((s) => s.setTheme)
   const next = theme === 'dark' ? 'light' : 'dark'
 
   return (
-    <button
-      type="button"
-      className="icon-btn"
+    <IconButton
+      icon={theme === 'dark' ? 'sun' : 'moon'}
+      label="Theme"
+      size="md"
+      className={className}
       onClick={() => setTheme(next)}
-      title={next === 'light' ? 'Paper mode' : 'Mono mode'}
-      aria-label={next === 'light' ? 'Switch to paper mode' : 'Switch to mono mode'}
-    >
-      <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-    </button>
+    />
   )
 }

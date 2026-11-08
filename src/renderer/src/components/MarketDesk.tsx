@@ -6,6 +6,7 @@ import {
 import type { DatasetInfo, Timeframe } from '@shared/types'
 import { ConfirmIconButton } from './ConfirmIconButton'
 import { DownloadWizard } from './DownloadWizard'
+import { Badge, Button, IconButton } from './ui'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 import { formatRange } from '../lib/replayRange'
@@ -115,35 +116,35 @@ export function MarketDesk(): React.JSX.Element {
                 style={{ display: 'none' }}
                 onChange={handleFileSelect}
               />
-              <button
-                type="button"
-                className="ghost icon-label"
+              <Button
+                variant="ghost"
+                icon="upload"
+                size="sm"
                 disabled={busy}
                 onClick={() => fileInputRef.current?.click()}
                 title="Import CSV market tape"
               >
-                <Icon name="upload" />
                 Import CSV
-              </button>
-              <button
-                type="button"
-                className="ghost icon-label"
+              </Button>
+              <Button
+                variant="ghost"
+                icon="play"
+                size="sm"
                 disabled={busy}
                 onClick={() => void generateDemoTape({ days: 15 })}
                 title="Generate 15-day 1-minute gold demo tape"
               >
-                <Icon name="play" />
                 Demo tape
-              </button>
-              <button
-                type="button"
-                className="ghost icon-label"
+              </Button>
+              <Button
+                variant="ghost"
+                icon="download"
+                size="sm"
                 disabled={busy || rows.length === 0}
                 onClick={() => void updateLatest(rows.map((row) => row.id))}
               >
-                <Icon name="download" />
                 Get latest
-              </button>
+              </Button>
             </div>
           </header>
 
@@ -152,32 +153,29 @@ export function MarketDesk(): React.JSX.Element {
               <h2>No market tapes yet</h2>
               <p>Import a CSV file, generate a demo tape, or add a pair to get started.</p>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '12px' }}>
-                <button
-                  type="button"
-                  className="primary icon-label"
+                <Button
+                  variant="primary"
+                  icon="play"
                   disabled={busy}
                   onClick={() => void generateDemoTape({ days: 15 })}
                 >
-                  <Icon name="play" />
                   Generate demo tape
-                </button>
-                <button
-                  type="button"
-                  className="ghost icon-label"
+                </Button>
+                <Button
+                  variant="ghost"
+                  icon="upload"
                   disabled={busy}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Icon name="upload" />
                   Import CSV
-                </button>
-                <button
-                  type="button"
-                  className="ghost icon-label"
+                </Button>
+                <Button
+                  variant="ghost"
+                  icon="plus"
                   onClick={() => setView('add')}
                 >
-                  <Icon name="plus" />
                   Add a pair
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -221,16 +219,13 @@ export function MarketDesk(): React.JSX.Element {
                         <td>{primary.source}</td>
                         <td>
                           <div className="market-tape-actions">
-                            <button
-                              type="button"
-                              className="icon-btn"
-                              title={`Get latest ${pair} data`}
-                              aria-label={`Get latest ${pair} data`}
+                            <IconButton
+                              icon="download"
+                              label={`Get latest ${pair} data`}
+                              size="sm"
                               disabled={busy}
                               onClick={() => void updateLatest(ids)}
-                            >
-                              <Icon name="download" />
-                            </button>
+                            />
                             <ConfirmIconButton
                               icon="trash"
                               label={`Remove ${pair}`}
@@ -260,7 +255,7 @@ export function MarketDesk(): React.JSX.Element {
               />
             </div>
             <div>
-              <span className="stamp">Free tape</span>
+              <Badge variant="stamp" size="sm">Free tape</Badge>
               <h2>Add a pair</h2>
             </div>
           </header>

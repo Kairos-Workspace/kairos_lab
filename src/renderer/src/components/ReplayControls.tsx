@@ -4,6 +4,7 @@ import { formatReplayClock } from '@core/candles/session'
 import { formatRange } from '../lib/replayRange'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
+import { Button } from './ui'
 import { ReplayRangeModal } from './ReplayRangeModal'
 import { useAppStore } from '../store/useAppStore'
 
@@ -164,34 +165,34 @@ export function ReplayControls(): React.JSX.Element {
 
         <div className="replay-actions">
           {sourceHasOlder && !historyStreaming ? (
-            <button
-              type="button"
-              className="ghost replay-step-btn"
+            <Button
+              variant="ghost"
+              icon="history"
+              className="replay-step-btn"
               onClick={() => void displayEntireHistory({ progressive: true })}
               title="Render all history step by step backwards"
             >
-              <Icon name="history" />
-              <span>Step Render</span>
-            </button>
+              Step Render
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="ghost replay-period"
+          <Button
+            variant="ghost"
+            className="replay-period"
             onClick={() => setShowRangeModal(true)}
             title="Choose replay period"
           >
             <span className="muted">Period</span>
             <span>{rangeLabel}</span>
-          </button>
-          <button
-            type="button"
-            className="ghost replay-start-action"
+          </Button>
+          <Button
+            variant="ghost"
+            icon="play"
+            className="replay-start-action"
             onClick={() => setShowRangeModal(true)}
             title="Start Replay Simulation"
           >
-            <Icon name="play" />
-            <span>Replay</span>
-          </button>
+            Replay
+          </Button>
         </div>
 
         {showRangeModal ? (
@@ -294,25 +295,25 @@ export function ReplayControls(): React.JSX.Element {
       </div>
 
       <div className="replay-actions">
-        <button
-          type="button"
-          className="ghost replay-history-btn"
+        <Button
+          variant="ghost"
+          icon="history"
+          className="replay-history-btn"
           onClick={exitReplayToEntireHistory}
           title="Display entire history without replay"
         >
-          <Icon name="history" />
-          <span>Entire History</span>
-        </button>
+          Entire History
+        </Button>
 
-        <button
-          type="button"
-          className="ghost replay-period"
+        <Button
+          variant="ghost"
+          className="replay-period"
           onClick={() => setShowRangeModal(true)}
           title="Choose replay period"
         >
           <span className="muted">Period</span>
           <span>{rangeLabel}</span>
-        </button>
+        </Button>
 
         <button
           type="button"

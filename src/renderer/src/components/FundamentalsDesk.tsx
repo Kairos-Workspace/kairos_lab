@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { SERIES_META } from '@core/fundamentals/fetchMacro'
 import type { FundamentalEventKind, FundamentalSeriesId } from '@core/fundamentals/types'
-import { Icon } from './Icon'
 import { ConfirmIconButton } from './ConfirmIconButton'
+import { Badge, Button, FormField } from './ui'
+import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 
 function fmtWhen(ts: number): string {
@@ -118,7 +119,7 @@ export function FundamentalsDesk(): React.JSX.Element {
       <section className="market-section">
         <header className="market-section-header">
           <div>
-            <span className="stamp">{source === 'custom' ? 'Custom' : 'Bundled'}</span>
+            <Badge variant="stamp" size="sm">{source === 'custom' ? 'Custom' : 'Bundled'}</Badge>
             <h2>Macro fundamentals</h2>
             <p className="muted">
               {busy
@@ -139,17 +140,15 @@ export function FundamentalsDesk(): React.JSX.Element {
         </header>
 
         <div className="fund-range-bar">
-          <label className="field">
-            From
+          <FormField label="From">
             <input
               type="date"
               value={fromDate}
               max={toDate}
               onChange={(e) => setFromDate(e.target.value)}
             />
-          </label>
-          <label className="field">
-            To
+          </FormField>
+          <FormField label="To">
             <input
               type="date"
               value={toDate}
@@ -157,29 +156,28 @@ export function FundamentalsDesk(): React.JSX.Element {
               max={todayUtc()}
               onChange={(e) => setToDate(e.target.value)}
             />
-          </label>
+          </FormField>
           <div className="fund-range-presets">
             {RANGE_PRESETS.map((preset) => (
-              <button
+              <Button
                 key={preset.id}
-                type="button"
-                className="ghost"
+                variant="ghost"
+                size="sm"
                 disabled={busy}
                 onClick={() => applyPreset(preset)}
               >
                 {preset.label}
-              </button>
+              </Button>
             ))}
           </div>
-          <button
-            type="button"
-            className="primary icon-label"
+          <Button
+            variant="primary"
+            icon="download"
             disabled={busy || !rangeOk}
             onClick={() => void pullRange()}
           >
-            <Icon name="download" />
             Get macro
-          </button>
+          </Button>
         </div>
 
         <div className="market-table-shell">
@@ -229,12 +227,10 @@ export function FundamentalsDesk(): React.JSX.Element {
             </div>
           </header>
           <div className="fund-edit-form">
-            <label className="field">
-              Date (UTC)
+            <FormField label="Date (UTC)">
               <input type="date" value={pointDate} onChange={(e) => setPointDate(e.target.value)} />
-            </label>
-            <label className="field">
-              Value
+            </FormField>
+            <FormField label="Value">
               <input
                 type="number"
                 step="any"
@@ -242,24 +238,22 @@ export function FundamentalsDesk(): React.JSX.Element {
                 onChange={(e) => setPointValue(e.target.value)}
                 placeholder={selected?.series?.unit === 'k' ? '162' : '4.10'}
               />
-            </label>
-            <label className="field">
-              Period label
+            </FormField>
+            <FormField label="Period label">
               <input
                 type="text"
                 value={pointPeriod}
                 onChange={(e) => setPointPeriod(e.target.value)}
                 placeholder="Aug 2026"
               />
-            </label>
-            <button
-              type="button"
-              className="primary"
+            </FormField>
+            <Button
+              variant="primary"
               disabled={busy || !pointValue}
               onClick={() => void savePoint()}
             >
               Save point
-            </button>
+            </Button>
           </div>
           <div className="market-table-shell">
             <table className="history-table market-table">
@@ -293,8 +287,7 @@ export function FundamentalsDesk(): React.JSX.Element {
             </div>
           </header>
           <div className="fund-edit-form">
-            <label className="field">
-              Kind
+            <FormField label="Kind">
               <select
                 value={eventKind}
                 onChange={(e) => setEventKind(e.target.value as FundamentalEventKind)}
@@ -304,37 +297,33 @@ export function FundamentalsDesk(): React.JSX.Element {
                 <option value="nfp">NFP</option>
                 <option value="other">Other</option>
               </select>
-            </label>
-            <label className="field">
-              Date (UTC)
+            </FormField>
+            <FormField label="Date (UTC)">
               <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
-            </label>
-            <label className="field">
-              Title
+            </FormField>
+            <FormField label="Title">
               <input
                 type="text"
                 value={eventTitle}
                 onChange={(e) => setEventTitle(e.target.value)}
                 placeholder="FOMC hike 25bp"
               />
-            </label>
-            <label className="field">
-              Actual (optional)
+            </FormField>
+            <FormField label="Actual" optional>
               <input
                 type="number"
                 step="any"
                 value={eventActual}
                 onChange={(e) => setEventActual(e.target.value)}
               />
-            </label>
-            <button
-              type="button"
-              className="primary"
+            </FormField>
+            <Button
+              variant="primary"
               disabled={busy || !eventTitle.trim()}
               onClick={() => void saveEvent()}
             >
               Save event
-            </button>
+            </Button>
           </div>
           <div className="market-table-shell">
             <table className="history-table market-table">

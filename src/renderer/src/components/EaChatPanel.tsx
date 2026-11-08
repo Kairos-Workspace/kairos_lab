@@ -3,6 +3,7 @@ import type { EaChatAttachedFile, EaChatMessage, EaScript } from '@shared/types'
 import { stripScriptDirectives } from '@shared/chatDirectives'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
+import { Modal, Button, Badge } from './ui'
 import { modelLabel, pickValidProviderId } from '../lib/aiProviders'
 import { MarkdownBlocks } from '../lib/chatMarkdown'
 import { extractCodeBlocks, extractScriptName, isFullLabScript, latestCodeBlock, sanitizeScriptName, shouldLiveApplyBlock } from '../lib/extractCodeBlocks'
@@ -361,9 +362,9 @@ export function EaChatPanel(): React.JSX.Element {
   return (
     <div className="ea-chat-panel">
       <div className="ea-chat-header">
-        <span className="stamp ea-chat-title">
+        <Badge variant="stamp" className="ea-chat-title">
           {showHistory ? 'History' : currentThread?.title ?? 'Assistant'}
-        </span>
+        </Badge>
         <button
           type="button"
           className="icon-btn"
@@ -610,55 +611,37 @@ export function EaChatPanel(): React.JSX.Element {
         </>
       )}
 
-      {pendingDeleteThread ? (
-        <div
-          className="modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="ea-chat-delete-title"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setPendingDeleteThread(null)
-          }}
-        >
-          <div className="composer">
-            <header>
-              <div>
-                <span className="stamp">History</span>
-                <h2 id="ea-chat-delete-title">Delete chat</h2>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setPendingDeleteThread(null)}
-                title="Close"
-                aria-label="Close"
-              >
-                <Icon name="close" />
-              </button>
-            </header>
-            <p className="composer-hint">
-              Delete "{pendingDeleteThread.title}"? This cannot be undone.
-            </p>
-            <div className="composer-actions">
-              <button type="button" className="ghost" onClick={() => setPendingDeleteThread(null)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="danger"
-                onClick={() => {
-                  const id = pendingDeleteThread.id
-                  setPendingDeleteThread(null)
-                  cancelPendingWrite()
-                  void deleteThread(id)
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Modal
+        open={Boolean(pendingDeleteThread)}
+        onClose={() => setPendingDeleteThread(null)}
+        size="sm"
+        stamp="History"
+        title="Delete chat"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPendingDeleteThread(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              icon="trash"
+              onClick={() => {
+                if (!pendingDeleteThread) return
+                const id = pendingDeleteThread.id
+                setPendingDeleteThread(null)
+                cancelPendingWrite()
+                void deleteThread(id)
+              }}
+            >
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p style={{ margin: 0, color: 'var(--parchment)', fontSize: 'var(--font-sm)', lineHeight: 1.5 }}>
+          Delete &ldquo;{pendingDeleteThread?.title}&rdquo;? This cannot be undone.
+        </p>
+      </Modal>
     </div>
   )
 }

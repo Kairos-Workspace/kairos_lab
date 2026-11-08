@@ -910,7 +910,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       pendingSetup: null,
       draft: null,
       chartFull: false,
-      status: fromBot ? 'Bot Lab' : 'Strategy library'
+      status: fromBot ? 'Bot Lab' : 'Strategy Lab'
     })
   },
 

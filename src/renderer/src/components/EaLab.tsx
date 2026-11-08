@@ -18,6 +18,7 @@ import { BotBacktestModal, type BotBacktestConfig } from './BotBacktestModal'
 import { BotBacktestResultModal } from './BotBacktestResultModal'
 import { EaChatPanel } from './EaChatPanel'
 import { Icon } from './Icon'
+import { Modal, Button, IconButton, Badge } from './ui'
 import { IndicatorChart } from './IndicatorChart'
 import { ThemeToggle } from './ThemeToggle'
 import { shouldLiveApplyBlock } from '../lib/extractCodeBlocks'
@@ -50,18 +51,14 @@ function NewIndicatorMenu({
 
   return (
     <div className="ea-lab-new-wrap" ref={wrapRef}>
-      <button
-        type="button"
-        className="icon-btn"
-        data-active={open}
+      <IconButton
+        icon="plus"
+        label="New indicator"
+        active={open}
         onClick={() => setOpen((value) => !value)}
-        title="New indicator"
-        aria-label="New indicator"
         aria-expanded={open}
         aria-haspopup="menu"
-      >
-        <Icon name="plus" />
-      </button>
+      />
       {open ? (
         <div className="ea-lab-new-menu" role="menu">
           <button
@@ -399,85 +396,51 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
     <div className="app" data-frame="ea-lab">
       <header className="topbar">
         <div className="brand">
-          <BrandMark subtitle={copy.brandSubtitle} />
+          <BrandMark subtitle={kind === 'indicator' ? 'Indicator Lab' : 'Bot Lab'} />
         </div>
         <div className="top-controls" />
         <div className="session-chip">
-          <button type="button" className="icon-btn" onClick={goHome} title="Home" aria-label="Home">
-            <Icon name="home" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={enterLibrary}
-            title="Strategy Lab"
-            aria-label="Strategy Lab"
-          >
-            <Icon name="strategy" />
-          </button>
+          <IconButton icon="home" label="Home" onClick={goHome} />
+          <IconButton icon="strategy" label="Strategy Lab" onClick={enterLibrary} />
           {kind === 'ea' ? (
-            <button
-              type="button"
-              className="icon-btn"
+            <IconButton
+              icon="indicators"
+              label="Indicator Lab"
               onClick={enterIndicatorLab}
-              title="Indicator Lab"
-              aria-label="Indicator Lab"
-            >
-              <Icon name="indicators" />
-            </button>
+            />
           ) : (
-            <button
-              type="button"
-              className="icon-btn"
+            <IconButton
+              icon="chat"
+              label="Bot Lab"
               onClick={enterEaLab}
-              title="Bot Lab"
-              aria-label="Bot Lab"
-            >
-              <Icon name="chat" />
-            </button>
+            />
           )}
-          <button
-            type="button"
-            className="icon-btn"
+          <IconButton
+            icon="help"
+            label="Keyboard Shortcuts"
             onClick={() => setShortcutsModalOpen(true)}
-            title="Keyboard shortcuts (?)"
-            aria-label="Keyboard shortcuts"
-          >
-            <Icon name="help" />
-          </button>
+          />
           <ThemeToggle />
+          <IconButton
+            icon="settings"
+            label="Settings"
+            onClick={enterSettings}
+          />
           {kind === 'indicator' ? (
             <NewIndicatorMenu onCreate={(language) => void createScript(language)} />
           ) : (
-            <button
-              type="button"
-              className="icon-btn"
+            <IconButton
+              icon="plus"
+              label={copy.newFileTitle}
               onClick={() => void createScript('mql5')}
-              title={copy.newFileTitle}
-              aria-label={copy.newFileTitle}
-            >
-              <Icon name="plus" />
-            </button>
+            />
           )}
-          <button
-            type="button"
-            className="icon-btn"
-            data-active={showChat}
+          <IconButton
+            icon="chat"
+            label="AI chat"
+            active={showChat}
             onClick={() => setShowChat((v) => !v)}
-            title="AI chat"
-            aria-label="AI chat"
-          >
-            <Icon name="chat" />
-          </button>
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={enterSettings}
-            title="Settings"
-            aria-label="Settings"
-          >
-            <Icon name="settings" />
-          </button>
+          />
         </div>
       </header>
 
@@ -507,7 +470,7 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
               </div>
             ) : (
               <>
-                <span className="stamp">Explorer</span>
+                <Badge variant="stamp">Explorer</Badge>
                 <span className="ea-lab-sidebar-count">{scripts.length}</span>
               </>
             )}
@@ -551,20 +514,16 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
                       </span>
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    title="Rename"
-                    aria-label={`Rename ${s.name}`}
+                  <IconButton
+                    icon="edit"
+                    label={`Rename ${s.name}`}
+                    size="sm"
                     onClick={() => startRename(s.id, s.name)}
-                  >
-                    <Icon name="edit" />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    title="Delete"
-                    aria-label={`Delete ${s.name}`}
+                  />
+                  <IconButton
+                    icon="trash"
+                    label={`Delete ${s.name}`}
+                    size="sm"
                     onClick={() =>
                       setPendingDelete({
                         id: s.id,
@@ -572,9 +531,7 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
                         language: scriptLanguage(s.kind, s.language)
                       })
                     }
-                  >
-                    <Icon name="trash" />
-                  </button>
+                  />
                 </li>
               ))}
             </ul>
@@ -601,35 +558,30 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
               {writing ? <span className="ea-lab-writing-stamp">Writing</span> : null}
               {kind === 'ea' && activeScriptId ? (
                 <>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    title="Check bot rules"
-                    aria-label="Check bot rules"
+                  <IconButton
+                    icon="check"
+                    label="Check bot rules"
+                    size="md"
                     disabled={sending}
                     onClick={() => void compileActive()}
-                  >
-                    <Icon name="check" />
-                  </button>
-                  <button
-                    type="button"
-                    className="primary icon-label"
+                  />
+                  <Button
+                    variant="primary"
+                    icon="play"
                     title="Run backtest in Kairos"
                     disabled={sending}
                     onClick={openBacktestModal}
                   >
-                    <Icon name="play" />
                     Run backtest
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost icon-label"
+                  </Button>
+                  <Button
+                    variant="ghost"
                     title="Export to MetaTrader MQL5 — coming soon"
                     aria-label="Export to MQL5 coming soon"
                     disabled
                   >
                     Export MQL5
-                  </button>
+                  </Button>
                 </>
               ) : null}
             </div>
@@ -699,32 +651,29 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
                 <p>{copy.emptyEditor}</p>
                 {kind === 'indicator' ? (
                   <div className="ea-lab-empty-actions">
-                    <button
-                      type="button"
-                      className="primary icon-label"
+                    <Button
+                      variant="primary"
+                      icon="plus"
                       onClick={() => void createScript('mql5')}
                     >
-                      <Icon name="plus" />
                       New MQL5
-                    </button>
-                    <button
-                      type="button"
-                      className="primary icon-label"
+                    </Button>
+                    <Button
+                      variant="primary"
+                      icon="plus"
                       onClick={() => void createScript('pinescript')}
                     >
-                      <Icon name="plus" />
                       New Pine Script
-                    </button>
+                    </Button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    className="primary icon-label"
+                  <Button
+                    variant="primary"
+                    icon="plus"
                     onClick={() => void createScript('mql5')}
                   >
-                    <Icon name="plus" />
                     {copy.newFile}
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -811,56 +760,37 @@ export function EaLab({ kind }: { kind: ScriptKind }): React.JSX.Element {
         {showChat ? <EaChatPanel /> : null}
       </section>
 
-      {pendingDelete ? (
-        <div
-          className="modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="ea-lab-delete-title"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setPendingDelete(null)
-          }}
-        >
-          <div className="composer">
-            <header>
-              <div>
-                <span className="stamp">Explorer</span>
-                <h2 id="ea-lab-delete-title">{copy.deleteTitle}</h2>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setPendingDelete(null)}
-                title="Close"
-                aria-label="Close"
-              >
-                <Icon name="close" />
-              </button>
-            </header>
-            <p className="composer-hint">
-              Delete {pendingDelete.name}
-              {fileExtension(pendingDelete.language, kind)}? This cannot be undone.
-            </p>
-            <div className="composer-actions">
-              <button type="button" className="ghost" onClick={() => setPendingDelete(null)}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="danger"
-                onClick={() => {
-                  const id = pendingDelete.id
-                  setPendingDelete(null)
-                  if (overlayId === id) setOverlayId(null)
-                  void deleteScript(id)
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Modal
+        open={Boolean(pendingDelete)}
+        onClose={() => setPendingDelete(null)}
+        size="sm"
+        stamp="Explorer"
+        title={copy.deleteTitle}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              icon="trash"
+              onClick={() => {
+                if (!pendingDelete) return
+                const id = pendingDelete.id
+                setPendingDelete(null)
+                if (overlayId === id) setOverlayId(null)
+                void deleteScript(id)
+              }}
+            >
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p style={{ margin: 0, color: 'var(--parchment)', fontSize: 'var(--font-sm)', lineHeight: 1.5 }}>
+          Delete {pendingDelete?.name}{pendingDelete ? fileExtension(pendingDelete.language, kind) : ''}? This cannot be undone.
+        </p>
+      </Modal>
 
       {backtestOpen && kind === 'ea' ? (
         <BotBacktestModal

@@ -16,6 +16,7 @@ import { chartSkin } from '@core/desk/theme'
 import { TIMEFRAMES, type Candle, type Timeframe } from '@shared/types'
 import { resolvePositionLevels } from './ChartTradeOverlay'
 import { Dropdown } from './Dropdown'
+import { Badge } from './ui'
 import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 
@@ -269,7 +270,7 @@ export function CompanionChartPane({ index }: Props): React.JSX.Element {
     <div className="chart-pane companion-pane" data-index={index}>
       <div className="companion-header">
         <div className="companion-title-group">
-          <span className="companion-badge">PANE {index + 2}</span>
+          <Badge variant="neutral" size="sm" className="companion-badge">PANE {index + 2}</Badge>
           <span className="companion-symbol">{symbol}</span>
           <Dropdown
             ariaLabel={`Pane ${index + 2} Timeframe`}

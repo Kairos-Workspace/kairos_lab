@@ -1,4 +1,5 @@
 import type { DeskTheme } from '@shared/types'
+import { Badge } from './ui'
 import { useAppStore } from '../store/useAppStore'
 
 const THEME_OPTIONS: { value: DeskTheme; label: string }[] = [
@@ -14,7 +15,7 @@ export function AppearanceSettings(): React.JSX.Element {
     <div className="composer">
       <header>
         <div>
-          <span className="stamp">UI</span>
+          <Badge variant="stamp" size="sm">UI</Badge>
           <h2>Appearance</h2>
         </div>
       </header>

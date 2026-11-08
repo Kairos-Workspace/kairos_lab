@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { TIMEFRAMES, type Timeframe } from '@shared/types'
 import { Icon } from './Icon'
+import { Modal, Button, Checkbox, FormField } from './ui'
 import { useAppStore } from '../store/useAppStore'
 
 type Step = 'timeframes' | 'range' | 'downloading' | 'done'
@@ -52,112 +53,120 @@ export function DownloadWizard({
 
   const progressPct = Math.round((downloadProgress?.fraction ?? 0) * 100)
 
+  const canDismiss = step !== 'downloading' || Boolean(failedTimeframe)
+
   return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="download-wizard-title"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && step !== 'downloading') onClose()
-      }}
+    <Modal
+      open={true}
+      onClose={onClose}
+      size="md"
+      stamp={`Download data · Step ${stepIndex + 1} of ${STEPS.length}`}
+      title={symbol}
+      closeOnBackdropClick={canDismiss}
+      closeOnEscape={canDismiss}
+      showCloseButton={canDismiss}
+      footer={
+        failedTimeframe ? (
+          <>
+            <Button variant="ghost" type="button" onClick={() => setStep('range')}>
+              Back
+            </Button>
+            <Button
+              variant="primary"
+              icon="download"
+              type="button"
+              onClick={() => void runDownload()}
+            >
+              Retry
+            </Button>
+          </>
+        ) : step === 'timeframes' ? (
+          <>
+            <Button variant="ghost" type="button" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              type="button"
+              disabled={timeframes.length === 0}
+              onClick={() => setStep('range')}
+            >
+              Next
+            </Button>
+          </>
+        ) : step === 'range' ? (
+          <>
+            <Button variant="ghost" type="button" onClick={() => setStep('timeframes')}>
+              Back
+            </Button>
+            <Button
+              variant="primary"
+              icon="download"
+              type="submit"
+              form="download-wizard-form"
+            >
+              Download
+            </Button>
+          </>
+        ) : step === 'done' ? (
+          <Button variant="primary" type="button" onClick={onClose}>
+            Done
+          </Button>
+        ) : null
+      }
     >
+      <div className="wizard-steps" aria-hidden="true">
+        {STEPS.map((s, i) => (
+          <span key={s} className="wizard-dot" data-active={i === stepIndex} data-done={i < stepIndex} />
+        ))}
+      </div>
+
       <form
-        className="composer download-wizard"
+        id="download-wizard-form"
         onSubmit={(event) => {
           event.preventDefault()
           if (step === 'range') void runDownload()
         }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
       >
-        <header>
-          <div>
-            <span className="stamp">
-              Download data · Step {stepIndex + 1} of {STEPS.length}
-            </span>
-            <h2 id="download-wizard-title">{symbol}</h2>
-          </div>
-          {step !== 'downloading' || failedTimeframe ? (
-            <button type="button" className="icon-btn" onClick={onClose} title="Close">
-              <Icon name="close" />
-            </button>
-          ) : null}
-        </header>
-
-        <div className="wizard-steps" aria-hidden="true">
-          {STEPS.map((s, i) => (
-            <span key={s} className="wizard-dot" data-active={i === stepIndex} data-done={i < stepIndex} />
-          ))}
-        </div>
-
         {step === 'timeframes' ? (
-          <>
-            <div className="field field-group">
-              <span className="wizard-field-label">Timeframes</span>
-              <div className="wizard-timeframes">
-                {TIMEFRAMES.map((tf) => (
-                  <label key={tf} className="wizard-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={timeframes.includes(tf)}
-                      onChange={(e) => toggleTimeframe(tf, e.target.checked)}
-                    />
-                    {tf}
-                  </label>
-                ))}
-              </div>
+          <FormField label="Timeframes">
+            <div className="wizard-timeframes">
+              {TIMEFRAMES.map((tf) => (
+                <Checkbox
+                  key={tf}
+                  label={tf}
+                  checked={timeframes.includes(tf)}
+                  onChange={(e) => toggleTimeframe(tf, e.target.checked)}
+                />
+              ))}
             </div>
-            <div className="composer-actions">
-              <button className="ghost" type="button" onClick={onClose}>
-                Cancel
-              </button>
-              <button
-                className="primary"
-                type="button"
-                disabled={timeframes.length === 0}
-                onClick={() => setStep('range')}
-              >
-                Next
-              </button>
-            </div>
-          </>
+          </FormField>
         ) : null}
 
         {step === 'range' ? (
-          <>
-            <div className="row">
-              <label className="field">
-                From Date
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  max={toDate}
-                />
-              </label>
-              <label className="field">
-                To Date
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  min={fromDate}
-                  max={new Date().toISOString().slice(0, 10)}
-                />
-              </label>
-            </div>
-            <div className="composer-actions">
-              <button className="ghost" type="button" onClick={() => setStep('timeframes')}>
-                Back
-              </button>
-              <button className="primary icon-label" type="submit">
-                <Icon name="download" />
-                Download
-              </button>
-            </div>
-          </>
+          <div className="row">
+            <FormField label="From Date">
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                max={toDate}
+              />
+            </FormField>
+            <FormField label="To Date">
+              <input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                min={fromDate}
+                max={new Date().toISOString().slice(0, 10)}
+              />
+            </FormField>
+          </div>
         ) : null}
 
-        {step === 'downloading' ? (
+        {step === 'downloading' && !failedTimeframe ? (
           <div className="wizard-progress">
             <p className="wizard-progress-label">
               Downloading {symbol} {timeframes[currentIndex]}
@@ -183,31 +192,15 @@ export function DownloadWizard({
               <Icon name="check" size={22} />
             </div>
             <p>{symbol} data is ready.</p>
-            <div className="composer-actions">
-              <button className="primary" type="button" onClick={onClose}>
-                Done
-              </button>
-            </div>
           </div>
         ) : null}
 
         {failedTimeframe ? (
-          <>
-            <p className="wizard-error">
-              Could not download {symbol} {failedTimeframe}. Check your connection and try again.
-            </p>
-            <div className="composer-actions">
-              <button className="ghost" type="button" onClick={() => setStep('range')}>
-                Back
-              </button>
-              <button className="primary icon-label" type="button" onClick={() => void runDownload()}>
-                <Icon name="download" />
-                Retry
-              </button>
-            </div>
-          </>
+          <p className="wizard-error">
+            Could not download {symbol} {failedTimeframe}. Check your connection and try again.
+          </p>
         ) : null}
       </form>
-    </div>
+    </Modal>
   )
 }

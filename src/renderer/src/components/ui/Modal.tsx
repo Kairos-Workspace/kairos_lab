@@ -17,6 +17,7 @@ export interface ModalProps {
   className?: string
   closeOnBackdropClick?: boolean
   closeOnEscape?: boolean
+  showCloseButton?: boolean
 }
 
 export function Modal({
@@ -30,7 +31,8 @@ export function Modal({
   footer,
   className = '',
   closeOnBackdropClick = true,
-  closeOnEscape = true
+  closeOnEscape = true,
+  showCloseButton = true
 }: ModalProps): React.JSX.Element | null {
   const titleId = useId()
 
@@ -74,15 +76,17 @@ export function Modal({
               )}
               {subtitle && <p className="ui-modal-subtitle">{subtitle}</p>}
             </div>
-            <button
-              type="button"
-              className="ui-icon-btn ui-icon-btn-ghost ui-modal-close"
-              onClick={onClose}
-              title="Close"
-              aria-label="Close"
-            >
-              <Icon name="close" />
-            </button>
+            {showCloseButton && (
+              <button
+                type="button"
+                className="ui-icon-btn ui-icon-btn-ghost ui-modal-close"
+                onClick={onClose}
+                title="Close"
+                aria-label="Close"
+              >
+                <Icon name="close" />
+              </button>
+            )}
           </header>
         )}
 

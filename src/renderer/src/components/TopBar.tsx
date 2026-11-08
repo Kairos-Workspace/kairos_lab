@@ -3,7 +3,7 @@ import { sessionAt, formatReplayClock } from '@core/candles/session'
 import { localSymbols } from '@core/candles/dataset'
 import { BrandMark } from './BrandMark'
 import { Dropdown } from './Dropdown'
-import { Icon } from './Icon'
+import { IconButton } from './ui/IconButton'
 import { ThemeToggle } from './ThemeToggle'
 import { useCurrentCandle } from '../store/selectors'
 import { useAppStore, type MultiChartLayout } from '../store/useAppStore'
@@ -24,6 +24,10 @@ export function TopBar(): React.JSX.Element {
   const candle = useCurrentCandle()
   const datasets = useAppStore((s) => s.datasets)
   const leaveWorkspace = useAppStore((s) => s.leaveWorkspace)
+  const goHome = useAppStore((s) => s.goHome)
+  const enterLibrary = useAppStore((s) => s.enterLibrary)
+  const enterEaLab = useAppStore((s) => s.enterEaLab)
+  const enterIndicatorLab = useAppStore((s) => s.enterIndicatorLab)
   const enterSettings = useAppStore((s) => s.enterSettings)
   const setShortcutsModalOpen = useAppStore((s) => s.setShortcutsModalOpen)
   const activeStrategyId = useAppStore((s) => s.activeStrategyId)
@@ -45,14 +49,12 @@ export function TopBar(): React.JSX.Element {
   return (
     <header className="topbar">
       <div className="brand">
-        <button
-          className="icon-btn brand-back"
+        <IconButton
+          icon="back"
+          label={activeEaScriptId ? 'Back to Bot Lab' : 'Back to Strategy Lab'}
+          className="brand-back"
           onClick={leaveWorkspace}
-          title={activeEaScriptId ? 'Back to Bot Lab' : 'Strategy library'}
-          aria-label={activeEaScriptId ? 'Back to Bot Lab' : 'Back to strategy library'}
-        >
-          <Icon name="back" />
-        </button>
+        />
         <BrandMark subtitle={subtitle} />
       </div>
       <div className="top-controls">
@@ -117,34 +119,42 @@ export function TopBar(): React.JSX.Element {
         </div>
       </div>
       <div className="session-chip">
-        <button
-          type="button"
-          className="icon-btn"
+        <IconButton
+          icon="home"
+          label="Home"
+          onClick={goHome}
+        />
+        <IconButton
+          icon="strategy"
+          label="Strategy Lab"
+          onClick={enterLibrary}
+        />
+        <IconButton
+          icon="chat"
+          label="Bot Lab"
+          onClick={enterEaLab}
+        />
+        <IconButton
+          icon="indicators"
+          label="Indicator Lab"
+          onClick={enterIndicatorLab}
+        />
+        <IconButton
+          icon="help"
+          label="Keyboard Shortcuts"
           onClick={() => setShortcutsModalOpen(true)}
-          title="Keyboard shortcuts (?)"
-          aria-label="Keyboard shortcuts"
-        >
-          <Icon name="help" />
-        </button>
-        <button
-          type="button"
-          className="icon-btn"
+        />
+        <IconButton
+          icon={chartFull ? 'compress' : 'expand'}
+          label={chartFull ? 'Exit full screen (F)' : 'Full screen (F)'}
           onClick={toggleChartFull}
-          title={chartFull ? 'Exit full screen (F)' : 'Full screen (F)'}
-          aria-label={chartFull ? 'Exit full screen' : 'Full screen'}
-        >
-          <Icon name={chartFull ? 'compress' : 'expand'} />
-        </button>
+        />
         <ThemeToggle />
-        <button
-          type="button"
-          className="icon-btn"
+        <IconButton
+          icon="settings"
+          label="Settings"
           onClick={enterSettings}
-          title="Settings"
-          aria-label="Settings"
-        >
-          <Icon name="settings" />
-        </button>
+        />
       </div>
     </header>
   )

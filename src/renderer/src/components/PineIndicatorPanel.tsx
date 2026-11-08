@@ -3,7 +3,7 @@ import Editor from '@monaco-editor/react'
 import { useAppStore, type PineIndicatorInstance } from '../store/useAppStore'
 import { diagnosePineScript, type PineDiagnostic } from '@core/indicators/pinePreview'
 import { registerLabLanguages } from '../lib/mql5Language'
-import { Button, Badge, Modal, FormField } from './ui'
+import { Button, Badge, Modal, FormField, IconButton } from './ui'
 import { Dropdown } from './Dropdown'
 import { Icon } from './Icon'
 
@@ -258,7 +258,7 @@ export function PineIndicatorPanel(): React.JSX.Element {
       <div className="pine-stack-container">
         <div className="pine-stack-toolbar">
           <div className="pine-stack-heading">
-            <span className="pine-stack-label">Library</span>
+            <h4 className="pine-stack-label" style={{ margin: 0 }}>Library</h4>
             <span className="pine-stack-count">{pineIndicators.length}</span>
             {attachedCount > 0 ? (
               <span className="pine-stack-attached">{attachedCount} on chart</span>
@@ -323,33 +323,25 @@ export function PineIndicatorPanel(): React.JSX.Element {
                   )}
 
                   <div className="pine-item-actions">
-                    <button
-                      type="button"
-                      className="pine-item-btn"
+                    <IconButton
+                      icon="edit"
+                      label="Edit indicator"
+                      size="sm"
                       onClick={() => openEdit(ind)}
-                      title="Edit indicator"
-                      aria-label="Edit indicator"
-                    >
-                      <Icon name="edit" size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      className="pine-item-btn"
+                    />
+                    <IconButton
+                      icon="copy"
+                      label="Duplicate indicator"
+                      size="sm"
                       onClick={() => duplicatePineIndicator(ind.id)}
-                      title="Duplicate indicator"
-                      aria-label="Duplicate indicator"
-                    >
-                      <Icon name="copy" size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      className="pine-item-btn danger"
+                    />
+                    <IconButton
+                      variant="danger"
+                      icon="trash"
+                      label="Delete indicator"
+                      size="sm"
                       onClick={() => removePineIndicator(ind.id)}
-                      title="Delete indicator"
-                      aria-label="Delete indicator"
-                    >
-                      <Icon name="trash" size={13} />
-                    </button>
+                    />
                   </div>
                 </div>
               )
@@ -433,7 +425,7 @@ export function PineIndicatorPanel(): React.JSX.Element {
             </div>
 
             <div className="pine-editor-header-bar">
-              <span className="field-title">Script Source</span>
+              <h4 className="field-title" style={{ margin: 0 }}>Script Source</h4>
               <div className="pine-status-pill-box">
                 {errors.length > 0 ? (
                   <Badge variant="bear" size="sm">

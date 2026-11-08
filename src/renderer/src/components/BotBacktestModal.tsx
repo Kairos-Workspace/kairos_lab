@@ -4,7 +4,7 @@ import { DEFAULT_BALANCE } from '@shared/constants'
 import { SYMBOLS, TIMEFRAMES, type Timeframe } from '@shared/types'
 import { formatRange, fromReplayInput, toReplayInput } from '../lib/replayRange'
 import { Dropdown } from './Dropdown'
-import { Button, FormField, Modal } from './ui'
+import { Button, Checkbox, FormField, Modal } from './ui'
 import { useAppStore } from '../store/useAppStore'
 
 export type BotBacktestConfig = {
@@ -233,35 +233,14 @@ export function BotBacktestModal({
           </FormField>
         </div>
 
-        <FormField label="Mode" required>
-          <div className="bot-backtest-mode" role="radiogroup" aria-label="Backtest mode">
-            <label data-active={visualize ? 'true' : 'false'}>
-              <input
-                type="radio"
-                name="bot-bt-mode"
-                checked={visualize}
-                disabled={busy}
-                onChange={() => setVisualize(true)}
-              />
-              <span>
-                <strong>Visualize</strong>
-                <em>Open chart tester and replay</em>
-              </span>
-            </label>
-            <label data-active={!visualize ? 'true' : 'false'}>
-              <input
-                type="radio"
-                name="bot-bt-mode"
-                checked={!visualize}
-                disabled={busy}
-                onChange={() => setVisualize(false)}
-              />
-              <span>
-                <strong>Background</strong>
-                <em>Run headless and show results</em>
-              </span>
-            </label>
-          </div>
+        <FormField label="Mode">
+          <Checkbox
+            label="Visualize"
+            description="Open chart tester and replay (uncheck for headless background run)"
+            checked={visualize}
+            disabled={busy}
+            onChange={(e) => setVisualize(e.target.checked)}
+          />
         </FormField>
 
         {error ? (

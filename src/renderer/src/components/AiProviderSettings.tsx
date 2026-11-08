@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { AiProviderProfile } from '@shared/types'
 import { AiProviderModal } from './AiProviderModal'
 import { ConfirmIconButton } from './ConfirmIconButton'
-import { Icon } from './Icon'
+import { Badge, Button, IconButton } from './ui'
 import { useAiProvidersStore } from '../store/useAiProvidersStore'
 
 const PROVIDER_BADGE_LABELS: Record<AiProviderProfile['provider'], string> = {
@@ -28,13 +28,12 @@ export function AiProviderSettings(): React.JSX.Element {
     <div className="composer">
       <header>
         <div>
-          <span className="stamp">AI</span>
+          <Badge variant="stamp" size="sm">AI</Badge>
           <h2>AI provider profiles</h2>
         </div>
-        <button type="button" className="ghost icon-label" onClick={() => setModalTarget('new')}>
-          <Icon name="plus" />
+        <Button variant="ghost" icon="plus" size="sm" onClick={() => setModalTarget('new')}>
           Add profile
-        </button>
+        </Button>
       </header>
 
       {providers.length === 0 ? (
@@ -51,15 +50,12 @@ export function AiProviderSettings(): React.JSX.Element {
                 <span>{p.model}</span>
               </div>
               <div className="provider-row-actions">
-                <button
-                  type="button"
-                  className="icon-btn"
-                  title="Edit"
-                  aria-label={`Edit ${p.name}`}
+                <IconButton
+                  icon="edit"
+                  label={`Edit ${p.name}`}
+                  size="sm"
                   onClick={() => setModalTarget(p)}
-                >
-                  <Icon name="edit" />
-                </button>
+                />
                 <ConfirmIconButton
                   icon="trash"
                   label="Delete profile"
