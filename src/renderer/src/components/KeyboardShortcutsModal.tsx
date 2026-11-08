@@ -46,7 +46,7 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
     items: [
       { keys: ['F'], desc: 'Toggle Fullscreen chart vs Desk layout' },
       { keys: ['Alt', '1-4'], desc: 'Switch 1, 2 (Dual), 3, or 4 (Quad) chart layout' },
-      { keys: ['Esc'], desc: 'Clear tool / Close modal / Exit fullscreen' },
+      { keys: ['Esc'], desc: 'Restore grid view / Clear tool / Exit fullscreen' },
       { keys: ['?'], desc: 'Open / close this shortcuts help' }
     ]
   },

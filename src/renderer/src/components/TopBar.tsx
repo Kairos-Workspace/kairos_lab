@@ -14,6 +14,8 @@ export function TopBar(): React.JSX.Element {
   const setTimeframe = useAppStore((s) => s.setTimeframe)
   const chartLayout = useAppStore((s) => s.chartLayout)
   const setChartLayout = useAppStore((s) => s.setChartLayout)
+  const chartFull = useAppStore((s) => s.chartFull)
+  const toggleChartFull = useAppStore((s) => s.toggleChartFull)
   const selectSymbol = useAppStore((s) => s.selectSymbol)
   const speed = useAppStore((s) => s.speed)
   const setSpeed = useAppStore((s) => s.setSpeed)
@@ -123,6 +125,15 @@ export function TopBar(): React.JSX.Element {
           aria-label="Keyboard shortcuts"
         >
           <Icon name="help" />
+        </button>
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={toggleChartFull}
+          title={chartFull ? 'Exit full screen (F)' : 'Full screen (F)'}
+          aria-label={chartFull ? 'Exit full screen' : 'Full screen'}
+        >
+          <Icon name={chartFull ? 'compress' : 'expand'} />
         </button>
         <ThemeToggle />
         <button

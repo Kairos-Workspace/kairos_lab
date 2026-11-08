@@ -143,8 +143,11 @@ interface AppState {
   drawingUndoStack: Drawing[][]
   drawingRedoStack: Drawing[][]
   chartFull: boolean
+  /** Freeze the Y price scale so pan/zoom history does not reflow candle height. */
+  priceScaleLocked: boolean
   chartLayout: MultiChartLayout
   companionTimeframes: [Timeframe, Timeframe, Timeframe]
+  focusedPane: number | null
   shortcutsModalOpen: boolean
   setShortcutsModalOpen: (open: boolean) => void
   screen: AppScreen
@@ -217,6 +220,8 @@ interface AppState {
   toggleChartFull: () => void
   setChartLayout: (layout: MultiChartLayout) => void
   setCompanionTimeframe: (index: number, tf: Timeframe) => void
+  setFocusedPane: (pane: number | null) => void
+  toggleFocusedPane: (pane: number) => void
   setRightTab: (tab: RightTab) => void
   setHistoryFilter: (filter: HistoryFilter) => void
   setSpeed: (speed: number) => void
@@ -264,6 +269,10 @@ interface AppState {
   softPause: () => void
   togglePlay: () => void
   setFollowReplay: (follow: boolean) => void
+  setPriceScaleLocked: (locked: boolean) => void
+  togglePriceScaleLocked: () => void
+  /** Re-enable follow and snap the chart to the replay playhead. */
+  snapToPlayhead: () => void
   manualStep: (n: number) => void
   step: (n: number) => void
   resetReplay: () => void
@@ -579,6 +588,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   chartFull: false,
   chartLayout: 1,
   companionTimeframes: ['1H', '4H', '1D'],
+  focusedPane: null,
   shortcutsModalOpen: false,
   setShortcutsModalOpen: (open) => set({ shortcutsModalOpen: open }),
   screen: 'welcome',
@@ -997,7 +1007,13 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
 
   setChartFull: (chartFull) => set({ chartFull }),
   toggleChartFull: () => set({ chartFull: !get().chartFull }),
-  setChartLayout: (chartLayout) => set({ chartLayout }),
+  setPriceScaleLocked: (priceScaleLocked) => set({ priceScaleLocked }),
+  togglePriceScaleLocked: () => set({ priceScaleLocked: !get().priceScaleLocked }),
+  snapToPlayhead: () => {
+    if (get().mode !== 'replay') return
+    set({ followReplay: true })
+  },
+  setChartLayout: (chartLayout) => set({ chartLayout, focusedPane: null }),
   setCompanionTimeframe: (index, tf) => {
     set((state) => {
       const next = [...state.companionTimeframes] as [Timeframe, Timeframe, Timeframe]
@@ -1007,6 +1023,9 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
       return { companionTimeframes: next }
     })
   },
+  setFocusedPane: (focusedPane) => set({ focusedPane }),
+  toggleFocusedPane: (pane) =>
+    set((s) => ({ focusedPane: s.focusedPane === pane ? null : pane })),
   setRightTab: (rightTab) => set({ rightTab }),
   setPineIndicatorCode: (pineIndicatorCode) => {
     const { pineIndicators, activePineIndicatorId } = get()

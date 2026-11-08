@@ -245,6 +245,8 @@ export function ChartPanel(): React.JSX.Element {
   const theme = useAppStore((s) => s.theme)
   const chartFull = useAppStore((s) => s.chartFull)
   const chartLayout = useAppStore((s) => s.chartLayout)
+  const focusedPane = useAppStore((s) => s.focusedPane)
+  const toggleFocusedPane = useAppStore((s) => s.toggleFocusedPane)
   const toggleChartFull = useAppStore((s) => s.toggleChartFull)
   const pineIndicators = useAppStore((s) => s.pineIndicators)
   const activeTool = useAppStore((s) => s.activeTool)
@@ -331,7 +333,19 @@ export function ChartPanel(): React.JSX.Element {
     markersRef.current = createSeriesMarkers(series, [])
     setChartApi(chart)
     setSeriesApi(series)
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        if (width > 0 && height > 0) {
+          chart.applyOptions({ width, height })
+        }
+      }
+    })
+    ro.observe(el)
+
     return () => {
+      ro.disconnect()
       indicatorsRef.current.clear()
       pinePrimitiveRef.current = null
       pineLinesRef.current = []
@@ -347,7 +361,7 @@ export function ChartPanel(): React.JSX.Element {
       setChartApi(null)
       setSeriesApi(null)
     }
-  }, [theme, chartFull, chartBoot])
+  }, [theme, chartBoot])
 
   useEffect(() => {
     if (!chartApi) return
@@ -421,10 +435,14 @@ export function ChartPanel(): React.JSX.Element {
   useEffect(() => {
     if (!chartApi) return
     const id = setTimeout(() => {
+      const el = hostRef.current
+      if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+        chartApi.applyOptions({ width: el.clientWidth, height: el.clientHeight })
+      }
       chartApi.timeScale().scrollToRealTime()
-    }, 60)
+    }, 40)
     return () => clearTimeout(id)
-  }, [chartLayout, chartApi])
+  }, [chartLayout, chartFull, focusedPane, chartApi])
 
   useEffect(() => {
     if (historyScrollTargetIndex == null || !chartApi) return
@@ -1006,14 +1024,31 @@ export function ChartPanel(): React.JSX.Element {
 
   return (
     <section className="chart-shell panel" ref={shellRef} data-layout={chartLayout}>
-      <div className="multi-chart-grid" data-layout={chartLayout}>
-        <div className="chart-pane primary-pane">
+      <div
+        className="multi-chart-grid"
+        data-layout={chartLayout}
+        data-focused={focusedPane != null ? String(focusedPane) : undefined}
+      >
+        <div className="chart-pane primary-pane" data-index={0}>
           {chartLayout > 1 ? (
             <div className="primary-pane-header">
-              <span className="companion-badge primary-badge">PANE 1 · PRIMARY</span>
-              <span className="primary-pane-info">
-                {symbol} · {displayTimeframe}
-              </span>
+              <div className="companion-title-group">
+                <span className="companion-badge primary-badge">PANE 1 · PRIMARY</span>
+                <span className="primary-pane-info">
+                  {symbol} · {displayTimeframe}
+                </span>
+              </div>
+              <div className="pane-header-right">
+                <button
+                  type="button"
+                  className="icon-btn pane-action-btn"
+                  onClick={() => toggleFocusedPane(0)}
+                  title={focusedPane === 0 ? 'Restore grid view' : 'Maximize this chart'}
+                  aria-label={focusedPane === 0 ? 'Restore grid view' : 'Maximize chart'}
+                >
+                  <Icon name={focusedPane === 0 ? 'compress' : 'expand'} size={12} />
+                </button>
+              </div>
             </div>
           ) : null}
           <button

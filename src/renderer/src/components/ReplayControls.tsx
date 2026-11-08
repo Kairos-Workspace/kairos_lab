@@ -33,6 +33,8 @@ export function ReplayControls(): React.JSX.Element {
   const exitReplayToEntireHistory = useAppStore((s) => s.exitReplayToEntireHistory)
   const setHistoryScrollTargetIndex = useAppStore((s) => s.setHistoryScrollTargetIndex)
   const jumpToHistoryEdge = useAppStore((s) => s.jumpToHistoryEdge)
+  const chartFull = useAppStore((s) => s.chartFull)
+  const toggleChartFull = useAppStore((s) => s.toggleChartFull)
 
   const [showRangeModal, setShowRangeModal] = useState(false)
   const [viewScrubIndex, setViewScrubIndex] = useState<number | null>(null)
@@ -310,6 +312,16 @@ export function ReplayControls(): React.JSX.Element {
         >
           <span className="muted">Period</span>
           <span>{rangeLabel}</span>
+        </button>
+
+        <button
+          type="button"
+          className="icon-btn replay-fullscreen-btn"
+          onClick={toggleChartFull}
+          title={chartFull ? 'Exit full screen (F)' : 'Full screen (F)'}
+          aria-label={chartFull ? 'Exit full screen' : 'Full screen'}
+        >
+          <Icon name={chartFull ? 'compress' : 'expand'} />
         </button>
       </div>
 

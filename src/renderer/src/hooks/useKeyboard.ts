@@ -99,7 +99,8 @@ export function useKeyboard(): void {
           store.toggleChartFull()
           break
         case 'Escape':
-          if (store.chartFull) store.setChartFull(false)
+          if (store.focusedPane !== null) store.setFocusedPane(null)
+          else if (store.chartFull) store.setChartFull(false)
           else if (store.activeTool) store.setActiveTool(null)
           else if (store.selectedDrawingId) store.selectDrawing(null)
           break

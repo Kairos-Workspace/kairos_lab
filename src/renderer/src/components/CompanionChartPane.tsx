@@ -16,6 +16,7 @@ import { chartSkin } from '@core/desk/theme'
 import { TIMEFRAMES, type Candle, type Timeframe } from '@shared/types'
 import { resolvePositionLevels } from './ChartTradeOverlay'
 import { Dropdown } from './Dropdown'
+import { Icon } from './Icon'
 import { useAppStore } from '../store/useAppStore'
 
 interface Props {
@@ -65,6 +66,9 @@ export function CompanionChartPane({ index }: Props): React.JSX.Element {
   const activeTrade = useAppStore((s) => s.activeTrade)
   const horizontalLevels = useAppStore((s) => s.horizontalLevels)
   const theme = useAppStore((s) => s.theme)
+  const chartFull = useAppStore((s) => s.chartFull)
+  const focusedPane = useAppStore((s) => s.focusedPane)
+  const toggleFocusedPane = useAppStore((s) => s.toggleFocusedPane)
 
   const currentCandle = mode === 'replay' ? displayCandles[replayIndex] : null
 
@@ -147,12 +151,36 @@ export function CompanionChartPane({ index }: Props): React.JSX.Element {
     setChartApi(chart)
     setSeriesApi(series)
 
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        if (width > 0 && height > 0) {
+          chart.applyOptions({ width, height })
+        }
+      }
+    })
+    ro.observe(el)
+
     return () => {
+      ro.disconnect()
       chart.remove()
       setChartApi(null)
       setSeriesApi(null)
     }
   }, [theme])
+
+  // Recalibrate and follow real time when workspace frame or pane focus changes
+  useEffect(() => {
+    if (!chartApi) return
+    const id = setTimeout(() => {
+      const el = hostRef.current
+      if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+        chartApi.applyOptions({ width: el.clientWidth, height: el.clientHeight })
+      }
+      chartApi.timeScale().scrollToRealTime()
+    }, 40)
+    return () => clearTimeout(id)
+  }, [chartFull, paneTimeframe, focusedPane, chartApi])
 
   // Push candlestick data to the chart
   useEffect(() => {
@@ -251,29 +279,40 @@ export function CompanionChartPane({ index }: Props): React.JSX.Element {
             className="companion-tf-dropdown"
           />
         </div>
-        {latestBar ? (
-          <div className="companion-ohlc">
-            <span className="ohlc-item">
-              <span className="ohlc-label">O</span>
-              <span className="ohlc-val">{formatPrice(latestBar.open, symbol)}</span>
-            </span>
-            <span className="ohlc-item">
-              <span className="ohlc-label">H</span>
-              <span className="ohlc-val">{formatPrice(latestBar.high, symbol)}</span>
-            </span>
-            <span className="ohlc-item">
-              <span className="ohlc-label">L</span>
-              <span className="ohlc-val">{formatPrice(latestBar.low, symbol)}</span>
-            </span>
-            <span className={`ohlc-item ${latestBar.close >= latestBar.open ? 'text-bull' : 'text-bear'}`}>
-              <span className="ohlc-label">C</span>
-              <span className="ohlc-val">{formatPrice(latestBar.close, symbol)}</span>
-              <span className="ohlc-pct">
-                ({changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%)
+        <div className="pane-header-right">
+          {latestBar ? (
+            <div className="companion-ohlc">
+              <span className="ohlc-item">
+                <span className="ohlc-label">O</span>
+                <span className="ohlc-val">{formatPrice(latestBar.open, symbol)}</span>
               </span>
-            </span>
-          </div>
-        ) : null}
+              <span className="ohlc-item">
+                <span className="ohlc-label">H</span>
+                <span className="ohlc-val">{formatPrice(latestBar.high, symbol)}</span>
+              </span>
+              <span className="ohlc-item">
+                <span className="ohlc-label">L</span>
+                <span className="ohlc-val">{formatPrice(latestBar.low, symbol)}</span>
+              </span>
+              <span className={`ohlc-item ${latestBar.close >= latestBar.open ? 'text-bull' : 'text-bear'}`}>
+                <span className="ohlc-label">C</span>
+                <span className="ohlc-val">{formatPrice(latestBar.close, symbol)}</span>
+                <span className="ohlc-pct">
+                  ({changePct >= 0 ? '+' : ''}{changePct.toFixed(2)}%)
+                </span>
+              </span>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="icon-btn pane-action-btn"
+            onClick={() => toggleFocusedPane(index + 1)}
+            title={focusedPane === index + 1 ? 'Restore grid view' : 'Maximize this chart'}
+            aria-label={focusedPane === index + 1 ? 'Restore grid view' : 'Maximize chart'}
+          >
+            <Icon name={focusedPane === index + 1 ? 'compress' : 'expand'} size={12} />
+          </button>
+        </div>
       </div>
       <div className="companion-chart-host" ref={hostRef} />
     </div>
