@@ -98,6 +98,10 @@ export function useKeyboard(): void {
         case 'F':
           store.toggleChartFull()
           break
+        case 'Home':
+          event.preventDefault()
+          store.snapToPlayhead()
+          break
         case 'Escape':
           if (store.focusedPane !== null) store.setFocusedPane(null)
           else if (store.chartFull) store.setChartFull(false)

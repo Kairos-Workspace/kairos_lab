@@ -1798,6 +1798,68 @@ button:focus-visible {
   color: var(--parchment);
 }
 
+.chart-nav-strip {
+  position: absolute;
+  left: 10px;
+  bottom: 28px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vault) 90%, transparent);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+}
+
+.chart-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+  border-left: 1px solid color-mix(in srgb, var(--rule) 80%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--rule) 80%, transparent);
+}
+
+.chart-nav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.chart-nav-chip-compact {
+  min-width: 34px;
+  justify-content: center;
+  padding: 0 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+}
+
+.chart-nav-chip:hover {
+  color: var(--parchment);
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.chart-nav-chip[data-active='true'] {
+  color: var(--parchment);
+  background: color-mix(in srgb, var(--parchment) 12%, transparent);
+}
+
 .chart-follow-btn {
   position: absolute;
   right: 72px;

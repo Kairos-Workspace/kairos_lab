@@ -586,6 +586,7 @@ plot(ta.ema(close, 50), "EMA 50", color=color.blue, linewidth=2)
   drawingUndoStack: [],
   drawingRedoStack: [],
   chartFull: false,
+  priceScaleLocked: false,
   chartLayout: 1,
   companionTimeframes: ['1H', '4H', '1D'],
   focusedPane: null,

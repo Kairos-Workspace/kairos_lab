@@ -38,36 +38,71 @@ import { chartSkin } from '@core/desk/theme'
 import { useAppStore } from '../store/useAppStore'
 
 const VIEW_BARS = 160
+const ZOOM_PRESETS = [50, 100, 200] as const
 const LOAD_MORE_THRESHOLD = 200
 /** Hard cap on candles fed to lightweight-charts during replay — full tapes stall scroll. */
 const SERIES_WINDOW = 1000
 const SERIES_EXPAND = 500
+const MIN_BAR_SPACING = 4
+const MAX_BAR_SPACING = 18
 
 /** Bumps on every HMR of this file so the chart remounts and drops orphan marker plugins. */
 let CHART_BOOT = 0
 CHART_BOOT += 1
 
+function clampBarSpacing(spacing: number): number {
+  return Math.min(MAX_BAR_SPACING, Math.max(MIN_BAR_SPACING, spacing))
+}
+
+/** Prefer denser candles when zoomed out, wider when zoomed in. */
+function spacingForBars(bars: number): number {
+  if (bars <= 60) return 14
+  if (bars <= 120) return 10
+  if (bars <= 180) return 8
+  return 6
+}
+
 /** Pin the live bar to the right (browse / live tape). */
-function trailingRange(count: number): { from: number; to: number } {
-  const from = Math.max(0, count - VIEW_BARS)
+function trailingRange(count: number, bars = VIEW_BARS): { from: number; to: number } {
+  const from = Math.max(0, count - bars)
   return { from, to: Math.max(count - 1, from + 24) }
 }
 
 /** Keep the replay cursor mid-chart with empty space ahead — backtesting UX. */
-function centeredReplayRange(count: number): { from: number; to: number } {
+function centeredReplayRange(count: number, bars = VIEW_BARS): { from: number; to: number } {
   const current = Math.max(0, count - 1)
   // Bias playhead slightly right of center so history scrolls left as bars print.
-  const rightPad = Math.floor(VIEW_BARS * 0.38)
-  const leftPad = VIEW_BARS - rightPad
+  const rightPad = Math.floor(bars * 0.38)
+  const leftPad = bars - rightPad
   return { from: current - leftPad, to: current + rightPad }
 }
 
 function syncReplayFollowViewport(
   chart: IChartApi,
-  seriesLength: number
+  seriesLength: number,
+  bars = VIEW_BARS
 ): void {
   if (seriesLength <= 0) return
-  chart.timeScale().setVisibleLogicalRange(centeredReplayRange(seriesLength))
+  chart.timeScale().setVisibleLogicalRange(centeredReplayRange(seriesLength, bars))
+}
+
+function applyVisibleBarWindow(
+  chart: IChartApi,
+  bars: number,
+  opts: { follow: boolean; seriesLength: number; mid?: number }
+): void {
+  const scale = chart.timeScale()
+  if (opts.follow && opts.seriesLength > 0) {
+    scale.setVisibleLogicalRange(centeredReplayRange(opts.seriesLength, bars))
+  } else {
+    const prior = scale.getVisibleLogicalRange()
+    const mid =
+      opts.mid ??
+      (prior ? (prior.from + prior.to) / 2 : Math.max(0, opts.seriesLength - 1))
+    const half = bars / 2
+    scale.setVisibleLogicalRange({ from: mid - half, to: mid + half })
+  }
+  scale.applyOptions({ barSpacing: clampBarSpacing(spacingForBars(bars)) })
 }
 
 function replaySeriesSlice(
@@ -206,6 +241,10 @@ export function ChartPanel(): React.JSX.Element {
   const lastVisibleRangeRef = useRef<{ from: number; to: number } | null>(null)
   const seriesLookbackRef = useRef(SERIES_WINDOW)
   const seriesStartRef = useRef(0)
+  /** Preferred visible bar count for Follow + zoom presets. */
+  const zoomBarsRef = useRef(VIEW_BARS)
+  const lockedPriceRef = useRef<{ minValue: number; maxValue: number } | null>(null)
+  const panBrowseRef = useRef<{ active: boolean; x: number } | null>(null)
   /** Cancels in-flight tip morph when a new bar / full paint / unmount wins. */
   const morphGenRef = useRef(0)
   const morphRafRef = useRef(0)
@@ -218,6 +257,7 @@ export function ChartPanel(): React.JSX.Element {
   } | null>(null)
   const [chartApi, setChartApi] = useState<IChartApi | null>(null)
   const [seriesApi, setSeriesApi] = useState<ISeriesApi<'Candlestick'> | null>(null)
+  const [zoomBars, setZoomBars] = useState(VIEW_BARS)
 
   const hasTape = useAppStore((s) => s.displayCandles.length > 0)
   const activeTrade = useAppStore((s) => s.activeTrade)
@@ -236,9 +276,11 @@ export function ChartPanel(): React.JSX.Element {
   const setHistoryViewTarget = useAppStore((s) => s.setHistoryViewTarget)
   const dataset = useAppStore((s) => s.datasets.find((d) => d.id === s.datasetId))
   const replayIndex = useAppStore((s) => s.replayIndex)
-  const isPlaying = useAppStore((s) => s.isPlaying)
   const followReplay = useAppStore((s) => s.followReplay)
   const setFollowReplay = useAppStore((s) => s.setFollowReplay)
+  const snapToPlayhead = useAppStore((s) => s.snapToPlayhead)
+  const priceScaleLocked = useAppStore((s) => s.priceScaleLocked)
+  const togglePriceScaleLocked = useAppStore((s) => s.togglePriceScaleLocked)
   const displayCandles = useAppStore((s) => s.displayCandles)
   const draft = useAppStore((s) => s.draft)
   const settings = useAppStore((s) => s.settings)
@@ -299,6 +341,18 @@ export function ChartPanel(): React.JSX.Element {
         shiftVisibleRangeOnNewBar: false,
         lockVisibleTimeRangeOnResize: true
       },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: false,
+        pinch: true
+      },
+      kineticScroll: { mouse: false, touch: false },
       crosshair: { mode: CrosshairMode.Normal }
     })
 
@@ -316,10 +370,13 @@ export function ChartPanel(): React.JSX.Element {
       lastValueVisible: true,
       priceLineVisible: true,
       autoscaleInfoProvider: () => {
+        if (lockedPriceRef.current) {
+          return { priceRange: lockedPriceRef.current }
+        }
         const range = chart.timeScale().getVisibleLogicalRange()
         const bars = range
           ? visibleSlice(candlesRef.current, range.from, range.to)
-          : candlesRef.current.slice(-VIEW_BARS)
+          : candlesRef.current.slice(-zoomBarsRef.current)
         return { priceRange: priceWindow(bars, extrasRef.current) }
       }
     })
@@ -409,16 +466,61 @@ export function ChartPanel(): React.JSX.Element {
   useEffect(() => {
     const el = hostRef.current
     if (!el) return
-    // Scroll to inspect history without stopping playback — only release follow
-    // so the viewport isn't yanked back to the playhead on every bar.
-    const onWheel = (): void => {
-      const s = useAppStore.getState()
-      if (s.mode !== 'replay' || !s.followReplay) return
-      s.setFollowReplay(false)
+
+    // Ctrl/Meta + wheel zooms; plain wheel pans via LWC and does not drop Follow.
+    const onWheel = (event: WheelEvent): void => {
+      if (!(event.ctrlKey || event.metaKey)) return
+      const chart = chartRef.current
+      if (!chart) return
+      event.preventDefault()
+      const scale = chart.timeScale()
+      const range = scale.getVisibleLogicalRange()
+      if (!range) return
+      const mid = (range.from + range.to) / 2
+      const span = Math.max(8, range.to - range.from)
+      const factor = event.deltaY > 0 ? 1.14 : 1 / 1.14
+      const nextSpan = Math.min(480, Math.max(24, span * factor))
+      const bars = Math.round(nextSpan)
+      zoomBarsRef.current = bars
+      setZoomBars(bars)
+      scale.setVisibleLogicalRange({ from: mid - nextSpan / 2, to: mid + nextSpan / 2 })
+      scale.applyOptions({ barSpacing: clampBarSpacing(spacingForBars(bars)) })
     }
-    el.addEventListener('wheel', onWheel, { passive: true })
+
+    // Drop Follow only on intentional pressed-mouse pan (browse mode).
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.button !== 0) return
+      if (useAppStore.getState().activeTool) return
+      panBrowseRef.current = { active: true, x: event.clientX }
+    }
+    const onPointerMove = (event: PointerEvent): void => {
+      const pan = panBrowseRef.current
+      if (!pan?.active || (event.buttons & 1) === 0) return
+      if (Math.abs(event.clientX - pan.x) < 6) return
+      panBrowseRef.current = null
+      const s = useAppStore.getState()
+      if (s.mode === 'replay' && s.followReplay) s.setFollowReplay(false)
+    }
+    const onPointerUp = (): void => {
+      panBrowseRef.current = null
+    }
+    const onDblClick = (): void => {
+      if (useAppStore.getState().activeTool) return
+      if (useAppStore.getState().mode !== 'replay') return
+      useAppStore.getState().snapToPlayhead()
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: false })
+    el.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    el.addEventListener('dblclick', onDblClick)
     return () => {
       el.removeEventListener('wheel', onWheel)
+      el.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      el.removeEventListener('dblclick', onDblClick)
     }
   }, [])
 
@@ -426,6 +528,9 @@ export function ChartPanel(): React.JSX.Element {
     lastVisibleRangeRef.current = null
     seriesLookbackRef.current = SERIES_WINDOW
     seriesStartRef.current = 0
+    zoomBarsRef.current = VIEW_BARS
+    setZoomBars(VIEW_BARS)
+    lockedPriceRef.current = null
     pineCacheRef.current = null
     prevCount.current = 0
     lastPlottedTimeRef.current = null
@@ -481,8 +586,34 @@ export function ChartPanel(): React.JSX.Element {
     }
     const count = Math.max(0, end - start)
     if (count <= 0) return
-    syncReplayFollowViewport(chartApi, count)
+    syncReplayFollowViewport(chartApi, count, zoomBarsRef.current)
   }, [chartApi, followReplay, mode, replayIndex])
+
+  useEffect(() => {
+    if (!chartApi || !seriesApi) return
+    if (priceScaleLocked) {
+      const range = chartApi.timeScale().getVisibleLogicalRange()
+      const bars = range
+        ? visibleSlice(candlesRef.current, range.from, range.to)
+        : candlesRef.current.slice(-zoomBarsRef.current)
+      const frozen = priceWindow(bars, extrasRef.current)
+      lockedPriceRef.current = frozen
+      chartApi.priceScale('right').applyOptions({ autoScale: false })
+      if (frozen) {
+        try {
+          chartApi.priceScale('right').setVisibleRange({
+            from: frozen.minValue,
+            to: frozen.maxValue
+          })
+        } catch {
+          /* scale may not be ready yet */
+        }
+      }
+    } else {
+      lockedPriceRef.current = null
+      chartApi.priceScale('right').applyOptions({ autoScale: true })
+    }
+  }, [chartApi, seriesApi, priceScaleLocked])
 
   useEffect(() => {
     // Manual recenter on each bar — auto-shift would pin the candle to the right edge.
@@ -695,7 +826,7 @@ export function ChartPanel(): React.JSX.Element {
           lastPlottedTimeRef.current = lastTimeSec
           prevCount.current = count
           applyTradeMarkers(visible)
-          if (follow) syncReplayFollowViewport(chart, count)
+          if (follow) syncReplayFollowViewport(chart, count, zoomBarsRef.current)
           return
         } catch {
           // Series still holds a newer tip (async setData pending / window reset) — full repaint.
@@ -706,7 +837,7 @@ export function ChartPanel(): React.JSX.Element {
       if (mode === 'replay' && !overlayChanged && Math.abs(startDelta) <= SERIES_EXPAND) {
         applySeriesData(visible)
         if (follow) {
-          syncReplayFollowViewport(chart, count)
+          syncReplayFollowViewport(chart, count, zoomBarsRef.current)
         } else if (startDelta !== 0) {
           const prior = chart.timeScale().getVisibleLogicalRange() ?? lastVisibleRangeRef.current
           if (prior) {
@@ -758,7 +889,7 @@ export function ChartPanel(): React.JSX.Element {
           } else if (preserveReplayView && priorRange) {
             chart.timeScale().setVisibleLogicalRange(priorRange)
           } else if (mode === 'replay' && followReplay) {
-            syncReplayFollowViewport(chart, count)
+            syncReplayFollowViewport(chart, count, zoomBarsRef.current)
           } else if (preserveViewHistory && priorRange) {
             chart.timeScale().setVisibleLogicalRange(priorRange)
           } else {
@@ -817,7 +948,7 @@ export function ChartPanel(): React.JSX.Element {
         if (state.followReplay) {
           const chartApiLive = chartRef.current
           if (chartApiLive) {
-            syncReplayFollowViewport(chartApiLive, Math.max(1, end - start))
+            syncReplayFollowViewport(chartApiLive, Math.max(1, end - start), zoomBarsRef.current)
           }
         }
       } catch {
@@ -1088,18 +1219,87 @@ export function ChartPanel(): React.JSX.Element {
                 <p>Choose a symbol in the top bar. The chart loads from the local database.</p>
               </div>
             )}
-            {mode === 'replay' && isPlaying && !followReplay ? (
+            <div className="chart-nav-strip" role="toolbar" aria-label="Chart controls">
+              {mode === 'replay' ? (
+                <button
+                  type="button"
+                  className="chart-nav-chip"
+                  data-active={followReplay}
+                  onClick={() => {
+                    if (followReplay) setFollowReplay(false)
+                    else snapToPlayhead()
+                  }}
+                  title="Chart follows playhead — turn off to look around; Home or double-click to rejoin"
+                  aria-label={followReplay ? 'Following playhead' : 'Follow playhead'}
+                  aria-pressed={followReplay}
+                >
+                  <Icon name="crosshair" size={12} />
+                  <span>Follow</span>
+                </button>
+              ) : null}
+              <div className="chart-nav-group" role="group" aria-label="Zoom presets">
+                {ZOOM_PRESETS.map((bars) => (
+                  <button
+                    key={bars}
+                    type="button"
+                    className="chart-nav-chip chart-nav-chip-compact"
+                    data-active={zoomBars === bars}
+                    onClick={() => {
+                      zoomBarsRef.current = bars
+                      setZoomBars(bars)
+                      if (!chartApi) return
+                      const seriesLength =
+                        mode === 'replay'
+                          ? Math.max(0, Math.min(displayCandles.length, replayIndex + 1) - seriesStartRef.current)
+                          : candlesRef.current.length
+                      applyVisibleBarWindow(chartApi, bars, {
+                        follow: mode === 'replay' && followReplay,
+                        seriesLength
+                      })
+                    }}
+                    title={`Show about ${bars} bars`}
+                  >
+                    {bars}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="chart-nav-chip chart-nav-chip-compact"
+                  data-active={zoomBars === VIEW_BARS}
+                  onClick={() => {
+                    zoomBarsRef.current = VIEW_BARS
+                    setZoomBars(VIEW_BARS)
+                    if (!chartApi) return
+                    const seriesLength =
+                      mode === 'replay'
+                        ? Math.max(0, Math.min(displayCandles.length, replayIndex + 1) - seriesStartRef.current)
+                        : candlesRef.current.length
+                    applyVisibleBarWindow(chartApi, VIEW_BARS, {
+                      follow: mode === 'replay' && followReplay,
+                      seriesLength
+                    })
+                  }}
+                  title={`Reset view (${VIEW_BARS} bars)`}
+                >
+                  Reset
+                </button>
+              </div>
               <button
                 type="button"
-                className="chart-follow-btn"
-                onClick={() => setFollowReplay(true)}
-                title="Re-center on the playhead"
-                aria-label="Follow playhead"
+                className="chart-nav-chip"
+                data-active={priceScaleLocked}
+                onClick={() => togglePriceScaleLocked()}
+                title={
+                  priceScaleLocked
+                    ? 'Unlock price scale (auto-fit Y)'
+                    : 'Lock price scale so pan does not reflow height'
+                }
+                aria-label={priceScaleLocked ? 'Unlock Y scale' : 'Lock Y scale'}
+                aria-pressed={priceScaleLocked}
               >
-                <Icon name="crosshair" size={13} />
-                <span>Follow playhead</span>
+                <span>Lock Y</span>
               </button>
-            ) : null}
+            </div>
             {historyStreaming ? (
               <div className="chart-history-stream-pill" role="status" aria-live="polite">
                 <span className="chart-stream-pulse" />

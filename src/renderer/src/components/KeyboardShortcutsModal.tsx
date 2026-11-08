@@ -45,6 +45,10 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
     title: 'Chart & Layout',
     items: [
       { keys: ['F'], desc: 'Toggle Fullscreen chart vs Desk layout' },
+      { keys: ['Home'], desc: 'Follow playhead / rejoin replay cursor' },
+      { keys: ['Dbl-click'], desc: 'Snap chart back to playhead (replay)' },
+      { keys: ['Ctrl/Cmd', 'Wheel'], desc: 'Zoom chart in / out' },
+      { keys: ['Wheel'], desc: 'Pan chart (does not drop Follow)' },
       { keys: ['Alt', '1-4'], desc: 'Switch 1, 2 (Dual), 3, or 4 (Quad) chart layout' },
       { keys: ['Esc'], desc: 'Restore grid view / Clear tool / Exit fullscreen' },
       { keys: ['?'], desc: 'Open / close this shortcuts help' }
